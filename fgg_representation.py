@@ -1,7 +1,8 @@
 # TODO: write unit tests
 # TODO: improve the comment structure
 # TODO: add static typing with mypy?
-# TODO: add __str__ methods for everything
+# TODO: change how I number nodes/edges to make pretty-printing work better
+# TODO: add custom sorting functions for nodes/edges based on their IDs?
 # TODO: improve how factor functions are defined so they can be updated later / parameters be changed
 
 
@@ -19,6 +20,9 @@ class NodeLabel:
     
     def domain(self):
         return self._domain
+    
+    def __str__(self):
+        return f"NodeLabel {self._name} with Domain {self._domain.name()}"
 
 
 
@@ -53,11 +57,11 @@ class EdgeLabel:
         return factor_function
     
     def set_factor_function(self, func):
-        if is_terminal and factor_function == None:
+        if self._is_terminal and func == None:
             raise Exception(f"Terminal edge label {self._name} is missing a factor function.")
-        if not is_terminal and factor_function != None:
+        if not self._is_terminal and func != None:
             raise Exception(f"Nonterminal edge label {self._name} should not have a factor function.")
-        self._factor_func = factor_function
+        self._factor_func = func
         
     def apply_factor_function(self, args):
         if len(args) != self.arity():
@@ -76,15 +80,36 @@ class EdgeLabel:
                 return False
         return True
 
+    def __str__(self):
+        return self.to_string(0)
+    def to_string(self, indent):
+        string = "\t"*indent
+        if self.is_terminal():
+            string += f"Terminal EdgeLabel {self._name} with arity {self.arity()}"
+        else:
+            string += f"Nonterminal EdgeLabel {self._name} with arity {self.arity()}"
+        if self.arity() != 0:
+            string += " and endpoints of type:"
+            for i, node_label in enumerate(self.type()):
+                string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name()}"
+        return string
+
 
 
 class Node:
     
+    node_count = 0
+    
     # label: a NodeLabel
     def __init__(self, label):
+        Node.node_count += 1
+        self._id     = Node.node_count
         self._label  = label
         self._value  = None
-        
+    
+    def node_id(self):
+        return self._id
+    
     def label(self):
         return self._label
     
@@ -101,18 +126,28 @@ class Node:
     
     def unset_value(self):
         self._value = None
+        
+    def __str__(self):
+        return f"Node {self._id} with NodeLabel {self.label().name()} and value {self.value()}"
 
 
 
 class Edge:
+
+    edge_count = 0
     
     # label: an EdgeLabel
     # nodes: a tuple of Nodes
     def __init__(self, label, nodes):
+        Edge.edge_count += 1
+        self._id     = Edge.edge_count
         if not label.is_applicable_to(nodes):
             raise Exception(f"Can't use edge label {label.name()} with this set of nodes.")
         self._label = label
         self._nodes = nodes
+    
+    def edge_id(self):
+        return self._id
     
     def label(self):
         return self._label
@@ -125,6 +160,22 @@ class Edge:
     
     def apply_factor_function(self):
         self._label.apply_factor_function([node.value() for node in self._nodes])
+    
+    def __str__(self):
+        return self.to_string(0, True)
+    def to_string(self, indent, verbose):
+        arity = len(self.nodes())
+        string = "\t"*indent
+        string += f"Edge {self._id} with EdgeLabel {self.label().name()}, connecting to {arity} nodes"
+        if arity > 0:
+            string += ":"
+            for node in self._nodes:
+                string += "\n\t" + "\t"*indent
+                if verbose:
+                    string += f"{node}"
+                else:
+                    string += f"Node {node.node_id()}"
+        return string
 
 
 
@@ -161,6 +212,22 @@ class FactorGraph:
 
     def set_ext(self, nodes):
         self._ext = tuple(nodes)
+    
+    def __str__(self):
+        return self.to_string(0)
+    def to_string(self, indent):
+        num_nodes = len(self._nodes)
+        num_edges = len(self._edges)
+        string = "\t"*indent + f"Factor graph with {num_nodes} nodes and {num_edges} edges"
+        if num_nodes > 0:
+            string += "\n" + "\t"*indent + "Nodes:"
+            for node in self._nodes:
+                string += "\n\t" + "\t"*indent + f"{node}"
+        if num_edges > 0:
+            string += "\n" + "\t"*indent + "Edges:"
+            for edge in self._edges:
+                string += "\n" + edge.to_string(indent+1, False)
+        return string
 
 
 
@@ -177,6 +244,14 @@ class FGGRule:
     
     def rhs(self):
         return self._rhs
+    
+    def __str__(self):
+        return self.to_string(0)
+    def to_string(self, indent):
+        string = "\t"*indent
+        string += f"FGGRule with left-hand side {self._lhs.name()} and right-hand side as follows:\n"
+        string += self._rhs.to_string(indent+1)
+        return string
 
 
 
@@ -236,5 +311,20 @@ class FGGRepresentation:
         if lhs not in self._rules:
             self._rules[lhs] = set()
         self._rules[lhs].add(rule)
-
-
+    
+    def __str__(self):
+        string = "Factor graph grammar with:"
+        string += "\n\tNode labels:"
+        for label_name in self._node_labels:
+            string += f"\n\t\t{self._node_labels[label_name]}"
+        string += "\n\tEdge labels:"
+        for label_name in self._nonterminals:
+            string += f"\n{self._nonterminals[label_name].to_string(2)}"
+        for label_name in self._terminals:
+            string += f"\n{self._terminals[label_name].to_string(2)}"
+        string += f"\n\tStart symbol {self._start.name()}"
+        string += f"\n\tProductions:"
+        for nonterminal in self._rules:
+            for rule in self._rules[nonterminal]:
+                string += f"\n{rule.to_string(2)}"
+        return string
