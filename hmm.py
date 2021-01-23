@@ -1,4 +1,4 @@
-from fgg_representation import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRepresentation
+from fgg_representation import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRule, FGGRepresentation
 from domain import FiniteDomain
 
 # Define the node labels.
@@ -78,7 +78,8 @@ S_rhs.add_node(S_rhs_t1)
 S_rhs.add_edge(S_rhs_fac)
 S_rhs.add_edge(S_rhs_x2)
 
-hmm.add_rule(S, S_rhs)
+S_rule1 = FGGRule(S, S_rhs)
+hmm.add_rule(S_rule1)
 
 X_rhs1_t1   = Node(T)
 X_rhs1_t2   = Node(T)
@@ -88,14 +89,16 @@ X_rhs1_fac2 = Edge(etable, (X_rhs1_t2, X_rhs1_w3))
 X_rhs1_x4   = Edge(X, (X_rhs1_t2,))
 
 X_rhs1 = FactorGraph()
-X_rhs1.add_ext_node(X_rhs1_t1)
+X_rhs1.add_node(X_rhs1_t1)
 X_rhs1.add_node(X_rhs1_t2)
 X_rhs1.add_node(X_rhs1_w3)
 X_rhs1.add_edge(X_rhs1_fac1)
 X_rhs1.add_edge(X_rhs1_fac2)
 X_rhs1.add_edge(X_rhs1_x4)
+X_rhs1.set_ext([X_rhs1_t1])
 
-hmm.add_rule(X, X_rhs1)
+X_rule1 = FGGRule(X, X_rhs1)
+hmm.add_rule(X_rule1)
 
 X_rhs2_t1   = Node(T)
 X_rhs2_t2   = Node(T)
@@ -103,9 +106,11 @@ X_rhs2_fac1 = Edge(ttable, (X_rhs2_t1, X_rhs2_t2))
 X_rhs2_fac2 = Edge(bos, (X_rhs2_t2,))
 
 X_rhs2 = FactorGraph()
-X_rhs2.add_ext_node(X_rhs2_t1)
+X_rhs2.add_node(X_rhs2_t1)
 X_rhs2.add_node(X_rhs2_t2)
 X_rhs2.add_edge(X_rhs2_fac1)
 X_rhs2.add_edge(X_rhs2_fac2)
+X_rhs2.set_ext([X_rhs2_t1])
 
-hmm.add_rule(X, X_rhs2)
+X_rule2 = FGGRule(X, X_rhs2)
+hmm.add_rule(X_rule2)

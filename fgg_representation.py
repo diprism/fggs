@@ -34,13 +34,8 @@ class EdgeLabel:
     def __init__(self, name, is_terminal, node_labels, factor_function):
         self._name        = name
         self._is_terminal = is_terminal
-        self._arity       = len(node_labels)
         self._node_labels = node_labels
-        if is_terminal and factor_function == None:
-            raise Exception(f"Terminal edge label {name} is missing a factor function.")
-        if not is_terminal and factor_function != None:
-            raise Exception(f"Nonterminal edge label {name} should not have a factor function.")
-        self._factor_func = factor_function
+        self.set_factor_function(factor_function)
 
     def name(self):
         return self._name
@@ -49,19 +44,32 @@ class EdgeLabel:
         return self._is_terminal
         
     def arity(self):
-        return self._arity
+        return len(self._node_labels)
+        
+    def type(self):
+        return self._node_labels
+    
+    def factor_function(self):
+        return factor_function
+    
+    def set_factor_function(self, func):
+        if is_terminal and factor_function == None:
+            raise Exception(f"Terminal edge label {self._name} is missing a factor function.")
+        if not is_terminal and factor_function != None:
+            raise Exception(f"Nonterminal edge label {self._name} should not have a factor function.")
+        self._factor_func = factor_function
         
     def apply_factor_function(self, args):
-        if len(args) != self._arity:
-            return None
+        if len(args) != self.arity():
+            raise Exception(f"Factor function for edge lable {self._name} is not applicable to arguments {args}.")
         for i in range(self._arity):
             if not self._node_labels[i].domain().contains(args[i]):
-                return None
+                raise Exception(f"Factor function for edge lable {self._name} is not applicable to arguments {args}.")
         return self._factor_func(*args) # the * unpacks the list
 
-    # checks whether a label fits a set of nodes
+    # checks whether a label fits a list of nodes
     def is_applicable_to(self, nodes):
-        if len(nodes) != self._arity:
+        if len(nodes) != self.arity():
             return False
         for i, node in enumerate(nodes):
             if node.label() != self._node_labels[i]:
@@ -87,7 +95,7 @@ class Node:
         return self._value
     
     def set_value(self, val):
-        if not self._label.domain().contains(val):
+        if (val != None) and (not self._label.domain().contains(val)):
             raise Exception(f"Node with label {self._label.name()} cannot take value {val}.")
         self._value = val
     
@@ -102,17 +110,13 @@ class Edge:
     # nodes: a tuple of Nodes
     def __init__(self, label, nodes):
         if not label.is_applicable_to(nodes):
-            raise Exception(f"Can't use edge label {label.name()} in this context.")
+            raise Exception(f"Can't use edge label {label.name()} with this set of nodes.")
         self._label = label
         self._nodes = nodes
-        self._arity = len(nodes)
     
     def label(self):
         return self._label
 
-    def arity(self):
-        return self._arity
-    
     def nodes(self):
         return self._nodes
     
@@ -129,7 +133,7 @@ class FactorGraph:
     def __init__(self):
         self._nodes = set()
         self._edges = set()
-        self._ext   = set()
+        self._ext   = tuple()
     
     def nodes(self):
         return list(self._nodes)
@@ -138,7 +142,13 @@ class FactorGraph:
         return list(self._edges)
     
     def ext(self):
-        return list(self._ext)
+        return self._ext
+    
+    def arity(self):
+        return len(self._ext)
+    
+    def type(self):
+        return tuple([node.label() for node in self._ext])
     
     def add_node(self, node):
         self._nodes.add(node)
@@ -149,11 +159,26 @@ class FactorGraph:
                 self._nodes.add(node)
         self._edges.add(edge)
 
-    def add_ext_node(self, node):
-        self._nodes.add(node)
-        self._ext.add(node)
+    def set_ext(self, nodes):
+        self._ext = tuple(nodes)
+
+
+
+class FGGRule:
     
+    def __init__(self, lhs, rhs):
+        if (lhs.type() != rhs.type()):
+            raise Exception(f"Can't make FGG rule: left-hand side of type {lhs.type()} not compatible with right-hand side of type {rhs.type()}.")
+        self._lhs = lhs
+        self._rhs = rhs
     
+    def lhs(self):
+        return self._lhs
+    
+    def rhs(self):
+        return self._rhs
+
+
 
 class FGGRepresentation:
     
@@ -195,7 +220,11 @@ class FGGRepresentation:
         self.add_nonterminal(start)
         self._start = start
     
-    def add_rule(self, lhs, rhs):
+    # TODO: this does not check to make sure these nodes and edges haven't been used in
+    #       some other rule, but maybe it should
+    def add_rule(self, rule):
+        lhs = rule.lhs()
+        rhs = rule.rhs()
         self.add_nonterminal(lhs)
         for node in rhs.nodes():
             self.add_node_label(node.label())
@@ -206,6 +235,6 @@ class FGGRepresentation:
                 self.add_nonterminal(edge.label())
         if lhs not in self._rules:
             self._rules[lhs] = set()
-        self._rules[lhs].add(rhs)
+        self._rules[lhs].add(rule)
 
 
