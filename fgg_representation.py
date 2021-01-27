@@ -1,6 +1,6 @@
-# TODO: write unit tests
 # TODO: improve the comment structure
 # TODO: add static typing with mypy?
+# TODO: figure out how to do type checking on functions
 # TODO: change how I number nodes/edges to make pretty-printing work better
 # TODO: add custom sorting functions for nodes/edges based on their IDs?
 # TODO: improve how factor functions are defined so they can be updated later / parameters be changed
@@ -54,7 +54,7 @@ class EdgeLabel:
         return self._node_labels
     
     def factor_function(self):
-        return factor_function
+        return self._factor_func
     
     def set_factor_function(self, func):
         if self._is_terminal and func == None:
@@ -64,9 +64,11 @@ class EdgeLabel:
         self._factor_func = func
         
     def apply_factor_function(self, args):
+        if not self.is_terminal():
+            raise Exception(f"Cannot apply factor function because nonterminal edge label {self._name} does not have a factor function.")
         if len(args) != self.arity():
             raise Exception(f"Factor function for edge lable {self._name} is not applicable to arguments {args}.")
-        for i in range(self._arity):
+        for i in range(self.arity()):
             if not self._node_labels[i].domain().contains(args[i]):
                 raise Exception(f"Factor function for edge lable {self._name} is not applicable to arguments {args}.")
         return self._factor_func(*args) # the * unpacks the list
@@ -159,7 +161,7 @@ class Edge:
         return self._nodes[i]
     
     def apply_factor_function(self):
-        self._label.apply_factor_function([node.value() for node in self._nodes])
+        return self._label.apply_factor_function([node.value() for node in self._nodes])
     
     def __str__(self):
         return self.to_string(0, True)
@@ -211,6 +213,9 @@ class FactorGraph:
         self._edges.add(edge)
 
     def set_ext(self, nodes):
+        for node in nodes:
+            if node not in self._nodes:
+                self._nodes.add(node)
         self._ext = tuple(nodes)
     
     def __str__(self):
@@ -234,6 +239,8 @@ class FactorGraph:
 class FGGRule:
     
     def __init__(self, lhs, rhs):
+        if lhs.is_terminal():
+            raise Exception(f"Can't make FGG rule with terminal lef-hand side.")
         if (lhs.type() != rhs.type()):
             raise Exception(f"Can't make FGG rule: left-hand side of type {lhs.type()} not compatible with right-hand side of type {rhs.type()}.")
         self._lhs = lhs
@@ -270,36 +277,57 @@ class FGGRepresentation:
             if self._node_labels[name] != label:
                 raise Exception(f"There is already a node label with name {name}.")
         self._node_labels[label.name()] = label
-    
+
+    def node_labels(self):
+        return [self._node_labels[name] for name in self._node_labels]
+
     def add_nonterminal(self, label):
+        if label.is_terminal():
+            raise Exception(f"Can't add terminal edge label {label.name()} as a nonterminal.")
+            
         name = label.name()
         if name in self._nonterminals:
             if self._nonterminals[name] != label:
                 raise Exception(f"There is already a nonterminal called {name}.")
         if name in self._terminals:
             raise Exception(f"Cannot have both a terminal and nonterminal with name {name}.")
+
         self._nonterminals[name] = label
     
+    def nonterminals(self):
+        return [self._nonterminals[name] for name in self._nonterminals]
+    
     def add_terminal(self, label):
+        if not label.is_terminal():
+            raise Exception(f"Can't add nonterminal edge label {label.name()} as a terminal.")
+        
         name = label.name()
         if name in self._terminals:
             if self._terminals[name] != label:
                 raise Exception(f"There is already a terminal called {name}.")
         if name in self._nonterminals:
             raise Exception(f"Cannot have both a terminal and nonterminal with name {name}.")
+        
         self._terminals[name] = label
 
+    def terminals(self):
+        return [self._terminals[name] for name in self._terminals]
+    
     def set_start_symbol(self, start):
         if start.arity() != 0:
             raise Exception("Start symbol must have arity 0.")
         self.add_nonterminal(start)
         self._start = start
-    
+
+    def start_symbol(self):
+        return self._start
+        
     # TODO: this does not check to make sure these nodes and edges haven't been used in
     #       some other rule, but maybe it should
     def add_rule(self, rule):
         lhs = rule.lhs()
         rhs = rule.rhs()
+        
         self.add_nonterminal(lhs)
         for node in rhs.nodes():
             self.add_node_label(node.label())
@@ -308,9 +336,17 @@ class FGGRepresentation:
                 self.add_terminal(edge.label())
             else:
                 self.add_nonterminal(edge.label())
-        if lhs not in self._rules:
-            self._rules[lhs] = set()
-        self._rules[lhs].add(rule)
+        
+        lhs_name = lhs.name()
+        if lhs_name not in self._rules:
+            self._rules[lhs_name] = set()
+        self._rules[lhs_name].add(rule)
+
+    def all_rules(self):
+        return [rule for nt_name in self._rules for rule in self._rules[nt_name]]
+    
+    def rules(self, nt_name):
+        return [rule for rule in self._rules[nt_name]]
     
     def __str__(self):
         string = "Factor graph grammar with:"
