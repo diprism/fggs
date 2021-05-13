@@ -162,7 +162,14 @@ def fgg_to_tikz(g, factor_formats=None):
     res = []
     res.append(r'\begin{align*}')
     for r in g.all_rules():
-        res.append(f'\mbox{{{r.lhs().name()}}} &\longrightarrow ' + factorgraph_to_tikz(r.rhs(), factor_formats, r.lhs()) + r'\\')
+        # Build a little factor graph for the lhs
+        lhs = fggs.FactorGraph()
+        lhs.add_edge(fggs.Edge(r.lhs(), [fggs.Node(x) for x in r.lhs().type()]))
+        lhs.set_ext(lhs.nodes())
+        
+        res.append(factorgraph_to_tikz(lhs, factor_formats, r.lhs()) +
+                   ' &\longrightarrow ' +
+                   factorgraph_to_tikz(r.rhs(), factor_formats, r.lhs()) + r'\\')
     res.append(r'\end{align*}')
     return '\n'.join(res)
 
