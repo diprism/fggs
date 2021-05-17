@@ -7,7 +7,7 @@ def _get_format(factor_formats, x, i):
         x.name() not in factor_formats):
         return ('', str(i+1))
     fmt = factor_formats[x.name()][i]
-    if len(fmt) > 0 and fmt[0] in '<>=':
+    if len(fmt) > 0 and fmt[0] in '<>^_':
         return (fmt[0], fmt[1:])
     else:
         return ('', fmt)
@@ -61,12 +61,25 @@ def factorgraph_to_dot(g: fggs.FactorGraph, factor_formats=None, lhs=None):
                                         order=i+1,
                                         label=format[1],
                 ))
+            elif format[0] == '^':
+                sub = pydot.Subgraph(rank='same')
+                sub.add_node(pydot.Node(f'v{v.node_id()}'))
+                sub.add_node(pydot.Node(f'e{e.edge_id()}'))
+                dot.add_subgraph(sub)
+                dot.add_edge(pydot.Edge(f'v{v.node_id()}', f'e{e.edge_id()}',
+                                        order=i+1,
+                                        label=format[1],
+                ))
+            elif format[0] == '_':
+                sub = pydot.Subgraph(rank='same')
+                sub.add_node(pydot.Node(f'v{v.node_id()}'))
+                sub.add_node(pydot.Node(f'e{e.edge_id()}'))
+                dot.add_subgraph(sub)
+                dot.add_edge(pydot.Edge(f'e{e.edge_id()}', f'v{v.node_id()}',
+                                        order=i+1,
+                                        label=format[1],
+                ))
             else:
-                if format[0] == '=':
-                    sub = pydot.Subgraph(rank='same')
-                    sub.add_node(pydot.Node(f'v{v.node_id()}'))
-                    sub.add_node(pydot.Node(f'e{e.edge_id()}'))
-                    dot.add_subgraph(sub)
                 dot.add_edge(pydot.Edge(f'v{v.node_id()}', f'e{e.edge_id()}',
                                         order=i+1,
                                         label=format[1],
@@ -77,8 +90,7 @@ def factorgraph_to_dot(g: fggs.FactorGraph, factor_formats=None, lhs=None):
         attrs = dv.get_attributes()
         attrs['ext'] = i+1
         attrs['style'] = 'filled'
-        attrs['label'] = _get_format(factor_formats, lhs, i)[1]
-        attrs['fontcolor'] = 'white'
+        attrs['xlabel'] = _get_format(factor_formats, lhs, i)[1]
         attrs['fillcolor'] = 'black'
         
     return dot
@@ -127,13 +139,11 @@ def factorgraph_to_tikz(g: fggs.FactorGraph, factor_formats=None, lhs=None):
     for v in g.nodes():
         vid = v.node_id()
         if vid in ext:
-            style = 'ext'
-            label = _get_format(factor_formats, lhs, ext[vid])[1]
+            style = f'ext,label={_get_format(factor_formats, lhs, ext[vid])[1]}'
         else:
             style = 'var'
-            label = ''
         x, y = positions[f'v{vid}']
-        res.append(rf'  \node [{style}] (v{vid}) at ({x}pt,{y}pt) {{{label}}};')
+        res.append(rf'  \node [{style}] (v{vid}) at ({x}pt,{y}pt) {{}};')
     for e in g.edges():
         x, y = positions[f'e{e.edge_id()}']
         if e.label().is_terminal():
@@ -165,7 +175,6 @@ def fgg_to_tikz(g, factor_formats=None):
         # Build a little factor graph for the lhs
         lhs = fggs.FactorGraph()
         lhs.add_edge(fggs.Edge(r.lhs(), [fggs.Node(x) for x in r.lhs().type()]))
-        lhs.set_ext(lhs.nodes())
         
         res.append(factorgraph_to_tikz(lhs, factor_formats, r.lhs()) +
                    ' &\longrightarrow ' +
@@ -182,7 +191,7 @@ if __name__ == "__main__":
         'BOS': ['>'],
         'EOS': ['<'],
         'Ttable': ['<prev', '>cur'],
-        'Etable': ['=tag', '=word'],
+        'Etable': ['^tag', '_word'],
     }
 
     with open('viz.tex', 'w') as outfile:
