@@ -1,6 +1,7 @@
 import unittest
 
-from domain import Domain, FiniteDomain
+from domains import Domain, FiniteDomain
+from factors import Factor, ConstantFactor
 from fgg_representation import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRule, FGGRepresentation
 
 
@@ -12,8 +13,8 @@ class TestEdgeLabel(unittest.TestCase):
         self.nl1 = NodeLabel("nl1", self.dom)
         self.nl2 = NodeLabel("nl2", self.dom)
         self.nl3 = NodeLabel("nl3", self.dom)
-        self.fac1 = lambda v1, v2, v3: 5
-        self.fac2 = lambda v1, v2, v3: 6
+        self.fac1 = ConstantFactor('k5', 5)
+        self.fac2 = ConstantFactor('k6', 6)
         self.terminal    = EdgeLabel("t", True, (self.nl1, self.nl2, self.nl3), self.fac1)
         self.nonterminal = EdgeLabel("nt", False, (self.nl1, self.nl2), None)
 
@@ -33,29 +34,29 @@ class TestEdgeLabel(unittest.TestCase):
     def test_type(self):
         self.assertEqual(self.terminal.type(), (self.nl1, self.nl2, self.nl3))
     
-    def test_set_factor_function(self):
-        self.assertEqual(self.terminal.factor_function(), self.fac1)
-        self.terminal.set_factor_function(self.fac2)
-        self.assertEqual(self.terminal.factor_function(), self.fac2)
+    def test_set_factor(self):
+        self.assertEqual(self.terminal.factor(), self.fac1)
+        self.terminal.set_factor(self.fac2)
+        self.assertEqual(self.terminal.factor(), self.fac2)
 
-    def test_set_factor_function_bad_input(self):
-        with self.assertRaises(Exception):
-            self.terminal.set_factor_function(None)
-        with self.assertRaises(Exception):
-            self.nonterminal.set_factor_function(self.fac1)
+    def test_set_factor_bad_input(self):
+        with self.assertRaises(ValueError):
+            self.terminal.set_factor(None)
+        with self.assertRaises(ValueError):
+            self.nonterminal.set_factor(self.fac1)
     
-    def test_apply_factor_function(self):
-        self.assertEqual(self.terminal.apply_factor_function([1,2,3]), 5)
+    def test_apply_factor(self):
+        self.assertEqual(self.terminal.apply_factor([1,2,3]), 5)
     
-    def test_apply_factor_function_nonterminal(self):
+    def test_apply_factor_nonterminal(self):
         with self.assertRaises(Exception):
-            self.nonterminal.apply_factor_function([0,0,0])
+            self.nonterminal.apply_factor([0,0,0])
         
-    def test_apply_factor_function_bad_input(self):
+    def test_apply_factor_bad_input(self):
         with self.assertRaises(Exception):
-            self.terminal.apply_factor_function([1])
+            self.terminal.apply_factor([1])
         with self.assertRaises(Exception):
-            self.terminal.apply_factor_function([6,6,6])
+            self.terminal.apply_factor([6,6,6])
     
     def test_is_applicable_to(self):
         node1 = Node(self.nl1)
@@ -109,7 +110,7 @@ class TestEdge(unittest.TestCase):
         self.node1 = Node(self.nl1)
         self.node2 = Node(self.nl2)
         
-        self.fac   = lambda v1, v2: (v1, v2)
+        self.fac   = ConstantFactor('k42', 42)
         self.el1   = EdgeLabel("el1", True, (self.nl1, self.nl2), self.fac)
         self.el2   = EdgeLabel("el2", False, (self.nl2,), None)
         
@@ -127,17 +128,17 @@ class TestEdge(unittest.TestCase):
     def test_node_at(self):
         self.assertEqual(self.edge1.node_at(1), self.node2)
     
-    def test_apply_factor_function(self):
+    def test_apply_factor(self):
         # edge is a nonterminal
         with self.assertRaises(Exception):
-            self.edge2.apply_factor_function()
+            self.edge2.apply_factor()
         # node values not set
         with self.assertRaises(Exception):
-            self.edge1.apply_factor_function()
+            self.edge1.apply_factor()
         # node values set
         self.node1.set_value(1)
         self.node2.set_value(2)
-        self.assertEqual(self.edge1.apply_factor_function(), (1,2))
+        self.assertEqual(self.edge1.apply_factor(), 42)
 
 
 
@@ -356,3 +357,7 @@ class TestFGGRepresentation(unittest.TestCase):
         self.assertTrue(new_nl in self.fgg.node_labels())
         self.assertTrue(new_nt in self.fgg.nonterminals())
         self.assertTrue(new_t  in self.fgg.terminals())
+        
+if __name__ == "__main__":
+    unittest.main()
+    
