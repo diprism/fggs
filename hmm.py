@@ -119,7 +119,7 @@ hmm.add_rule(X_rule1)
 X_rhs2_t1   = Node(T)
 X_rhs2_t2   = Node(T)
 X_rhs2_fac1 = Edge(ttable, (X_rhs2_t1, X_rhs2_t2))
-X_rhs2_fac2 = Edge(bos, (X_rhs2_t2,))
+X_rhs2_fac2 = Edge(eos, (X_rhs2_t2,))
 
 X_rhs2 = FactorGraph()
 X_rhs2.add_node(X_rhs2_t1)
