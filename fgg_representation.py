@@ -388,4 +388,3 @@ class FGGRepresentation:
             for rule in self._rules[nonterminal]:
                 string += f"\n{rule.to_string(2)}"
         return string
-
