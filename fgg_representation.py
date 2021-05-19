@@ -237,14 +237,21 @@ class FactorGraph:
 
 
 class FGGRule:
+
+    rule_count = 0
     
     def __init__(self, lhs, rhs):
         if lhs.is_terminal():
             raise Exception(f"Can't make FGG rule with terminal left-hand side.")
         if (lhs.type() != rhs.type()):
             raise Exception(f"Can't make FGG rule: left-hand side of type ({','.join(l.name() for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name() for l in rhs.type())}).")
+        FGGRule.rule_count += 1
+        self._id  = FGGRule.rule_count
         self._lhs = lhs
         self._rhs = rhs
+
+    def rule_id(self):
+        return self._id
     
     def lhs(self):
         return self._lhs
@@ -382,79 +389,3 @@ class FGGRepresentation:
                 string += f"\n{rule.to_string(2)}"
         return string
 
-class Numberizer:
-    def __init__(self, objs):
-        self.num_to_obj = list(objs)
-        self.obj_to_num = {x:i for i,x in enumerate(self.num_to_obj)}
-    def numberize(self, obj):
-        return self.obj_to_num[obj]
-    def denumberizer(self, num):
-        return self.num_to_obj[num]
-    def __len__(self):
-        return len(self.num_to_obj)
-    
-def fgg_from_json(j):
-    """Convert an object loaded by json.load to an FGG."""
-    import domain
-    import torch
-    g = FGGRepresentation()
-    
-    domains = {}
-    numberizers = {}
-    for name, d in j['domains'].items():
-        if d['class'] == 'finite':
-            numberizers[name] = Numberizer(d['values'])
-            domains[name] = domain.FiniteDomain(name, set(d['values']))
-        else:
-            raise ValueError(f'invalid domain class: {d["type"]}')
-        g.add_node_label(NodeLabel(name, domains[name]))
-
-    for name, d in j['factors'].items():
-        if d['function'] == 'categorical':
-            size = [len(numberizers[l]) for l in d['type']]
-            param = torch.empty(size, requires_grad=True)
-            def f(*args):
-                return param[args]
-        elif d['function'] == 'constant':
-            size = [len(numberizers[l]) for l in d['type']]
-            weights = torch.tensor(d['weights'])
-            if list(weights.size()) != size:
-                raise ValueError(f'weight tensor has wrong size (expected {size}, actual {list(weights.size())}')
-            def f(*args):
-                return weights[args]
-        else:
-            raise ValueError(f'invalid factor function: {d["function"]}')
-        t = tuple(g.get_node_label(l) for l in d['type'])
-        g.add_terminal(EdgeLabel(name, True, t, f))
-
-    for nt, d in j['nonterminals'].items():
-        t = tuple(g.get_node_label(l) for l in d['type'])
-        g.add_nonterminal(EdgeLabel(nt, False, t, None))
-    g.set_start_symbol(g.get_nonterminal(j['start']))
-
-    for r in j['rules']:
-        lhs = g.get_nonterminal(r['lhs'])
-        rhs = FactorGraph()
-        nodes = []
-        for label in r['rhs']['nodes']:
-            v = Node(g.get_node_label(label))
-            nodes.append(v)
-            rhs.add_node(v)
-        for e in r['rhs']['edges']:
-            att = []
-            for v in e['attachments']:
-                try:
-                    att.append(nodes[v])
-                except IndexError:
-                    raise ValueError(f'invalid attachment node {v} (out of {len(nodes)})')
-            rhs.add_edge(Edge(g.get_edge_label(e['label']), att))
-        ext = []
-        for v in r['rhs'].get('externals', []):
-            try:
-                ext.append(nodes[v])
-            except IndexError:
-                raise ValueError(f'invalid external node {v} (out of {len(nodes)})')
-        rhs.set_ext(ext)
-        g.add_rule(FGGRule(lhs, rhs))
-        
-    return g
