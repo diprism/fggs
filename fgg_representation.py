@@ -95,8 +95,7 @@ class EdgeLabel:
                 string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name()}"
         return string
 
-
-
+    
 class Node:
     
     node_count = 0

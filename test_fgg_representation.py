@@ -13,8 +13,8 @@ class TestEdgeLabel(unittest.TestCase):
         self.nl1 = NodeLabel("nl1", self.dom)
         self.nl2 = NodeLabel("nl2", self.dom)
         self.nl3 = NodeLabel("nl3", self.dom)
-        self.fac1 = ConstantFactor('k5', 5)
-        self.fac2 = ConstantFactor('k6', 6)
+        self.fac1 = ConstantFactor('k5', [self.dom]*3, 5)
+        self.fac2 = ConstantFactor('k6', [self.dom]*2, 6)
         self.terminal    = EdgeLabel("t", True, (self.nl1, self.nl2, self.nl3), self.fac1)
         self.nonterminal = EdgeLabel("nt", False, (self.nl1, self.nl2), None)
 
@@ -110,7 +110,7 @@ class TestEdge(unittest.TestCase):
         self.node1 = Node(self.nl1)
         self.node2 = Node(self.nl2)
         
-        self.fac   = ConstantFactor('k42', 42)
+        self.fac   = ConstantFactor('k42', [self.dom]*2, 42)
         self.el1   = EdgeLabel("el1", True, (self.nl1, self.nl2), self.fac)
         self.el2   = EdgeLabel("el2", False, (self.nl2,), None)
         
