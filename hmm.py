@@ -1,60 +1,40 @@
 from fgg_representation import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRule, FGGRepresentation
-from domain import FiniteDomain
+from domains import FiniteDomain
+from factors import CategoricalFactor
+import torch
 
 # Define the node labels.
-tagset = FiniteDomain("tagset", {"<s>", "Det", "N", "V", "</s>"})
-vocab  = FiniteDomain("vocabulary", {"a", "the", "dog", "cat", "chased", "kicked"})
+tagset = FiniteDomain("tagset", ["<s>", "Det", "N", "V", "</s>"])
+vocab  = FiniteDomain("vocabulary", ["a", "the", "dog", "cat", "chased", "kicked"])
 T = NodeLabel("T", tagset)
 W = NodeLabel("W", vocab)
 
 # Define the nonterminals.
-S = EdgeLabel("S", False, (), None)
-X = EdgeLabel("X", False, (T,), None)
+S = EdgeLabel("S", False, ())
+X = EdgeLabel("X", False, (T,))
 
 # Define the terminals.
-def make_constraint_function(value):
-    def constraint_function(input_value):
-        if input_value == value:
-            return 1
-        else:
-            return 0
-    return constraint_function
+def make_constraint_factor(domain, value):
+    weights = torch.zeros(domain.size())
+    weights[domain.numberize(value)] = 1.
+    return CategoricalFactor(f'={value}', [domain], weights)
 
-def transition_table(t1, t2):
-    if (t1 == "<s>"):
-        if (t2 == "Det"):
-            return 1.0
-    elif (t1 == "Det"):
-        if (t2 == "N"):
-            return 1.0
-    elif (t1 == "N"):
-        if (t2 == "V"):
-            return 0.5
-        elif (t2 == "</s>"):
-            return 0.5
-    elif (t1 == "V"):
-        if (t2 == "N"):
-            return 0.5
-        elif (t2 == "</s>"):
-            return 0.5
-    return 0.0
-
-def emission_probs(t, w):
-    if (t == "Det"):
-        if (w == "a") or (v == "the"):
-            return 0.5
-    elif (t == "N"):
-        if (w == "cat") or (v == "dog"):
-            return 0.5
-    elif (t == "V"):
-        if (w == "chased") or (v == "kicked"):
-            return 0.5
-    return 0.0
-
-bos    = EdgeLabel("BOS", True, (T,), make_constraint_function("<s>"))
-eos    = EdgeLabel("EOS", True, (T,), make_constraint_function("</s>"))
-ttable = EdgeLabel("Ttable", True, (T, T), transition_table)
-etable = EdgeLabel("Etable", True, (T, W), emission_probs)
+bos    = EdgeLabel("BOS", True, (T,), make_constraint_factor(tagset, "<s>"))
+eos    = EdgeLabel("EOS", True, (T,), make_constraint_factor(tagset, "</s>"))
+ttable = EdgeLabel("Ttable", True, (T, T),
+                   CategoricalFactor('Ttable', [tagset, tagset],
+                                     torch.tensor([[0, 1, 0,   0,   0],
+                                                   [0, 0, 1,   0,   0],
+                                                   [0, 0, 0,   0.5, 0.5],
+                                                   [0, 0, 0.5, 0,   0.5],
+                                                   [0, 0, 0,   0,   0]])))
+etable = EdgeLabel("Etable", True, (T, W),
+                   CategoricalFactor('Etable', [tagset, vocab],
+                                     torch.tensor([[0,   0,   0,   0,   0,   0],
+                                                   [0.5, 0.5, 0,   0,   0,   0],
+                                                   [0,   0,   0.5, 0.5, 0,   0],
+                                                   [0,   0,   0,   0,   0.5, 0.5],
+                                                   [0,   0,   0,   0,   0,   0]])))
 
 # Define the FGG.
 hmm = FGGRepresentation()

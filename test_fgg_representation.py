@@ -16,11 +16,11 @@ class TestEdgeLabel(unittest.TestCase):
         self.fac1 = ConstantFactor('k5', [self.dom]*3, 5)
         self.fac2 = ConstantFactor('k6', [self.dom]*2, 6)
         self.terminal    = EdgeLabel("t", True, (self.nl1, self.nl2, self.nl3), self.fac1)
-        self.nonterminal = EdgeLabel("nt", False, (self.nl1, self.nl2), None)
+        self.nonterminal = EdgeLabel("nt", False, (self.nl1, self.nl2))
 
     def test_init_bad_input(self):
         with self.assertRaises(Exception):
-            self.bad_terminal = EdgeLabel("bad_t", True, (self.nl1, self.nl2, self.nl3), None)            
+            self.bad_terminal = EdgeLabel("bad_t", True, (self.nl1, self.nl2, self.nl3), None)
         with self.assertRaises(Exception):
             self.bad_nonterminal = EdgeLabel("bad_nt", False, (self.nl1, self.nl2), self.fac1)
 
@@ -112,7 +112,7 @@ class TestEdge(unittest.TestCase):
         
         self.fac   = ConstantFactor('k42', [self.dom]*2, 42)
         self.el1   = EdgeLabel("el1", True, (self.nl1, self.nl2), self.fac)
-        self.el2   = EdgeLabel("el2", False, (self.nl2,), None)
+        self.el2   = EdgeLabel("el2", False, (self.nl2,))
         
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
@@ -153,7 +153,7 @@ class TestFactorGraph(unittest.TestCase):
         
         self.fac   = lambda v1, v2: (v1, v2)
         self.el1   = EdgeLabel("el1", True, (self.nl1, self.nl2), self.fac)
-        self.el2   = EdgeLabel("el2", False, (self.nl2,), None)
+        self.el2   = EdgeLabel("el2", False, (self.nl2,))
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
         
@@ -205,8 +205,8 @@ class TestFGGRule(unittest.TestCase):
         node2 = Node(nl)
         
         terminal = EdgeLabel("terminal", True, (nl, nl), lambda v1, v2: 5)
-        nonterminal_mismatch = EdgeLabel("nonterminal1", False, (nl,), None)
-        nonterminal_match = EdgeLabel("nonterminal2", False, (nl, nl), None)
+        nonterminal_mismatch = EdgeLabel("nonterminal1", False, (nl,))
+        nonterminal_match = EdgeLabel("nonterminal2", False, (nl, nl))
         
         graph = FactorGraph()
         graph.add_node(node1)
@@ -232,7 +232,7 @@ class TestFGGRepresentation(unittest.TestCase):
         
         self.fac   = lambda v1, v2: (v1, v2)
         self.el1   = EdgeLabel("el1", True, (self.nl1, self.nl2), self.fac)
-        self.el2   = EdgeLabel("el2", False, (self.nl2,), None)
+        self.el2   = EdgeLabel("el2", False, (self.nl2,))
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
         
@@ -243,7 +243,7 @@ class TestFGGRepresentation(unittest.TestCase):
         self.graph.add_edge(self.edge2)
         self.graph.set_ext(tuple())
         
-        self.start = EdgeLabel("S", False, tuple(), None)
+        self.start = EdgeLabel("S", False, tuple())
         self.rule = FGGRule(self.start, self.graph)
         
         self.node3 = Node(self.nl2)
@@ -285,12 +285,12 @@ class TestFGGRepresentation(unittest.TestCase):
             self.fgg.add_nonterminal(self.el1)
         
         # reusing a nonterminal name
-        nt = EdgeLabel("el2", False, (self.nl1, self.nl1), None)
+        nt = EdgeLabel("el2", False, (self.nl1, self.nl1))
         with self.assertRaises(Exception):
             self.fgg.add_nonterminal(nt)
         
         # a nonterminal with the same name as a terminal
-        nt = EdgeLabel("el1", False, (self.nl1, self.nl1), None)
+        nt = EdgeLabel("el1", False, (self.nl1, self.nl1))
         with self.assertRaises(Exception):
             self.fgg.add_nonterminal(nt)
         
@@ -339,7 +339,7 @@ class TestFGGRepresentation(unittest.TestCase):
 
     def test_implicitly_add_node_and_edge_labels(self):
         new_nl = NodeLabel("nl3", self.dom)
-        new_nt = EdgeLabel("nt1", False, (new_nl, new_nl), None)
+        new_nt = EdgeLabel("nt1", False, (new_nl, new_nl))
         new_t  = EdgeLabel("nt2", True, (new_nl,), lambda v: 20)
         
         new_node1 = Node(new_nl)

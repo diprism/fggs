@@ -86,7 +86,7 @@ class EdgeLabel:
     def to_string(self, indent):
         string = "\t"*indent
         if self.is_terminal():
-            string += f"Terminal EdgeLabel {self._name} with arity {self.arity()}"
+            string += f"Terminal EdgeLabel {self._name} with arity {self.arity()} and factor {self.factor().name()}"
         else:
             string += f"Nonterminal EdgeLabel {self._name} with arity {self.arity()}"
         if self.arity() != 0:

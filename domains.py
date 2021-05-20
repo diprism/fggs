@@ -28,5 +28,8 @@ class FiniteDomain(Domain):
     def values(self):
         return self._values
 
+    def size(self):
+        return len(self._values)
+
     def numberize(self, value):
         return self._value_index[value]
