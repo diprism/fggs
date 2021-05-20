@@ -1,13 +1,16 @@
 import unittest
 from domains import *
 from factors import *
-import torch
 
 class TestCategoricalFactor(unittest.TestCase):
     def test_basic(self):
         d3 = FiniteDomain('d3', ['foo', 'bar', 'baz'])
         d4 = FiniteDomain('d4', ['jia', 'yi', 'bing', 'ding'])
-        f = CategoricalFactor('f', [d3, d4], torch.arange(12).reshape(3, 4))
+        f = CategoricalFactor('f', [d3, d4], [
+            [0, 1, 2, 3],
+            [4, 5, 6, 7],
+            [8, 9, 10, 11],
+        ])
         self.assertEqual(f.apply(['foo', 'jia']), 0)
         self.assertEqual(f.apply(['foo', 'yi']), 1)
         self.assertEqual(f.apply(['bar', 'jia']), 4)

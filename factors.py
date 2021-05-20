@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 import domains
-import torch
 
 class Factor(ABC):
     """Abstract base class for factors."""
@@ -31,12 +30,29 @@ class ConstantFactor(Factor):
 
 class CategoricalFactor(Factor):
     def __init__(self, name, doms, weights):
+        """A factor that can define an arbitrary function on finite domains.
+
+        name: name of this factor
+        doms (list of FiniteDomain): domains of arguments
+        weights (list (of lists)* of floats): weights"""
+        
         if not all(isinstance(d, domains.FiniteDomain) for d in doms):
             raise TypeError('CategoricalFactor can only be applied to FiniteDomains')
         super().__init__(name, doms)
-        size = [len(d.values()) for d in doms]
-        if size != list(weights.size()):
-            raise ValueError(f'weight tensor has wrong size (expected {size}, actual {list(weights.size())}')
+
+        def check_size(weights, size):
+            if not isinstance(weights, list):
+                if len(size) > 0:
+                    raise ValueError('weights has too few axes')
+            else:
+                if len(size) == 0:
+                    raise ValueError('weights has too many axes')
+                if len(weights) != size[0]:
+                    raise ValueError(f'wrong number of weights ({size[0]} != {len(weights)})')
+                for subweights in weights:
+                    check_size(subweights, size[1:])
+
+        check_size(weights, [d.size() for d in doms])
         self._weights = weights
 
     def weights(self):
@@ -46,5 +62,7 @@ class CategoricalFactor(Factor):
         """Apply factor to a sequence of values.
 
         values: list of strings (names)"""
-        nums = tuple(d.numberize(v) for (d,v) in zip(self._domains, values))
-        return self._weights[nums]
+        w = self._weights
+        for d, v in zip(self._domains, values):
+            w = w[d.numberize(v)]
+        return w

@@ -1,7 +1,6 @@
 from fgg_representation import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRule, FGGRepresentation
 from domains import FiniteDomain
 from factors import CategoricalFactor
-import torch
 
 # Define the node labels.
 tagset = FiniteDomain("tagset", ["<s>", "Det", "N", "V", "</s>"])
@@ -15,7 +14,7 @@ X = EdgeLabel("X", False, (T,))
 
 # Define the terminals.
 def make_constraint_factor(domain, value):
-    weights = torch.zeros(domain.size())
+    weights = [0.] * domain.size()
     weights[domain.numberize(value)] = 1.
     return CategoricalFactor(f'={value}', [domain], weights)
 
@@ -23,18 +22,18 @@ bos    = EdgeLabel("BOS", True, (T,), make_constraint_factor(tagset, "<s>"))
 eos    = EdgeLabel("EOS", True, (T,), make_constraint_factor(tagset, "</s>"))
 ttable = EdgeLabel("Ttable", True, (T, T),
                    CategoricalFactor('Ttable', [tagset, tagset],
-                                     torch.tensor([[0, 1, 0,   0,   0],
-                                                   [0, 0, 1,   0,   0],
-                                                   [0, 0, 0,   0.5, 0.5],
-                                                   [0, 0, 0.5, 0,   0.5],
-                                                   [0, 0, 0,   0,   0]])))
+                                     [[0, 1, 0,   0,   0],
+                                      [0, 0, 1,   0,   0],
+                                      [0, 0, 0,   0.5, 0.5],
+                                      [0, 0, 0.5, 0,   0.5],
+                                      [0, 0, 0,   0,   0]]))
 etable = EdgeLabel("Etable", True, (T, W),
                    CategoricalFactor('Etable', [tagset, vocab],
-                                     torch.tensor([[0,   0,   0,   0,   0,   0],
-                                                   [0.5, 0.5, 0,   0,   0,   0],
-                                                   [0,   0,   0.5, 0.5, 0,   0],
-                                                   [0,   0,   0,   0,   0.5, 0.5],
-                                                   [0,   0,   0,   0,   0,   0]])))
+                                     [[0,   0,   0,   0,   0,   0],
+                                      [0.5, 0.5, 0,   0,   0,   0],
+                                      [0,   0,   0.5, 0.5, 0,   0],
+                                      [0,   0,   0,   0,   0.5, 0.5],
+                                      [0,   0,   0,   0,   0,   0]]))
 
 # Define the FGG.
 hmm = FGGRepresentation()
