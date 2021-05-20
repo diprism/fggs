@@ -1,5 +1,5 @@
 from fgg_representation import *
-import domain
+import domains
 
 ### JSON
 
@@ -8,22 +8,22 @@ def json_to_fgg(j):
     import torch
     g = FGGRepresentation()
     
-    domains = {}
+    doms = {}
     for name, d in j['domains'].items():
         if d['class'] == 'finite':
-            domains[name] = domain.FiniteDomain(name, d['values'])
+            doms[name] = domains.FiniteDomain(d['values'])
         else:
             raise ValueError(f'invalid domain class: {d["type"]}')
-        g.add_node_label(NodeLabel(name, domains[name]))
+        g.add_node_label(NodeLabel(name, doms[name]))
 
     for name, d in j['factors'].items():
         if d['function'] == 'categorical':
-            size = [len(domains[l].values()) for l in d['type']]
+            size = [doms[l].size() for l in d['type']]
             param = torch.empty(size, requires_grad=True)
             def f(*args):
                 return param[args]
         elif d['function'] == 'constant':
-            size = [len(domains[l].values()) for l in d['type']]
+            size = [doms[l].size() for l in d['type']]
             weights = torch.tensor(d['weights'])
             if list(weights.size()) != size:
                 raise ValueError(f'weight tensor has wrong size (expected {size}, actual {list(weights.size())}')
@@ -73,9 +73,8 @@ def fgg_to_json(g):
 
     j['domains'] = {}
     for l in g.node_labels():
-        assert l.name() == l.domain().name()
         name = l.name()
-        if isinstance(l.domain(), domain.FiniteDomain):
+        if isinstance(l.domain(), domains.FiniteDomain):
             j['domains'][name] = {
                 'class' : 'finite',
                 'values' : list(l.domain().values()),

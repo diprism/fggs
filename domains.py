@@ -5,35 +5,28 @@ from abc import ABC, abstractmethod
 class Domain(ABC):
     
     @abstractmethod
-    def name(self):
-        pass
-    
-    @abstractmethod
     def contains(self, value):
         pass
-
 
 # A domain for finite sets (like vocabularies)
 class FiniteDomain(Domain):
     
-    def __init__(self, name, values):
-        self._name = name
+    def __init__(self, values):
+        super().__init__()
         self._values = list(values)
         self._value_index = {v:i for (i,v) in enumerate(self._values)}
 
-    def name(self):
-        return self._name
-
     def contains(self, value):
-        return value in self._value_index
+        return value in self._values
 
     def values(self):
         return self._values
+
+    def size(self):
+        return len(self._values)
 
     def numberize(self, value):
         """Convert a value into an integer.
         Values are numbered consecutively starting from zero.
         """
         return self._value_index[value]
-
-    
