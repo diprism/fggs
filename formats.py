@@ -1,5 +1,5 @@
 from fgg_representation import *
-import domains
+import domains, factors
 
 ### JSON
 
@@ -19,16 +19,8 @@ def json_to_fgg(j):
     for name, d in j['factors'].items():
         if d['function'] == 'categorical':
             size = [doms[l].size() for l in d['type']]
-            param = torch.empty(size, requires_grad=True)
-            def f(*args):
-                return param[args]
-        elif d['function'] == 'constant':
-            size = [doms[l].size() for l in d['type']]
-            weights = torch.tensor(d['weights'])
-            if list(weights.size()) != size:
-                raise ValueError(f'weight tensor has wrong size (expected {size}, actual {list(weights.size())}')
-            def f(*args):
-                return weights[args]
+            weights = d['weights']
+            f = factors.CategoricalFactor([doms[l] for l in d['type']], weights)
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
         t = tuple(g.get_node_label(l) for l in d['type'])
@@ -73,9 +65,8 @@ def fgg_to_json(g):
 
     j['domains'] = {}
     for l in g.node_labels():
-        name = l.name()
         if isinstance(l.domain(), domains.FiniteDomain):
-            j['domains'][name] = {
+            j['domains'][l.name()] = {
                 'class' : 'finite',
                 'values' : list(l.domain().values()),
             }
@@ -83,6 +74,13 @@ def fgg_to_json(g):
             raise NotImplementedError(f'unsupported domain type {type(j.domain())}')
 
     j['factors'] = {}
+    for l in g.terminals():
+        if isinstance(l.factor(), factors.CategoricalFactor):
+            j['factors'][l.name()] = {
+                'function': 'categorical',
+                'type': [nl.name() for nl in l.type()],
+                'weights': l.factor().weights(),
+            }
 
     j['nonterminals'] = {}
     for nt in g.nonterminals():

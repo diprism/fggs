@@ -7,12 +7,6 @@ class TestJson(unittest.TestCase):
         j = json.loads(hmm_json)
         g = formats.json_to_fgg(j)
         j_check = formats.fgg_to_json(g)
-        def normalize(j):
-            del j['factors']
-            for r in j['rules']:
-                pass
-        normalize(j)
-        normalize(j_check)
         self.maxDiff = 10000
         self.assertEqual(j, j_check)
                 
@@ -32,20 +26,30 @@ hmm_json = """
         "transition": {
             "function": "categorical",
             "type": ["T", "T"],
-            "normalize": 1
+            "weights": [[0, 1, 0, 0, 0, 0],
+                        [0, 0.25, 0.25, 0.25, 0, 0.25],
+                        [0.3, 0, 0, 0.3, 0, 0.4],
+                        [1, 0, 0, 0, 0, 0],
+                        [0.8, 0, 0, 0.2, 0, 0],
+                        [0, 0, 0, 0, 0, 0]]
         },
         "emission": {
             "function": "categorical",
             "type": ["T", "W"],
-            "normalize": 1
+            "weights": [[1, 0, 0, 0, 0],
+                        [0, 0.5, 0, 0, 0.5],
+                        [0, 0, 1, 0, 0],
+                        [0, 0, 0, 1, 0],
+                        [0, 0, 0, 0, 0],
+                        [0, 0, 0, 0, 0]]
         },
         "is_bos": {
-            "function": "constant",
+            "function": "categorical",
             "type": ["T"],
             "weights": [0, 0, 0, 0, 1, 0]
         },
         "is_eos": {
-            "function": "constant",
+            "function": "categorical",
             "type": ["T"],
             "weights": [0, 0, 0, 0, 0, 1]
         }
