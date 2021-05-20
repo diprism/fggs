@@ -3,12 +3,8 @@ import domains
 
 class Factor(ABC):
     """Abstract base class for factors."""
-    def __init__(self, name, doms):
-        self._name = name
+    def __init__(self, doms):
         self._domains = list(doms)
-
-    def name(self):
-        return self._name
 
     def arity(self):
         return len(self._domains)
@@ -21,24 +17,23 @@ class Factor(ABC):
         pass
 
 class ConstantFactor(Factor):
-    def __init__(self, name, doms, weight):
-        super().__init__(name, doms)
+    def __init__(self, doms, weight):
+        super().__init__(doms)
         self._weight = weight
 
     def apply(self, values):
         return self._weight
 
 class CategoricalFactor(Factor):
-    def __init__(self, name, doms, weights):
+    def __init__(self, doms, weights):
         """A factor that can define an arbitrary function on finite domains.
 
-        name: name of this factor
         doms (list of FiniteDomain): domains of arguments
         weights (list (of lists)* of floats): weights"""
         
         if not all(isinstance(d, domains.FiniteDomain) for d in doms):
             raise TypeError('CategoricalFactor can only be applied to FiniteDomains')
-        super().__init__(name, doms)
+        super().__init__(doms)
 
         def check_size(weights, size):
             if not isinstance(weights, list):

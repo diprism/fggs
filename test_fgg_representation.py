@@ -9,12 +9,12 @@ from fgg_representation import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FG
 class TestEdgeLabel(unittest.TestCase):
     
     def setUp(self):
-        self.dom = FiniteDomain("small ints", {1, 2, 3, 4, 5})
+        self.dom = FiniteDomain({1, 2, 3, 4, 5})
         self.nl1 = NodeLabel("nl1", self.dom)
         self.nl2 = NodeLabel("nl2", self.dom)
         self.nl3 = NodeLabel("nl3", self.dom)
-        self.fac1 = ConstantFactor('k5', [self.dom]*3, 5)
-        self.fac2 = ConstantFactor('k6', [self.dom]*2, 6)
+        self.fac1 = ConstantFactor([self.dom]*3, 5)
+        self.fac2 = ConstantFactor([self.dom]*2, 6)
         self.terminal    = EdgeLabel("t", True, (self.nl1, self.nl2, self.nl3), self.fac1)
         self.nonterminal = EdgeLabel("nt", False, (self.nl1, self.nl2))
 
@@ -71,7 +71,7 @@ class TestEdgeLabel(unittest.TestCase):
 class TestNode(unittest.TestCase):
     
     def setUp(self):
-        self.dom = FiniteDomain("small ints", {1, 2, 3, 4, 5})
+        self.dom = FiniteDomain({1, 2, 3, 4, 5})
         self.label = NodeLabel("label", self.dom)
         self.node1 = Node(self.label)
         self.node2 = Node(self.label)
@@ -104,13 +104,13 @@ class TestNode(unittest.TestCase):
 class TestEdge(unittest.TestCase):
     
     def setUp(self):
-        self.dom   = FiniteDomain("small ints", {1, 2, 3, 4, 5})
+        self.dom   = FiniteDomain({1, 2, 3, 4, 5})
         self.nl1   = NodeLabel("nl1", self.dom)
         self.nl2   = NodeLabel("nl2", self.dom)
         self.node1 = Node(self.nl1)
         self.node2 = Node(self.nl2)
         
-        self.fac   = ConstantFactor('k42', [self.dom]*2, 42)
+        self.fac   = ConstantFactor([self.dom]*2, 42)
         self.el1   = EdgeLabel("el1", True, (self.nl1, self.nl2), self.fac)
         self.el2   = EdgeLabel("el2", False, (self.nl2,))
         
@@ -145,7 +145,7 @@ class TestEdge(unittest.TestCase):
 class TestFactorGraph(unittest.TestCase):
 
     def setUp(self):
-        self.dom   = FiniteDomain("small ints", {1, 2, 3, 4, 5})
+        self.dom   = FiniteDomain({1, 2, 3, 4, 5})
         self.nl1   = NodeLabel("nl1", self.dom)
         self.nl2   = NodeLabel("nl2", self.dom)
         self.node1 = Node(self.nl1)
@@ -224,7 +224,7 @@ class TestFGGRule(unittest.TestCase):
 class TestFGGRepresentation(unittest.TestCase):
 
     def setUp(self):
-        self.dom   = FiniteDomain("small ints", {1, 2, 3, 4, 5})
+        self.dom   = FiniteDomain({1, 2, 3, 4, 5})
         self.nl1   = NodeLabel("nl1", self.dom)
         self.nl2   = NodeLabel("nl2", self.dom)
         self.node1 = Node(self.nl1)

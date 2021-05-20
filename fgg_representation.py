@@ -21,7 +21,7 @@ class NodeLabel:
         return self._domain
     
     def __str__(self):
-        return f"NodeLabel {self._name} with Domain {self._domain.name()}"
+        return f"NodeLabel {self._name} with Domain {self._domain}"
 
 
 
@@ -86,7 +86,7 @@ class EdgeLabel:
     def to_string(self, indent):
         string = "\t"*indent
         if self.is_terminal():
-            string += f"Terminal EdgeLabel {self._name} with arity {self.arity()} and factor {self.factor().name()}"
+            string += f"Terminal EdgeLabel {self._name} with arity {self.arity()} and Factor {self._factor}"
         else:
             string += f"Nonterminal EdgeLabel {self._name} with arity {self.arity()}"
         if self.arity() != 0:

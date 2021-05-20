@@ -4,12 +4,6 @@ from abc import ABC, abstractmethod
 # TODO: need some way to either sum over or integrate over?
 class Domain(ABC):
     
-    def __init__(self, name):
-        self._name = name
-    
-    def name(self):
-        return self._name
-    
     @abstractmethod
     def contains(self, value):
         pass
@@ -17,8 +11,8 @@ class Domain(ABC):
 # A domain for finite sets (like vocabularies)
 class FiniteDomain(Domain):
     
-    def __init__(self, name, values):
-        super().__init__(name)
+    def __init__(self, values):
+        super().__init__()
         self._values = list(values)
         self._value_index = {v:i for (i,v) in enumerate(self._values)}
 

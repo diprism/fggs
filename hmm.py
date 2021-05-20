@@ -3,8 +3,8 @@ from domains import FiniteDomain
 from factors import CategoricalFactor
 
 # Define the node labels.
-tagset = FiniteDomain("tagset", ["<s>", "Det", "N", "V", "</s>"])
-vocab  = FiniteDomain("vocabulary", ["a", "the", "dog", "cat", "chased", "kicked"])
+tagset = FiniteDomain(["<s>", "Det", "N", "V", "</s>"])
+vocab  = FiniteDomain(["a", "the", "dog", "cat", "chased", "kicked"])
 T = NodeLabel("T", tagset)
 W = NodeLabel("W", vocab)
 
@@ -16,19 +16,19 @@ X = EdgeLabel("X", False, (T,))
 def make_constraint_factor(domain, value):
     weights = [0.] * domain.size()
     weights[domain.numberize(value)] = 1.
-    return CategoricalFactor(f'={value}', [domain], weights)
+    return CategoricalFactor([domain], weights)
 
 bos    = EdgeLabel("BOS", True, (T,), make_constraint_factor(tagset, "<s>"))
 eos    = EdgeLabel("EOS", True, (T,), make_constraint_factor(tagset, "</s>"))
 ttable = EdgeLabel("Ttable", True, (T, T),
-                   CategoricalFactor('Ttable', [tagset, tagset],
+                   CategoricalFactor([tagset, tagset],
                                      [[0, 1, 0,   0,   0],
                                       [0, 0, 1,   0,   0],
                                       [0, 0, 0,   0.5, 0.5],
                                       [0, 0, 0.5, 0,   0.5],
                                       [0, 0, 0,   0,   0]]))
 etable = EdgeLabel("Etable", True, (T, W),
-                   CategoricalFactor('Etable', [tagset, vocab],
+                   CategoricalFactor([tagset, vocab],
                                      [[0,   0,   0,   0,   0,   0],
                                       [0.5, 0.5, 0,   0,   0,   0],
                                       [0,   0,   0.5, 0.5, 0,   0],
