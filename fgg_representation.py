@@ -3,7 +3,6 @@
 # TODO: figure out how to do type checking on functions
 # TODO: change how I number nodes/edges to make pretty-printing work better
 # TODO: add custom sorting functions for nodes/edges based on their IDs?
-# TODO: improve how factor functions are defined so they can be updated later / parameters be changed
 
 
 
@@ -22,7 +21,7 @@ class NodeLabel:
         return self._domain
     
     def __str__(self):
-        return f"NodeLabel {self._name} with Domain {self._domain.name()}"
+        return f"NodeLabel {self._name} with Domain {self._domain}"
 
 
 
@@ -35,11 +34,11 @@ class EdgeLabel:
     #       if node_labels is (nl1, nl2, ..., nlm)
     #       then this function must be 
     #           nl1.domain() X nl2.domain() X ... X nlm.domain() --> reals 
-    def __init__(self, name, is_terminal, node_labels, factor_function):
+    def __init__(self, name, is_terminal, node_labels, fac=None):
         self._name        = name
         self._is_terminal = is_terminal
         self._node_labels = node_labels
-        self.set_factor_function(factor_function)
+        self.set_factor(fac)
 
     def name(self):
         return self._name
@@ -53,25 +52,25 @@ class EdgeLabel:
     def type(self):
         return self._node_labels
     
-    def factor_function(self):
-        return self._factor_func
+    def factor(self):
+        return self._factor
     
-    def set_factor_function(self, func):
-        if self._is_terminal and func == None:
-            raise Exception(f"Terminal edge label {self._name} is missing a factor function.")
-        if not self._is_terminal and func != None:
-            raise Exception(f"Nonterminal edge label {self._name} should not have a factor function.")
-        self._factor_func = func
+    def set_factor(self, fac):
+        if self._is_terminal and fac is None:
+            raise ValueError(f"Terminal edge label {self._name} is missing a factor.")
+        if not self._is_terminal and fac is not None:
+            raise ValueError(f"Nonterminal edge label {self._name} should not have a factor.")
+        self._factor = fac
         
-    def apply_factor_function(self, args):
+    def apply_factor(self, args):
         if not self.is_terminal():
             raise Exception(f"Cannot apply factor function because nonterminal edge label {self._name} does not have a factor function.")
         if len(args) != self.arity():
-            raise Exception(f"Factor function for edge lable {self._name} is not applicable to arguments {args}.")
+            raise Exception(f"Factor function for edge label {self._name} is not applicable to arguments {args}.")
         for i in range(self.arity()):
             if not self._node_labels[i].domain().contains(args[i]):
-                raise Exception(f"Factor function for edge lable {self._name} is not applicable to arguments {args}.")
-        return self._factor_func(*args) # the * unpacks the list
+                raise Exception(f"Factor function for edge label {self._name} is not applicable to arguments {args}.")
+        return self._factor.apply(args)
 
     # checks whether a label fits a list of nodes
     def is_applicable_to(self, nodes):
@@ -87,7 +86,7 @@ class EdgeLabel:
     def to_string(self, indent):
         string = "\t"*indent
         if self.is_terminal():
-            string += f"Terminal EdgeLabel {self._name} with arity {self.arity()}"
+            string += f"Terminal EdgeLabel {self._name} with arity {self.arity()} and Factor {self._factor}"
         else:
             string += f"Nonterminal EdgeLabel {self._name} with arity {self.arity()}"
         if self.arity() != 0:
@@ -96,8 +95,7 @@ class EdgeLabel:
                 string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name()}"
         return string
 
-
-
+    
 class Node:
     
     node_count = 0
@@ -160,8 +158,8 @@ class Edge:
     def node_at(self, i):
         return self._nodes[i]
     
-    def apply_factor_function(self):
-        return self._label.apply_factor_function([node.value() for node in self._nodes])
+    def apply_factor(self):
+        return self._label.apply_factor([node.value() for node in self._nodes])
     
     def __str__(self):
         return self.to_string(0, True)
