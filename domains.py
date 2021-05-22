@@ -30,4 +30,7 @@ class FiniteDomain(Domain):
         return len(self._values)
 
     def numberize(self, value):
+        """Convert a value into an integer.
+        Values are numbered consecutively starting from zero.
+        """
         return self._value_index[value]

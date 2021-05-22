@@ -203,7 +203,7 @@ class FactorGraph:
     
     def add_node(self, node):
         self._nodes.add(node)
-    
+
     def add_edge(self, edge):
         for node in edge.nodes():
             if node not in self._nodes:
@@ -235,14 +235,21 @@ class FactorGraph:
 
 
 class FGGRule:
+
+    rule_count = 0
     
     def __init__(self, lhs, rhs):
         if lhs.is_terminal():
-            raise Exception(f"Can't make FGG rule with terminal lef-hand side.")
+            raise Exception(f"Can't make FGG rule with terminal left-hand side.")
         if (lhs.type() != rhs.type()):
-            raise Exception(f"Can't make FGG rule: left-hand side of type {lhs.type()} not compatible with right-hand side of type {rhs.type()}.")
+            raise Exception(f"Can't make FGG rule: left-hand side of type ({','.join(l.name() for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name() for l in rhs.type())}).")
+        FGGRule.rule_count += 1
+        self._id  = FGGRule.rule_count
         self._lhs = lhs
         self._rhs = rhs
+
+    def rule_id(self):
+        return self._id
     
     def lhs(self):
         return self._lhs
@@ -276,6 +283,9 @@ class FGGRepresentation:
                 raise Exception(f"There is already a node label with name {name}.")
         self._node_labels[label.name()] = label
 
+    def get_node_label(self, name):
+        return self._node_labels[name]
+
     def node_labels(self):
         return [self._node_labels[name] for name in self._node_labels]
 
@@ -292,6 +302,9 @@ class FGGRepresentation:
 
         self._nonterminals[name] = label
     
+    def get_nonterminal(self, name):
+        return self._nonterminals[name]
+
     def nonterminals(self):
         return [self._nonterminals[name] for name in self._nonterminals]
     
@@ -308,8 +321,19 @@ class FGGRepresentation:
         
         self._terminals[name] = label
 
+    def get_terminal(self, name):
+        return self._terminals[name]
+
     def terminals(self):
         return [self._terminals[name] for name in self._terminals]
+
+    def get_edge_label(self, name):
+        if name in self._nonterminals:
+            return self._nonterminals[name]
+        elif name in self._terminals:
+            return self._terminals[name]
+        else:
+            raise KeyError(f'no such edge label {name}')
     
     def set_start_symbol(self, start):
         if start.arity() != 0:

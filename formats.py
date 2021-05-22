@@ -1,5 +1,116 @@
-import fgg_representation as fggs
-import pydot
+from fgg_representation import *
+import domains, factors
+
+### JSON
+
+def json_to_fgg(j):
+    """Convert an object loaded by json.load to an FGG."""
+    import torch
+    g = FGGRepresentation()
+    
+    doms = {}
+    for name, d in j['domains'].items():
+        if d['class'] == 'finite':
+            doms[name] = domains.FiniteDomain(d['values'])
+        else:
+            raise ValueError(f'invalid domain class: {d["type"]}')
+        g.add_node_label(NodeLabel(name, doms[name]))
+
+    for name, d in j['factors'].items():
+        if d['function'] == 'categorical':
+            size = [doms[l].size() for l in d['type']]
+            weights = d['weights']
+            f = factors.CategoricalFactor([doms[l] for l in d['type']], weights)
+        else:
+            raise ValueError(f'invalid factor function: {d["function"]}')
+        t = tuple(g.get_node_label(l) for l in d['type'])
+        g.add_terminal(EdgeLabel(name, True, t, f))
+
+    for nt, d in j['nonterminals'].items():
+        t = tuple(g.get_node_label(l) for l in d['type'])
+        g.add_nonterminal(EdgeLabel(nt, False, t, None))
+    g.set_start_symbol(g.get_nonterminal(j['start']))
+
+    for r in j['rules']:
+        lhs = g.get_nonterminal(r['lhs'])
+        rhs = FactorGraph()
+        nodes = []
+        for label in r['rhs']['nodes']:
+            v = Node(g.get_node_label(label))
+            nodes.append(v)
+            rhs.add_node(v)
+        for e in r['rhs']['edges']:
+            att = []
+            for v in e['attachments']:
+                try:
+                    att.append(nodes[v])
+                except IndexError:
+                    raise ValueError(f'invalid attachment node {v} (out of {len(nodes)})')
+            rhs.add_edge(Edge(g.get_edge_label(e['label']), att))
+        ext = []
+        for v in r['rhs'].get('externals', []):
+            try:
+                ext.append(nodes[v])
+            except IndexError:
+                raise ValueError(f'invalid external node {v} (out of {len(nodes)})')
+        rhs.set_ext(ext)
+        g.add_rule(FGGRule(lhs, rhs))
+        
+    return g
+
+def fgg_to_json(g):
+    """Convert an FGG to an object writable by json.dump()."""
+    import torch
+    j = {}
+
+    j['domains'] = {}
+    for l in g.node_labels():
+        if isinstance(l.domain(), domains.FiniteDomain):
+            j['domains'][l.name()] = {
+                'class' : 'finite',
+                'values' : list(l.domain().values()),
+            }
+        else:
+            raise NotImplementedError(f'unsupported domain type {type(j.domain())}')
+
+    j['factors'] = {}
+    for l in g.terminals():
+        if isinstance(l.factor(), factors.CategoricalFactor):
+            j['factors'][l.name()] = {
+                'function': 'categorical',
+                'type': [nl.name() for nl in l.type()],
+                'weights': l.factor().weights(),
+            }
+
+    j['nonterminals'] = {}
+    for nt in g.nonterminals():
+        j['nonterminals'][nt.name()] = {
+            'type': [l.name() for l in nt.type()],
+        }
+    j['start'] = g.start_symbol().name()
+    
+    j['rules'] = []
+    for gr in sorted(g.all_rules(), key=lambda r: r.rule_id()):
+        nodes = sorted(gr.rhs().nodes(), key=lambda v: v.node_id())
+        node_nums = {v.node_id():i for (i,v) in enumerate(nodes)}
+        jr = {
+            'lhs': gr.lhs().name(),
+            'rhs': {
+                 'nodes': [v.label().name() for v in nodes],
+                 'edges': [],
+                'externals': [node_nums[v.node_id()] for v in gr.rhs().ext()],
+            },
+        }
+        for e in sorted(gr.rhs().edges(), key=lambda e: e.edge_id()):
+            jr['rhs']['edges'].append({
+                'attachments': [node_nums[v.node_id()] for v in e.nodes()],
+                'label': e.label().name(),
+            })
+        j['rules'].append(jr)
+        
+    return j
+
+### GraphViz and TikZ
 
 def _get_format(factor_formats, x, i):
     if (x is None or
@@ -12,7 +123,7 @@ def _get_format(factor_formats, x, i):
     else:
         return ('', fmt)
     
-def factorgraph_to_dot(g: fggs.FactorGraph, factor_formats=None, lhs=None):
+def factorgraph_to_dot(g: FactorGraph, factor_formats=None, lhs=None):
     """Convert a FactorGraph to a pydot.Dot.
 
     factor_formats is an optional dict that provides additional
@@ -23,6 +134,8 @@ def factorgraph_to_dot(g: fggs.FactorGraph, factor_formats=None, lhs=None):
     - '<' for an input or '>' for an output
     - a symbolic name
     """
+    
+    import pydot
 
     dot = pydot.Dot(graph_type='graph', rankdir='LR')
     for v in g.nodes():
@@ -95,7 +208,7 @@ def factorgraph_to_dot(g: fggs.FactorGraph, factor_formats=None, lhs=None):
         
     return dot
 
-def factorgraph_to_tikz(g: fggs.FactorGraph, factor_formats=None, lhs=None):
+def factorgraph_to_tikz(g: FactorGraph, factor_formats=None, lhs=None):
     """Convert a FactorGraph to LaTeX/TikZ code.
 
     The resulting code makes use of several TikZ styles. Some suggested
@@ -108,6 +221,7 @@ def factorgraph_to_tikz(g: fggs.FactorGraph, factor_formats=None, lhs=None):
       tent/.style={font={\tiny},auto}
     }
     """
+    import pydot
     
     # Convert to DOT just to get layout information
     dot = factorgraph_to_dot(g, factor_formats, lhs)
@@ -173,39 +287,11 @@ def fgg_to_tikz(g, factor_formats=None):
     res.append(r'\begin{align*}')
     for r in g.all_rules():
         # Build a little factor graph for the lhs
-        lhs = fggs.FactorGraph()
-        lhs.add_edge(fggs.Edge(r.lhs(), [fggs.Node(x) for x in r.lhs().type()]))
+        lhs = FactorGraph()
+        lhs.add_edge(Edge(r.lhs(), [Node(x) for x in r.lhs().type()]))
         
         res.append(factorgraph_to_tikz(lhs, factor_formats, r.lhs()) +
                    ' &\longrightarrow ' +
                    factorgraph_to_tikz(r.rhs(), factor_formats, r.lhs()) + r'\\')
     res.append(r'\end{align*}')
     return '\n'.join(res)
-
-if __name__ == "__main__":
-    import hmm
-
-    factor_formats = {
-        'S': [],
-        'X': ['<prev'],
-        'BOS': ['>'],
-        'EOS': ['<'],
-        'Ttable': ['<prev', '>cur'],
-        'Etable': ['^tag', '_word'],
-    }
-
-    with open('viz.tex', 'w') as outfile:
-        print(r'''
-\documentclass{article}
-\usepackage{tikz}
-\tikzset{
-  var/.style={draw,circle,fill=white,inner sep=1.5pt,minimum size=8pt},
-  ext/.style={var,fill=black,text=white},
-  fac/.style={draw,rectangle},
-  tent/.style={font={\tiny},auto}
-}
-
-\usepackage{amsmath}
-\begin{document}''' +
-              fgg_to_tikz(hmm.hmm, factor_formats) + '\n' +
-              r'\end{document}', file=outfile)
