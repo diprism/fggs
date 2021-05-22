@@ -8,8 +8,12 @@ class Domain(ABC):
     def contains(self, value):
         pass
 
-# A domain for finite sets (like vocabularies)
 class FiniteDomain(Domain):
+    """A domain for finite sets (like vocabularies).
+
+    values: a collection of values, which must implement __hash__,
+            __eq__, and __ne__.
+    """
     
     def __init__(self, values):
         super().__init__()

@@ -2,9 +2,10 @@ from fgg_representation import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FG
 from domains import FiniteDomain
 from factors import CategoricalFactor
 
-# Define the node labels.
+# Define the domains and node labels.
 tagset = FiniteDomain(["<s>", "Det", "N", "V", "</s>"])
 vocab  = FiniteDomain(["a", "the", "dog", "cat", "chased", "kicked"])
+
 T = NodeLabel("T", tagset)
 W = NodeLabel("W", vocab)
 
@@ -12,28 +13,31 @@ W = NodeLabel("W", vocab)
 S = EdgeLabel("S", False, ())
 X = EdgeLabel("X", False, (T,))
 
-# Define the terminals.
+# Define the factors and terminals.
 def make_constraint_factor(domain, value):
     weights = [0.] * domain.size()
     weights[domain.numberize(value)] = 1.
     return CategoricalFactor([domain], weights)
 
-bos    = EdgeLabel("BOS", True, (T,), make_constraint_factor(tagset, "<s>"))
-eos    = EdgeLabel("EOS", True, (T,), make_constraint_factor(tagset, "</s>"))
-ttable = EdgeLabel("Ttable", True, (T, T),
-                   CategoricalFactor([tagset, tagset],
-                                     [[0, 1, 0,   0,   0],
-                                      [0, 0, 1,   0,   0],
-                                      [0, 0, 0,   0.5, 0.5],
-                                      [0, 0, 0.5, 0,   0.5],
-                                      [0, 0, 0,   0,   0]]))
-etable = EdgeLabel("Etable", True, (T, W),
-                   CategoricalFactor([tagset, vocab],
-                                     [[0,   0,   0,   0,   0,   0],
-                                      [0.5, 0.5, 0,   0,   0,   0],
-                                      [0,   0,   0.5, 0.5, 0,   0],
-                                      [0,   0,   0,   0,   0.5, 0.5],
-                                      [0,   0,   0,   0,   0,   0]]))
+bos_factor = make_constraint_factor(tagset, "<s>")
+eos_factor = make_constraint_factor(tagset, "</s>")
+ttable_factor = CategoricalFactor([tagset, tagset],
+                                  [[0, 1, 0,   0,   0],
+                                   [0, 0, 1,   0,   0],
+                                   [0, 0, 0,   0.5, 0.5],
+                                   [0, 0, 0.5, 0,   0.5],
+                                   [0, 0, 0,   0,   0]])
+etable_factor = CategoricalFactor([tagset, vocab],
+                                  [[0,   0,   0,   0,   0,   0],
+                                   [0.5, 0.5, 0,   0,   0,   0],
+                                   [0,   0,   0.5, 0.5, 0,   0],
+                                   [0,   0,   0,   0,   0.5, 0.5],
+                                   [0,   0,   0,   0,   0,   0]])
+
+bos    = EdgeLabel("BOS", True, (T,), bos_factor)
+eos    = EdgeLabel("EOS", True, (T,), eos_factor)
+ttable = EdgeLabel("Ttable", True, (T, T), ttable_factor)
+etable = EdgeLabel("Etable", True, (T, W), etable_factor)
 
 # Define the FGG.
 hmm = FGGRepresentation()
