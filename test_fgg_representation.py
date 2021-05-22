@@ -151,7 +151,7 @@ class TestFactorGraph(unittest.TestCase):
         self.node1 = Node(self.nl1)
         self.node2 = Node(self.nl2)
         
-        self.fac   = lambda v1, v2: (v1, v2)
+        self.fac = ConstantFactor([self.dom]*2, 42)
         self.el1   = EdgeLabel("el1", True, (self.nl1, self.nl2), self.fac)
         self.el2   = EdgeLabel("el2", False, (self.nl2,))
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
@@ -199,12 +199,14 @@ class TestFactorGraph(unittest.TestCase):
 class TestFGGRule(unittest.TestCase):
 
     def test_init(self):
-        nl = NodeLabel("nl1", None)
+        dom = FiniteDomain([None])
+        nl = NodeLabel("nl1", dom)
         
         node1 = Node(nl)
         node2 = Node(nl)
-        
-        terminal = EdgeLabel("terminal", True, (nl, nl), lambda v1, v2: 5)
+
+        fac = ConstantFactor([dom]*2, 5)
+        terminal = EdgeLabel("terminal", True, (nl, nl), fac)
         nonterminal_mismatch = EdgeLabel("nonterminal1", False, (nl,))
         nonterminal_match = EdgeLabel("nonterminal2", False, (nl, nl))
         
@@ -230,7 +232,7 @@ class TestFGGRepresentation(unittest.TestCase):
         self.node1 = Node(self.nl1)
         self.node2 = Node(self.nl2)
         
-        self.fac   = lambda v1, v2: (v1, v2)
+        self.fac   = ConstantFactor([self.dom]*2, 42)
         self.el1   = EdgeLabel("el1", True, (self.nl1, self.nl2), self.fac)
         self.el2   = EdgeLabel("el2", False, (self.nl2,))
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
@@ -340,7 +342,8 @@ class TestFGGRepresentation(unittest.TestCase):
     def test_implicitly_add_node_and_edge_labels(self):
         new_nl = NodeLabel("nl3", self.dom)
         new_nt = EdgeLabel("nt1", False, (new_nl, new_nl))
-        new_t  = EdgeLabel("nt2", True, (new_nl,), lambda v: 20)
+        fac = ConstantFactor([self.dom], 20)
+        new_t  = EdgeLabel("nt2", True, (new_nl,), fac)
         
         new_node1 = Node(new_nl)
         new_node2 = Node(new_nl)

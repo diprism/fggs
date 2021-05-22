@@ -56,7 +56,7 @@ class CategoricalFactor(Factor):
     def apply(self, values):
         """Apply factor to a sequence of values.
 
-        values: list of strings (names)"""
+        values: list of values"""
         w = self._weights
         for d, v in zip(self._domains, values):
             w = w[d.numberize(v)]
