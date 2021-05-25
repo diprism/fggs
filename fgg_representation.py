@@ -1,16 +1,17 @@
 # TODO: improve the comment structure
-# TODO: add static typing with mypy?
 # TODO: figure out how to do type checking on functions
 # TODO: change how I number nodes/edges to make pretty-printing work better
 # TODO: add custom sorting functions for nodes/edges based on their IDs?
+
+from typing import Optional, Iterable
+from domains import *
+from factors import *
 
 
 
 class NodeLabel:
 
-    # name: a string
-    # domain: a Domain
-    def __init__(self, name, domain):
+    def __init__(self, name: str, domain: Domain):
         self._name   = name
         self._domain = domain
     
@@ -27,14 +28,7 @@ class NodeLabel:
 
 class EdgeLabel:
     
-    # name: a string
-    # is_terminal: a boolen
-    # node_labels: a tuple of NodeLabels
-    # factor_function: the factor function
-    #       if node_labels is (nl1, nl2, ..., nlm)
-    #       then this function must be 
-    #           nl1.domain() X nl2.domain() X ... X nlm.domain() --> reals 
-    def __init__(self, name, is_terminal, node_labels, fac=None):
+    def __init__(self, name: str, is_terminal: bool, node_labels: tuple[NodeLabel], fac: Optional[Factor] = None):
         self._name        = name
         self._is_terminal = is_terminal
         self._node_labels = node_labels
@@ -55,13 +49,13 @@ class EdgeLabel:
     def factor(self):
         return self._factor
     
-    def set_factor(self, fac):
+    def set_factor(self, fac: Optional[Factor]):
         if self._is_terminal and fac is None:
             raise ValueError(f"Terminal edge label {self._name} is missing a factor.")
         if not self._is_terminal and fac is not None:
             raise ValueError(f"Nonterminal edge label {self._name} should not have a factor.")
         self._factor = fac
-        
+    
     def apply_factor(self, args):
         if not self.is_terminal():
             raise Exception(f"Cannot apply factor function because nonterminal edge label {self._name} does not have a factor function.")
@@ -96,12 +90,12 @@ class EdgeLabel:
         return string
 
     
+
 class Node:
     
     node_count = 0
     
-    # label: a NodeLabel
-    def __init__(self, label):
+    def __init__(self, label: NodeLabel):
         Node.node_count += 1
         self._id     = Node.node_count
         self._label  = label
@@ -136,9 +130,7 @@ class Edge:
 
     edge_count = 0
     
-    # label: an EdgeLabel
-    # nodes: a tuple of Nodes
-    def __init__(self, label, nodes):
+    def __init__(self, label: EdgeLabel, nodes: tuple[Node]):
         Edge.edge_count += 1
         self._id     = Edge.edge_count
         if not label.is_applicable_to(nodes):
@@ -201,16 +193,16 @@ class FactorGraph:
     def type(self):
         return tuple([node.label() for node in self._ext])
     
-    def add_node(self, node):
+    def add_node(self, node: Node):
         self._nodes.add(node)
 
-    def add_edge(self, edge):
+    def add_edge(self, edge: Edge):
         for node in edge.nodes():
             if node not in self._nodes:
                 self._nodes.add(node)
         self._edges.add(edge)
 
-    def set_ext(self, nodes):
+    def set_ext(self, nodes: Iterable[Node]):
         for node in nodes:
             if node not in self._nodes:
                 self._nodes.add(node)
@@ -238,7 +230,7 @@ class FGGRule:
 
     rule_count = 0
     
-    def __init__(self, lhs, rhs):
+    def __init__(self, lhs: EdgeLabel, rhs: FactorGraph):
         if lhs.is_terminal():
             raise Exception(f"Can't make FGG rule with terminal left-hand side.")
         if (lhs.type() != rhs.type()):
@@ -276,7 +268,7 @@ class FGGRepresentation:
         self._start        = None      # start symbol, an EdgeLabel which has arity 0
         self._rules        = dict()    # one set of rules for each nonterminal edge label
 
-    def add_node_label(self, label):
+    def add_node_label(self, label: NodeLabel):
         name = label.name()
         if name in self._node_labels:
             if self._node_labels[name] != label:
@@ -289,7 +281,7 @@ class FGGRepresentation:
     def node_labels(self):
         return [self._node_labels[name] for name in self._node_labels]
 
-    def add_nonterminal(self, label):
+    def add_nonterminal(self, label: EdgeLabel):
         if label.is_terminal():
             raise Exception(f"Can't add terminal edge label {label.name()} as a nonterminal.")
             
@@ -308,7 +300,7 @@ class FGGRepresentation:
     def nonterminals(self):
         return [self._nonterminals[name] for name in self._nonterminals]
     
-    def add_terminal(self, label):
+    def add_terminal(self, label: EdgeLabel):
         if not label.is_terminal():
             raise Exception(f"Can't add nonterminal edge label {label.name()} as a terminal.")
         
@@ -335,7 +327,7 @@ class FGGRepresentation:
         else:
             raise KeyError(f'no such edge label {name}')
     
-    def set_start_symbol(self, start):
+    def set_start_symbol(self, start: EdgeLabel):
         if start.arity() != 0:
             raise Exception("Start symbol must have arity 0.")
         self.add_nonterminal(start)
@@ -346,7 +338,7 @@ class FGGRepresentation:
         
     # TODO: this does not check to make sure these nodes and edges haven't been used in
     #       some other rule, but maybe it should
-    def add_rule(self, rule):
+    def add_rule(self, rule: FGGRule):
         lhs = rule.lhs()
         rhs = rule.rhs()
         
