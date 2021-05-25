@@ -1,5 +1,4 @@
 # TODO: improve the comment structure
-# TODO: figure out how to do type checking on functions
 # TODO: change how I number nodes/edges to make pretty-printing work better
 # TODO: add custom sorting functions for nodes/edges based on their IDs?
 
@@ -50,30 +49,15 @@ class EdgeLabel:
         return self._factor
     
     def set_factor(self, fac: Optional[Factor]):
-        if self._is_terminal and fac is None:
-            raise ValueError(f"Terminal edge label {self._name} is missing a factor.")
-        if not self._is_terminal and fac is not None:
-            raise ValueError(f"Nonterminal edge label {self._name} should not have a factor.")
+        if self._is_terminal:
+            if fac is None:
+                raise ValueError(f"Terminal edge label {self._name} is missing a factor.")
+            elif fac.domains() != tuple([nl.domain() for nl in self.type()]):
+                raise ValueError(f"Factor function has the wrong type for edge label {self._name}.")
+        if not self._is_terminal:
+            if fac is not None:
+                raise ValueError(f"Nonterminal edge label {self._name} should not have a factor.")
         self._factor = fac
-    
-    def apply_factor(self, args):
-        if not self.is_terminal():
-            raise Exception(f"Cannot apply factor function because nonterminal edge label {self._name} does not have a factor function.")
-        if len(args) != self.arity():
-            raise Exception(f"Factor function for edge label {self._name} is not applicable to arguments {args}.")
-        for i in range(self.arity()):
-            if not self._node_labels[i].domain().contains(args[i]):
-                raise Exception(f"Factor function for edge label {self._name} is not applicable to arguments {args}.")
-        return self._factor.apply(args)
-
-    # checks whether a label fits a list of nodes
-    def is_applicable_to(self, nodes):
-        if len(nodes) != self.arity():
-            return False
-        for i, node in enumerate(nodes):
-            if node.label() != self._node_labels[i]:
-                return False
-        return True
 
     def __str__(self):
         return self.to_string(0)
@@ -133,11 +117,11 @@ class Edge:
     def __init__(self, label: EdgeLabel, nodes: tuple[Node]):
         Edge.edge_count += 1
         self._id     = Edge.edge_count
-        if not label.is_applicable_to(nodes):
+        if label.type() != tuple([node.label() for node in nodes]):
             raise Exception(f"Can't use edge label {label.name()} with this set of nodes.")
         self._label = label
         self._nodes = nodes
-    
+
     def edge_id(self):
         return self._id
     
@@ -151,7 +135,11 @@ class Edge:
         return self._nodes[i]
     
     def apply_factor(self):
-        return self._label.apply_factor([node.value() for node in self._nodes])
+        if not self._label.is_terminal():
+            raise Exception(f"Nonterminal edge {label.name()} cannot apply factor.")
+        if any([not node.has_value() for node in self._nodes]):
+            raise Exception(f"Cannot apply factor to nodes which have no value.")
+        return self._label.factor().apply([node.value() for node in self._nodes])
     
     def __str__(self):
         return self.to_string(0, True)

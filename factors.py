@@ -4,7 +4,7 @@ import domains
 class Factor(ABC):
     """Abstract base class for factors."""
     def __init__(self, doms):
-        self._domains = list(doms)
+        self._domains = tuple(doms)
 
     def arity(self):
         return len(self._domains)
