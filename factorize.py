@@ -112,7 +112,7 @@ def quickbb(graph):
     permutations.
 
     This function implements some but not all of the heuristics in the
-    original paper.
+    original paper. Namely, it implements Section 5.1 but not 5.2-3 or 6.
 
     Arguments:
     graph: dict[node, Iterable[node]]
@@ -132,6 +132,13 @@ def quickbb(graph):
     best_ub = best_order = None
     
     def bb(graph, order, f, g):
+        """Branch-and-bound search.
+
+        graph: graph with some nodes eliminated
+        order: the eliminated nodes (in order)
+        f: lower bound on treewidth so far
+        g: treewidth so far
+        """
         nonlocal best_ub, best_order
         if len(graph) < 2:
             if f < best_ub:
@@ -139,10 +146,12 @@ def quickbb(graph):
                 best_ub = f
                 best_order = list(order) + list(graph)
         else:
+            # Build a list of nodes to try eliminating next
             vs = []
             for v in graph:
-                # very important pruning rule
-                if simplicial(graph, v) or almost_simplicial(graph, v) and len(graph[v]) <= lb:
+                # Graph reduction (Section 5.1): very important
+                if (simplicial(graph, v) or
+                    almost_simplicial(graph, v) and len(graph[v]) <= lb):
                     vs = [v]
                     break
                 else:
@@ -150,6 +159,7 @@ def quickbb(graph):
 
             for v in vs:
                 graph1 = copy_graph(graph)
+                exclude1 = set(graph[v])
                 eliminate_node(graph1, v)
                 order1 = order + [v]
                 # treewidth for current order so far
@@ -165,9 +175,6 @@ def quickbb(graph):
     if lb < best_ub:
         bb(graph, order, lb, 0)
 
-    print('---')
-    print('order', best_order)
-        
     # Build the tree decomposition
     tree = {}
     def build(order):
