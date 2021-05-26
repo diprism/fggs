@@ -39,6 +39,9 @@ class EdgeLabel:
     def is_terminal(self):
         return self._is_terminal
         
+    def is_nonterminal(self):
+        return not self._is_terminal
+        
     def arity(self):
         return len(self._node_labels)
         
