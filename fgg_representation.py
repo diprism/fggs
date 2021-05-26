@@ -3,8 +3,8 @@
 # TODO: add custom sorting functions for nodes/edges based on their IDs?
 
 from typing import Optional, Iterable
-from domains import *
-from factors import *
+from domains import Domain
+from factors import Factor
 
 
 
@@ -27,10 +27,10 @@ class NodeLabel:
 
 class EdgeLabel:
     
-    def __init__(self, name: str, is_terminal: bool, node_labels: tuple[NodeLabel], fac: Optional[Factor] = None):
+    def __init__(self, name: str, is_terminal: bool, node_labels: Iterable[NodeLabel], fac: Optional[Factor] = None):
         self._name        = name
         self._is_terminal = is_terminal
-        self._node_labels = node_labels
+        self._node_labels = tuple(node_labels)
         self.set_factor(fac)
 
     def name(self):
@@ -114,13 +114,13 @@ class Edge:
 
     edge_count = 0
     
-    def __init__(self, label: EdgeLabel, nodes: tuple[Node]):
+    def __init__(self, label: EdgeLabel, nodes: Iterable[Node]):
         Edge.edge_count += 1
         self._id     = Edge.edge_count
         if label.type() != tuple([node.label() for node in nodes]):
             raise Exception(f"Can't use edge label {label.name()} with this set of nodes.")
         self._label = label
-        self._nodes = nodes
+        self._nodes = tuple(nodes)
 
     def edge_id(self):
         return self._id
