@@ -19,10 +19,17 @@ class TestEdgeLabel(unittest.TestCase):
         self.nonterminal = EdgeLabel("nt", False, (self.nl1, self.nl2))
 
     def test_init_bad_input(self):
-        with self.assertRaises(Exception):
-            self.bad_terminal = EdgeLabel("bad_t", True, (self.nl1, self.nl2, self.nl3), None)
-        with self.assertRaises(Exception):
-            self.bad_nonterminal = EdgeLabel("bad_nt", False, (self.nl1, self.nl2), self.fac1)
+        with self.assertRaises(ValueError):
+            terminal_without_factor = EdgeLabel("t_missing_fac", True, (self.nl1, self.nl2, self.nl3), None)
+        with self.assertRaises(ValueError):
+            nonterminal_with_factor = EdgeLabel("nt_with_fac", False, (self.nl1, self.nl2), self.fac1)
+
+        bad_dom = FiniteDomain({6, 7, 8, 9, 10})
+        bad_fac = ConstantFactor([bad_dom]*2, 7)
+        with self.assertRaises(ValueError):
+            domain_mismatch = EdgeLabel("domain_mismatch", True, (self.nl1, self.nl2), bad_fac)
+        with self.assertRaises(ValueError):
+            arity_mismatch = EdgeLabel("arity_mismatch", True, (self.nl1, self.nl2), self.fac1)
 
     def test_is_terminal(self):
         self.assertTrue(self.terminal.is_terminal())
@@ -36,35 +43,22 @@ class TestEdgeLabel(unittest.TestCase):
     
     def test_set_factor(self):
         self.assertEqual(self.terminal.factor(), self.fac1)
-        self.terminal.set_factor(self.fac2)
-        self.assertEqual(self.terminal.factor(), self.fac2)
+        new_fac = ConstantFactor([self.dom]*3, 8)
+        self.terminal.set_factor(new_fac)
+        self.assertEqual(self.terminal.factor(), new_fac)
 
     def test_set_factor_bad_input(self):
         with self.assertRaises(ValueError):
             self.terminal.set_factor(None)
         with self.assertRaises(ValueError):
             self.nonterminal.set_factor(self.fac1)
-    
-    def test_apply_factor(self):
-        self.assertEqual(self.terminal.apply_factor([1,2,3]), 5)
-    
-    def test_apply_factor_nonterminal(self):
-        with self.assertRaises(Exception):
-            self.nonterminal.apply_factor([0,0,0])
-        
-    def test_apply_factor_bad_input(self):
-        with self.assertRaises(Exception):
-            self.terminal.apply_factor([1])
-        with self.assertRaises(Exception):
-            self.terminal.apply_factor([6,6,6])
-    
-    def test_is_applicable_to(self):
-        node1 = Node(self.nl1)
-        node2 = Node(self.nl2)
-        node3 = Node(self.nl3)
-        self.assertTrue(self.terminal.is_applicable_to([node1, node2, node3]))
-        self.assertFalse(self.terminal.is_applicable_to([node1]))
-        self.assertFalse(self.terminal.is_applicable_to([node2, node3, node1]))
+
+        bad_dom = FiniteDomain({6, 7, 8, 9, 10})
+        bad_fac = ConstantFactor([bad_dom]*3, 147)
+        with self.assertRaises(ValueError):
+            self.terminal.set_factor(bad_fac)
+        with self.assertRaises(ValueError):
+            self.terminal.set_factor(self.fac2)
 
 
 
@@ -118,8 +112,12 @@ class TestEdge(unittest.TestCase):
         self.edge2 = Edge(self.el2, (self.node2,))
     
     def test_init_bad_input(self):
+        # nodes have wrong domains
         with self.assertRaises(Exception):
             bad_edge = self.Edge(self.el2, (self.node1,))
+        # list of nodes has wrong arity
+        with self.assertRaises(Exception):
+            bad_edge = self.Edge(self.el2, (self.node2, self.node2))
     
     def test_edge_id(self):
         e1_id = self.edge1.edge_id()
