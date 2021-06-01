@@ -5,7 +5,7 @@ import re, collections, os, json
 import formats
 
 class TestTreewidth(unittest.TestCase):
-    def check(self, filename, optimal_tw):
+    def check(self, filename, optimal_tw, method, exact):
         g = {}
         with open(filename) as f:
             for line in f:
@@ -14,7 +14,7 @@ class TestTreewidth(unittest.TestCase):
                     add_node(g, u)
                     add_node(g, v)
                     add_edge(g, u, v)
-        t = tree_decomposition(g, method='min_fill')
+        t = tree_decomposition(g, method=method)
 
         # vertex cover
         for v in g:
@@ -47,13 +47,14 @@ class TestTreewidth(unittest.TestCase):
             self.assertEqual(count[v], 1, f'node {v} violates running intersection')
 
         tw = max(len(b) for b in t)-1
-        #self.assertEqual(tw, optimal_tw)
-        #if tw > optimal_tw: print(f"warning: treewidth not optimal ({tw} > {optimal_tw})")
-        self.assertTrue(tw >= optimal_tw)
+        if exact:
+            self.assertEqual(tw, optimal_tw)
+        else:
+            self.assertTrue(tw >= optimal_tw)
 
-    def test_treewidth(self):
+    # Test cases from https://github.com/freetdi/named-graphs/
+    def test_min_fill(self):
         dirname = os.path.dirname(__file__)
-        # Test cases from https://github.com/freetdi/named-graphs/
         for filename, optimal_tw in [
                 ('BarbellGraph_10_5.gr', 9),
                 ('BidiakisCube.gr', 4),
@@ -61,7 +62,29 @@ class TestTreewidth(unittest.TestCase):
                 ('BlanusaSecondSnarkGraph.gr', 4),
                 ('BrinkmannGraph.gr', 8),
         ]:
-            self.check(os.path.join(dirname, 'graphs', filename), optimal_tw)
+            self.check(os.path.join(dirname, 'graphs', filename), optimal_tw, 'min_fill', False)
+            
+    def test_acb(self):
+        dirname = os.path.dirname(__file__)
+        for filename, optimal_tw in [
+                #('BarbellGraph_10_5.gr', 9),
+                ('BidiakisCube.gr', 4),
+                ('BlanusaFirstSnarkGraph.gr', 5),
+                ('BlanusaSecondSnarkGraph.gr', 4),
+                #('BrinkmannGraph.gr', 8),
+        ]:
+            self.check(os.path.join(dirname, 'graphs', filename), optimal_tw, 'acb', True)
+            
+    def test_quickbb(self):
+        dirname = os.path.dirname(__file__)
+        for filename, optimal_tw in [
+                ('BarbellGraph_10_5.gr', 9),
+                ('BidiakisCube.gr', 4),
+                #('BlanusaFirstSnarkGraph.gr', 5),
+                #('BlanusaSecondSnarkGraph.gr', 4),
+                #('BrinkmannGraph.gr', 8),
+        ]:
+            self.check(os.path.join(dirname, 'graphs', filename), optimal_tw, 'quickbb', True)
 
 class TestFactorize(unittest.TestCase):
     def test_factorize(self):
