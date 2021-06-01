@@ -1,6 +1,7 @@
 __all__ = ['factorize_rule', 'factorize']
 
 import fgg_representation as fggs
+import copy
 
 def add_node(graph, v):
     if v not in graph:
@@ -382,13 +383,13 @@ def factorize_rule(rule, method='min_fill'):
             rhs.add_node(v)
         rhs.set_ext(ext)
 
-        # terminal edges
+        # terminal edges and existing nonterminal edges
         for e in rule.rhs().edges():
             if (bag.issuperset(e.nodes()) and
                 (parent is None or not parent.issuperset(e.nodes()))):
                 rhs.add_edge(e)
 
-        # nonterminal edges and recurse on children
+        # new nonterminal edges and recurse on children
         for n in t[bag]:
             if n != parent:
                 child_lhs, child_ext = visit(n, bag)
