@@ -372,7 +372,7 @@ def factorize_rule(rule, method='min_fill'):
             lhs = rule.lhs()
         else:
             ext = list(bag & parent)
-            lhs = fggs.EdgeLabel(f'{rule.rule_id()}_{i}',
+            lhs = fggs.EdgeLabel(f'{id(rule)}_{i}',
                                  is_terminal=False,
                                  node_labels=[v.label() for v in ext])
             i += 1

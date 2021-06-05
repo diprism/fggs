@@ -90,7 +90,7 @@ def fgg_to_json(g):
     j['start'] = g.start_symbol().name()
     
     j['rules'] = []
-    for gr in sorted(g.all_rules(), key=lambda r: r.rule_id()):
+    for gr in g.all_rules():
         nodes = sorted(gr.rhs().nodes(), key=lambda v: v.id())
         node_nums = {v.id():i for (i,v) in enumerate(nodes)}
         jr = {

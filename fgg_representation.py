@@ -230,21 +230,13 @@ class FactorGraph:
 
 class FGGRule:
 
-    # TODO: Find some way to remove this somehow?
-    _rule_count = 0
-
     def __init__(self, lhs: EdgeLabel, rhs: FactorGraph):
         if lhs.is_terminal():
             raise Exception(f"Can't make FGG rule with terminal left-hand side.")
         if (lhs.type() != rhs.type()):
             raise Exception(f"Can't make FGG rule: left-hand side of type ({','.join(l.name() for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name() for l in rhs.type())}).")
-        FGGRule._rule_count += 1
-        self._id  = FGGRule._rule_count
         self._lhs = lhs
         self._rhs = rhs
-
-    def rule_id(self):
-        return self._id
 
     def lhs(self):
         return self._lhs
