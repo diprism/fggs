@@ -70,12 +70,6 @@ class TestNode(unittest.TestCase):
         self.node1 = Node(self.label)
         self.node2 = Node(self.label)
     
-    # actual node ids during test will depend on whether
-    # previous tests or test suites have created Nodes
-    def test_node_id(self):
-        n1_id = self.node1.node_id()
-        self.assertEqual(self.node2.node_id(), n1_id+1)
-    
     def test_value(self):
         self.assertFalse(self.node1.has_value())
         
@@ -118,10 +112,6 @@ class TestEdge(unittest.TestCase):
         # list of nodes has wrong arity
         with self.assertRaises(Exception):
             bad_edge = self.Edge(self.el2, (self.node2, self.node2))
-    
-    def test_edge_id(self):
-        e1_id = self.edge1.edge_id()
-        self.assertEqual(self.edge2.edge_id(), e1_id+1)
     
     def test_node_at(self):
         self.assertEqual(self.edge1.node_at(1), self.node2)

@@ -1,7 +1,4 @@
-# TODO: improve the comment structure
-# TODO: change how I number nodes/edges to make pretty-printing work better
-# TODO: add custom sorting functions for nodes/edges based on their IDs?
-
+import uuid
 from typing import Optional, Iterable
 from domains import Domain
 from factors import Factor
@@ -79,16 +76,23 @@ class EdgeLabel:
     
 
 class Node:
+
+    # For the moment, ensure that all nodes with the same id
+    # also have the same label. (May want to change this later.)
+    _id_to_label = dict()
     
-    node_count = 0
-    
-    def __init__(self, label: NodeLabel):
-        Node.node_count += 1
-        self._id     = Node.node_count
+    def __init__(self, label: NodeLabel, node_id: str = None):
+        if node_id == None:
+            self._id = str(uuid.uuid4())
+            Node._id_to_label[self._id] = label
+        else:
+            if label in Node._id_to_label and label != Node._id_to_label[node_id]:
+                raise Exception(f"Cannot define Node with id {node_id} and label {label.name()} because id already associated with label {Node._id_to_label[node_id].name()}.")
+            self._id = node_id
         self._label  = label
         self._value  = None
     
-    def node_id(self):
+    def id(self):
         return self._id
     
     def label(self):
@@ -115,17 +119,24 @@ class Node:
 
 class Edge:
 
-    edge_count = 0
+    # For the moment, ensure that all edges with the same id
+    # also have the same label. (May want to change this later.)
+    _id_to_label = dict()
     
-    def __init__(self, label: EdgeLabel, nodes: Iterable[Node]):
-        Edge.edge_count += 1
-        self._id     = Edge.edge_count
+    def __init__(self, label: EdgeLabel, nodes: Iterable[Node], edge_id: str = None):
+        if edge_id == None:
+            self._id = str(uuid.uuid4())
+            Edge._id_to_label[self._id] = label
+        else:
+            if label in Edge._id_to_label and label != Edge._id_to_label[edge_id]:
+                raise Exception(f"Cannot define Edge with id {edge_id} and label {label.name()} because id already associated with label {Edge._id_to_label[edge_id].name()}.")
+            self._id = edge_id
         if label.type() != tuple([node.label() for node in nodes]):
             raise Exception(f"Can't use edge label {label.name()} with this set of nodes.")
         self._label = label
         self._nodes = tuple(nodes)
 
-    def edge_id(self):
+    def id(self):
         return self._id
     
     def label(self):
@@ -157,7 +168,7 @@ class Edge:
                 if verbose:
                     string += f"{node}"
                 else:
-                    string += f"Node {node.node_id()}"
+                    string += f"Node {node.id()}"
         return string
 
 
@@ -219,21 +230,22 @@ class FactorGraph:
 
 class FGGRule:
 
-    rule_count = 0
-    
+    # TODO: Find some way to remove this somehow?
+    _rule_count = 0
+
     def __init__(self, lhs: EdgeLabel, rhs: FactorGraph):
         if lhs.is_terminal():
             raise Exception(f"Can't make FGG rule with terminal left-hand side.")
         if (lhs.type() != rhs.type()):
             raise Exception(f"Can't make FGG rule: left-hand side of type ({','.join(l.name() for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name() for l in rhs.type())}).")
-        FGGRule.rule_count += 1
-        self._id  = FGGRule.rule_count
+        FGGRule._rule_count += 1
+        self._id  = FGGRule._rule_count
         self._lhs = lhs
         self._rhs = rhs
 
     def rule_id(self):
         return self._id
-    
+
     def lhs(self):
         return self._lhs
     
@@ -327,8 +339,6 @@ class FGGRepresentation:
     def start_symbol(self):
         return self._start
         
-    # TODO: this does not check to make sure these nodes and edges haven't been used in
-    #       some other rule, but maybe it should
     def add_rule(self, rule: FGGRule):
         lhs = rule.lhs()
         rhs = rule.rhs()
