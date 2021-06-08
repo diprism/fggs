@@ -69,7 +69,7 @@ class TestNode(unittest.TestCase):
         self.label = NodeLabel("label", self.dom)
         self.node1 = Node(self.label)
         self.node2 = Node(self.label)
-    
+
     def test_value(self):
         self.assertFalse(self.node1.has_value())
         
@@ -157,12 +157,32 @@ class TestFactorGraph(unittest.TestCase):
         self.assertEqual(len(nodes), 2)
         self.assertTrue(self.node1 in nodes)
         self.assertTrue(self.node2 in nodes)
+
+    def test_add_node_duplicate(self):
+        # it's fine to add the same node twice
+        self.graph.add_node(self.node1)
+        self.assertEqual(len(self.graph.nodes()), 2)
+        # can't add two different nodes with the same id though
+        node_id  = self.node1.id()
+        new_node = Node(self.nl1, node_id=node_id)
+        with self.assertRaises(Exception):
+            self.graph.add_node(new_node)
     
     def test_add_edge(self):
         edges = self.graph.edges()
         self.assertEqual(len(edges), 2)
         self.assertTrue(self.edge1 in edges)
         self.assertTrue(self.edge2 in edges)
+
+    def test_add_edge_duplicate(self):
+        # it's fine to add the same edge twice
+        self.graph.add_edge(self.edge1)
+        self.assertEqual(len(self.graph.edges()), 2)
+        # can't add two different edges with the same id though
+        edge_id  = self.edge1.id()
+        new_edge = Edge(self.el1, (self.node1, self.node2), edge_id=edge_id)
+        with self.assertRaises(Exception):
+            self.graph.add_edge(new_edge)
     
     def test_set_ext(self):
         ext = self.graph.ext()

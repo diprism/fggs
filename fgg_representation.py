@@ -196,9 +196,15 @@ class FactorGraph:
         return tuple([node.label() for node in self._ext])
     
     def add_node(self, node: Node):
+        if node not in self._nodes and\
+           node.id() in [n.id() for n in self._nodes]:
+            raise Exception(f"Can't have two nodes with same ID {node.id()} in same FactorGraph.")
         self._nodes.add(node)
 
     def add_edge(self, edge: Edge):
+        if edge not in self._edges and\
+           edge.id() in [e.id() for e in self._edges]:
+            raise Exception(f"Can't have two edges with same ID {edge.id()} in same FactorGraph.")
         for node in edge.nodes():
             if node not in self._nodes:
                 self._nodes.add(node)
