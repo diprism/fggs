@@ -77,16 +77,9 @@ class EdgeLabel:
 
 class Node:
 
-    def __init__(self, label: NodeLabel, node_id: str = None):
-        if node_id == None:
-            self._id = str(uuid.uuid4())
-        else:
-            self._id = node_id
+    def __init__(self, label: NodeLabel):
         self._label  = label
         self._value  = None
-    
-    def id(self):
-        return self._id
     
     def label(self):
         return self._label
@@ -106,25 +99,18 @@ class Node:
         self._value = None
         
     def __str__(self):
-        return f"Node {self._id} with NodeLabel {self.label().name()} and value {self.value()}"
+        return f"Node {id(self)} with NodeLabel {self.label().name()} and value {self.value()}"
 
 
 
 class Edge:
 
-    def __init__(self, label: EdgeLabel, nodes: Iterable[Node], edge_id: str = None):
-        if edge_id == None:
-            self._id = str(uuid.uuid4())
-        else:
-            self._id = edge_id
+    def __init__(self, label: EdgeLabel, nodes: Iterable[Node]):
         if label.type() != tuple([node.label() for node in nodes]):
             raise Exception(f"Can't use edge label {label.name()} with this set of nodes.")
         self._label = label
         self._nodes = tuple(nodes)
 
-    def id(self):
-        return self._id
-    
     def label(self):
         return self._label
 
@@ -146,7 +132,7 @@ class Edge:
     def to_string(self, indent, verbose):
         arity = len(self.nodes())
         string = "\t"*indent
-        string += f"Edge {self._id} with EdgeLabel {self.label().name()}, connecting to {arity} nodes"
+        string += f"Edge {id(self)} with EdgeLabel {self.label().name()}, connecting to {arity} nodes"
         if arity > 0:
             string += ":"
             for node in self._nodes:
@@ -154,7 +140,7 @@ class Edge:
                 if verbose:
                     string += f"{node}"
                 else:
-                    string += f"Node {node.id()}"
+                    string += f"Node id(node)"
         return string
 
 
@@ -182,15 +168,9 @@ class FactorGraph:
         return tuple([node.label() for node in self._ext])
     
     def add_node(self, node: Node):
-        if node not in self._nodes and\
-           node.id() in [n.id() for n in self._nodes]:
-            raise Exception(f"Can't have two nodes with same ID {node.id()} in same FactorGraph.")
         self._nodes.add(node)
 
     def add_edge(self, edge: Edge):
-        if edge not in self._edges and\
-           edge.id() in [e.id() for e in self._edges]:
-            raise Exception(f"Can't have two edges with same ID {edge.id()} in same FactorGraph.")
         for node in edge.nodes():
             if node not in self._nodes:
                 self._nodes.add(node)

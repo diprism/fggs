@@ -50,20 +50,13 @@
         {
             "lhs": "S",
             "rhs": {
-                "nodes": [
-                    {
-                        "id": "1",
-                        "label": "T"
-                    }
-                ],
+                "nodes": ["T"],
                 "edges": [
                     {
-                        "id": "2",
                         "attachments": [0],
                         "label": "is_bos"
                     },
                     {
-                        "id": "3",
                         "attachments": [0],
                         "label": "X"
                     }
@@ -74,33 +67,17 @@
         {
             "lhs": "X",
             "rhs": {
-                "nodes": [
-                    {
-                        "id": "4",
-                        "label": "T"
-                    },
-                    {
-                        "id": "5",
-                        "label": "T"
-                    },
-                    {
-                        "id": "6",
-                        "label": "W"
-                    }
-                ],
+                "nodes": ["T", "T", "W"],
                 "edges": [
                     {
-                        "id": "7",
                         "attachments": [0, 1],
                         "label": "transition"
                     },
                     {
-                        "id": "8",
                         "attachments": [1, 2],
                         "label": "emission"
                     },
                     {
-                        "id": "9",
                         "attachments": [1],
                         "label": "X"
                     }
@@ -111,24 +88,13 @@
         {
             "lhs": "X",
             "rhs": {
-                "nodes": [
-                    {
-                        "id": "10",
-                        "label": "T"
-                    },
-                    {
-                        "id": "11",
-                        "label": "T"
-                    }
-                ],
+                "nodes": ["T", "T"],
                 "edges": [
                     {
-                        "id": "12",
                         "attachments": [0, 1],
                         "label": "transition"
                     },
                     {
-                        "id": "13",
                         "attachments": [1],
                         "label": "is_eos"
                     }
