@@ -1,3 +1,4 @@
+import uuid
 from typing import Optional, Iterable
 from domains import Domain
 from factors import Factor
