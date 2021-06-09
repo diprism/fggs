@@ -69,13 +69,7 @@ class TestNode(unittest.TestCase):
         self.label = NodeLabel("label", self.dom)
         self.node1 = Node(self.label)
         self.node2 = Node(self.label)
-    
-    # actual node ids during test will depend on whether
-    # previous tests or test suites have created Nodes
-    def test_node_id(self):
-        n1_id = self.node1.node_id()
-        self.assertEqual(self.node2.node_id(), n1_id+1)
-    
+
     def test_value(self):
         self.assertFalse(self.node1.has_value())
         
@@ -118,10 +112,6 @@ class TestEdge(unittest.TestCase):
         # list of nodes has wrong arity
         with self.assertRaises(Exception):
             bad_edge = self.Edge(self.el2, (self.node2, self.node2))
-    
-    def test_edge_id(self):
-        e1_id = self.edge1.edge_id()
-        self.assertEqual(self.edge2.edge_id(), e1_id+1)
     
     def test_node_at(self):
         self.assertEqual(self.edge1.node_at(1), self.node2)
@@ -167,12 +157,32 @@ class TestFactorGraph(unittest.TestCase):
         self.assertEqual(len(nodes), 2)
         self.assertTrue(self.node1 in nodes)
         self.assertTrue(self.node2 in nodes)
+
+    def test_add_node_duplicate(self):
+        # it's fine to add the same node twice
+        self.graph.add_node(self.node1)
+        self.assertEqual(len(self.graph.nodes()), 2)
+        # can't add two different nodes with the same id though
+        id  = self.node1.id()
+        new_node = Node(self.nl1, id=id)
+        with self.assertRaises(Exception):
+            self.graph.add_node(new_node)
     
     def test_add_edge(self):
         edges = self.graph.edges()
         self.assertEqual(len(edges), 2)
         self.assertTrue(self.edge1 in edges)
         self.assertTrue(self.edge2 in edges)
+
+    def test_add_edge_duplicate(self):
+        # it's fine to add the same edge twice
+        self.graph.add_edge(self.edge1)
+        self.assertEqual(len(self.graph.edges()), 2)
+        # can't add two different edges with the same id though
+        id  = self.edge1.id()
+        new_edge = Edge(self.el1, (self.node1, self.node2), id=id)
+        with self.assertRaises(Exception):
+            self.graph.add_edge(new_edge)
     
     def test_set_ext(self):
         ext = self.graph.ext()

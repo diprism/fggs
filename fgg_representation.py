@@ -1,7 +1,4 @@
-# TODO: improve the comment structure
-# TODO: change how I number nodes/edges to make pretty-printing work better
-# TODO: add custom sorting functions for nodes/edges based on their IDs?
-
+import random, string
 from typing import Optional, Iterable
 from domains import Domain
 from factors import Factor
@@ -79,18 +76,31 @@ class EdgeLabel:
     
 
 class Node:
-    
-    node_count = 0
-    
-    def __init__(self, label: NodeLabel):
-        Node.node_count += 1
-        self._id     = Node.node_count
+
+    _id_registry = set()
+
+    def __init__(self, label: NodeLabel, id: str = None):
+        if id == None:
+            self.set_id(self._generate_id())
+        else:
+            self.set_id(id)
         self._label  = label
         self._value  = None
+
+    def _generate_id(self):
+        letters = string.ascii_letters
+        new_id = ''.join([random.choice(letters) for i in range(20)])
+        while new_id in Node._id_registry:
+            new_id = ''.join([random.choice(letters) for i in range(20)])
+        return new_id
     
-    def node_id(self):
+    def id(self):
         return self._id
     
+    def set_id(self, id: str):
+        Node._id_registry.add(id)
+        self._id = id
+
     def label(self):
         return self._label
     
@@ -115,18 +125,31 @@ class Node:
 
 class Edge:
 
-    edge_count = 0
-    
-    def __init__(self, label: EdgeLabel, nodes: Iterable[Node]):
-        Edge.edge_count += 1
-        self._id     = Edge.edge_count
+    _id_registry = set()
+
+    def __init__(self, label: EdgeLabel, nodes: Iterable[Node], id: str = None):
+        if id == None:
+            self.set_id(self._generate_id())
+        else:
+            self.set_id(id)
         if label.type() != tuple([node.label() for node in nodes]):
             raise Exception(f"Can't use edge label {label.name()} with this set of nodes.")
         self._label = label
         self._nodes = tuple(nodes)
 
-    def edge_id(self):
+    def _generate_id(self):
+        letters = string.ascii_letters
+        new_id = ''.join([random.choice(letters) for i in range(20)])
+        while new_id in Edge._id_registry:
+            new_id = ''.join([random.choice(letters) for i in range(20)])
+        return new_id
+
+    def id(self):
         return self._id
+
+    def set_id(self, id: str):
+        Edge._id_registry.add(id)
+        self._id = id
     
     def label(self):
         return self._label
@@ -157,7 +180,7 @@ class Edge:
                 if verbose:
                     string += f"{node}"
                 else:
-                    string += f"Node {node.node_id()}"
+                    string += f"Node {node.id()}"
         return string
 
 
@@ -165,9 +188,11 @@ class Edge:
 class FactorGraph:
 
     def __init__(self):
-        self._nodes = set()
-        self._edges = set()
-        self._ext   = tuple()
+        self._nodes    = set()
+        self._node_ids = set()
+        self._edges    = set()
+        self._edge_ids = set()
+        self._ext      = tuple()
     
     def nodes(self):
         return list(self._nodes)
@@ -185,13 +210,21 @@ class FactorGraph:
         return tuple([node.label() for node in self._ext])
     
     def add_node(self, node: Node):
+        if node not in self._nodes and\
+           node.id() in self._node_ids:
+            raise Exception(f"Can't have two nodes with same ID {node.id()} in same FactorGraph.")
         self._nodes.add(node)
+        self._node_ids.add(node.id())
 
     def add_edge(self, edge: Edge):
+        if edge not in self._edges and\
+           edge.id() in self._edge_ids:
+            raise Exception(f"Can't have two edges with same ID {edge.id()} in same FactorGraph.")
         for node in edge.nodes():
             if node not in self._nodes:
                 self._nodes.add(node)
         self._edges.add(edge)
+        self._edge_ids.add(edge.id())
 
     def set_ext(self, nodes: Iterable[Node]):
         for node in nodes:
@@ -219,21 +252,14 @@ class FactorGraph:
 
 class FGGRule:
 
-    rule_count = 0
-    
     def __init__(self, lhs: EdgeLabel, rhs: FactorGraph):
         if lhs.is_terminal():
             raise Exception(f"Can't make FGG rule with terminal left-hand side.")
         if (lhs.type() != rhs.type()):
             raise Exception(f"Can't make FGG rule: left-hand side of type ({','.join(l.name() for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name() for l in rhs.type())}).")
-        FGGRule.rule_count += 1
-        self._id  = FGGRule.rule_count
         self._lhs = lhs
         self._rhs = rhs
 
-    def rule_id(self):
-        return self._id
-    
     def lhs(self):
         return self._lhs
     
@@ -327,8 +353,6 @@ class FGGRepresentation:
     def start_symbol(self):
         return self._start
         
-    # TODO: this does not check to make sure these nodes and edges haven't been used in
-    #       some other rule, but maybe it should
     def add_rule(self, rule: FGGRule):
         lhs = rule.lhs()
         rhs = rule.rhs()
