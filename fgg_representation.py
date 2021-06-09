@@ -77,11 +77,11 @@ class EdgeLabel:
 
 class Node:
 
-    def __init__(self, label: NodeLabel, node_id: str = None):
-        if node_id == None:
+    def __init__(self, label: NodeLabel, id: str = None):
+        if id == None:
             self._id = str(uuid.uuid4())
         else:
-            self._id = node_id
+            self._id = id
         self._label  = label
         self._value  = None
     
@@ -112,11 +112,11 @@ class Node:
 
 class Edge:
 
-    def __init__(self, label: EdgeLabel, nodes: Iterable[Node], edge_id: str = None):
-        if edge_id == None:
+    def __init__(self, label: EdgeLabel, nodes: Iterable[Node], id: str = None):
+        if id == None:
             self._id = str(uuid.uuid4())
         else:
-            self._id = edge_id
+            self._id = id
         if label.type() != tuple([node.label() for node in nodes]):
             raise Exception(f"Can't use edge label {label.name()} with this set of nodes.")
         self._label = label
