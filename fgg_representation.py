@@ -188,9 +188,11 @@ class Edge:
 class FactorGraph:
 
     def __init__(self):
-        self._nodes = set()
-        self._edges = set()
-        self._ext   = tuple()
+        self._nodes    = set()
+        self._node_ids = set()
+        self._edges    = set()
+        self._edge_ids = set()
+        self._ext      = tuple()
     
     def nodes(self):
         return list(self._nodes)
@@ -209,18 +211,20 @@ class FactorGraph:
     
     def add_node(self, node: Node):
         if node not in self._nodes and\
-           node.id() in [n.id() for n in self._nodes]:
+           node.id() in self._node_ids:
             raise Exception(f"Can't have two nodes with same ID {node.id()} in same FactorGraph.")
         self._nodes.add(node)
+        self._node_ids.add(node.id())
 
     def add_edge(self, edge: Edge):
         if edge not in self._edges and\
-           edge.id() in [e.id() for e in self._edges]:
+           edge.id() in self._edge_ids:
             raise Exception(f"Can't have two edges with same ID {edge.id()} in same FactorGraph.")
         for node in edge.nodes():
             if node not in self._nodes:
                 self._nodes.add(node)
         self._edges.add(edge)
+        self._edge_ids.add(edge.id())
 
     def set_ext(self, nodes: Iterable[Node]):
         for node in nodes:
