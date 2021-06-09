@@ -1,4 +1,4 @@
-import uuid
+import random, string
 from typing import Optional, Iterable
 from domains import Domain
 from factors import Factor
@@ -77,17 +77,30 @@ class EdgeLabel:
 
 class Node:
 
+    _id_registry = set()
+
     def __init__(self, label: NodeLabel, id: str = None):
         if id == None:
-            self._id = str(uuid.uuid4())
+            self.set_id(self._generate_id())
         else:
-            self._id = id
+            self.set_id(id)
         self._label  = label
         self._value  = None
+
+    def _generate_id(self):
+        letters = string.ascii_letters
+        new_id = ''.join([random.choice(letters) for i in range(20)])
+        while new_id in Node._id_registry:
+            new_id = ''.join([random.choice(letters) for i in range(20)])
+        return new_id
     
     def id(self):
         return self._id
     
+    def set_id(self, id: str):
+        Node._id_registry.add(id)
+        self._id = id
+
     def label(self):
         return self._label
     
@@ -112,18 +125,31 @@ class Node:
 
 class Edge:
 
+    _id_registry = set()
+
     def __init__(self, label: EdgeLabel, nodes: Iterable[Node], id: str = None):
         if id == None:
-            self._id = str(uuid.uuid4())
+            self.set_id(self._generate_id())
         else:
-            self._id = id
+            self.set_id(id)
         if label.type() != tuple([node.label() for node in nodes]):
             raise Exception(f"Can't use edge label {label.name()} with this set of nodes.")
         self._label = label
         self._nodes = tuple(nodes)
 
+    def _generate_id(self):
+        letters = string.ascii_letters
+        new_id = ''.join([random.choice(letters) for i in range(20)])
+        while new_id in Edge._id_registry:
+            new_id = ''.join([random.choice(letters) for i in range(20)])
+        return new_id
+
     def id(self):
         return self._id
+
+    def set_id(self, id: str):
+        Edge._id_registry.add(id)
+        self._id = id
     
     def label(self):
         return self._label
