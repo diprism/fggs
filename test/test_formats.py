@@ -27,11 +27,11 @@ class TestJson(unittest.TestCase):
         with open(os.path.join(os.path.dirname(__file__), 'hmm.json')) as f:
             j = json.load(f)
             jcopy = copy.deepcopy(j)
-            jcopy['rules'][0]['rhs']['edges'][0]['attachments'] = ["foo"]
+            jcopy['rules'][0]['rhs']['edges'][0]['attachments'] = [100]
             with self.assertRaises(ValueError):
                 _ = formats.json_to_fgg(jcopy)
             jcopy = copy.deepcopy(j)
-            jcopy['rules'][0]['rhs']['externals'] = ["foo"]
+            jcopy['rules'][0]['rhs']['externals'] = [100]
             with self.assertRaises(ValueError):
                 _ = formats.json_to_fgg(jcopy)
 

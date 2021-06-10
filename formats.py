@@ -34,25 +34,25 @@ def json_to_fgg(j):
     for r in j['rules']:
         lhs = g.get_nonterminal(r['lhs'])
         rhs = FactorGraph()
-        nodes = {}
+        nodes = []
         for node in r['rhs']['nodes']:
-            v = Node(g.get_node_label(node['label']), id=node['id'])
-            nodes[node['id']] = v
+            v = Node(g.get_node_label(node['label']), id=node.get('id', None))
+            nodes.append(v)
             rhs.add_node(v)
         for e in r['rhs']['edges']:
             att = []
-            for vid in e['attachments']:
+            for vi in e['attachments']:
                 try:
-                    att.append(nodes[vid])
-                except KeyError:
-                    raise ValueError(f'invalid attachment node id {vid}')
-            rhs.add_edge(Edge(g.get_edge_label(e['label']), att, id=e['id']))
+                    att.append(nodes[vi])
+                except IndexError:
+                    raise ValueError(f'invalid attachment node number {vi} (out of {len(nodes)})')
+            rhs.add_edge(Edge(g.get_edge_label(e['label']), att, id=e.get('id', None)))
         ext = []
-        for vid in r['rhs'].get('externals', []):
+        for vi in r['rhs'].get('externals', []):
             try:
-                ext.append(nodes[vid])
-            except KeyError:
-                raise ValueError(f'invalid external node id {vid}')
+                ext.append(nodes[vi])
+            except IndexError:
+                raise ValueError(f'invalid external node number {vi} (out of {len(nodes)})')
         rhs.set_ext(ext)
         g.add_rule(FGGRule(lhs, rhs))
         
@@ -92,18 +92,19 @@ def fgg_to_json(g):
     j['rules'] = []
     for gr in g.all_rules():
         nodes = sorted(gr.rhs().nodes(), key=lambda v: v.id())
+        node_nums = {v:vi for vi, v in enumerate(nodes)}
         jr = {
             'lhs': gr.lhs().name(),
             'rhs': {
                 'nodes': [{'id': v.id(), 'label': v.label().name()} for v in nodes],
                 'edges': [],
-                'externals': [v.id() for v in gr.rhs().ext()],
+                'externals': [node_nums[v] for v in gr.rhs().ext()],
             },
         }
         for e in sorted(gr.rhs().edges(), key=lambda e: e.id()):
             jr['rhs']['edges'].append({
                 'id': e.id(),
-                'attachments': [v.id() for v in e.nodes()],
+                'attachments': [node_nums[v] for v in e.nodes()],
                 'label': e.label().name(),
             })
         j['rules'].append(jr)
