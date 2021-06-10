@@ -2,6 +2,7 @@ import unittest
 import formats
 import json
 import os
+import copy
 
 class TestJson(unittest.TestCase):
     def test_roundtrip(self):
@@ -21,6 +22,18 @@ class TestJson(unittest.TestCase):
             self.assertTrue(r in j_check['rules'], f'{r} {j_check["rules"]}')
         for r in j_check['rules']:
             self.assertTrue(r in j['rules'], r)
+
+    def test_error(self):
+        with open(os.path.join(os.path.dirname(__file__), 'hmm.json')) as f:
+            j = json.load(f)
+            jcopy = copy.deepcopy(j)
+            jcopy['rules'][0]['rhs']['edges'][0]['attachments'] = ["foo"]
+            with self.assertRaises(ValueError):
+                _ = formats.json_to_fgg(jcopy)
+            jcopy = copy.deepcopy(j)
+            jcopy['rules'][0]['rhs']['externals'] = ["foo"]
+            with self.assertRaises(ValueError):
+                _ = formats.json_to_fgg(jcopy)
 
 if __name__ == "__main__":
     unittest.main()

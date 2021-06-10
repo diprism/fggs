@@ -45,14 +45,14 @@ def json_to_fgg(j):
                 try:
                     att.append(nodes[vid])
                 except KeyError:
-                    raise ValueError(f'invalid attachment node {v}')
+                    raise ValueError(f'invalid attachment node id {vid}')
             rhs.add_edge(Edge(g.get_edge_label(e['label']), att, id=e['id']))
         ext = []
         for vid in r['rhs'].get('externals', []):
             try:
                 ext.append(nodes[vid])
             except KeyError:
-                raise ValueError(f'invalid external node {v}')
+                raise ValueError(f'invalid external node id {vid}')
         rhs.set_ext(ext)
         g.add_rule(FGGRule(lhs, rhs))
         
