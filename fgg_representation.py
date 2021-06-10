@@ -85,7 +85,6 @@ class Node:
         else:
             self.set_id(id)
         self._label  = label
-        self._value  = None
 
     def _generate_id(self):
         letters = string.ascii_letters
@@ -103,23 +102,9 @@ class Node:
 
     def label(self):
         return self._label
-    
-    def has_value(self):
-        return self._value != None
-    
-    def value(self):
-        return self._value
-    
-    def set_value(self, val):
-        if (val != None) and (not self._label.domain().contains(val)):
-            raise Exception(f"Node with label {self._label.name()} cannot take value {val}.")
-        self._value = val
-    
-    def unset_value(self):
-        self._value = None
         
     def __str__(self):
-        return f"Node {self._id} with NodeLabel {self.label().name()} and value {self.value()}"
+        return f"Node {self._id} with NodeLabel {self.label().name()}"
 
 
 
@@ -159,14 +144,7 @@ class Edge:
     
     def node_at(self, i):
         return self._nodes[i]
-    
-    def apply_factor(self):
-        if not self._label.is_terminal():
-            raise Exception(f"Nonterminal edge {label.name()} cannot apply factor.")
-        if any([not node.has_value() for node in self._nodes]):
-            raise Exception(f"Cannot apply factor to nodes which have no value.")
-        return self._label.factor().apply([node.value() for node in self._nodes])
-    
+
     def __str__(self):
         return self.to_string(0, True)
     def to_string(self, indent, verbose):

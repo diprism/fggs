@@ -35,6 +35,10 @@ class TestEdgeLabel(unittest.TestCase):
         self.assertTrue(self.terminal.is_terminal())
         self.assertFalse(self.nonterminal.is_terminal())
     
+    def test_is_nonterminal(self):
+        self.assertFalse(self.terminal.is_nonterminal())
+        self.assertTrue(self.nonterminal.is_nonterminal())
+
     def test_arity(self):
         self.assertEqual(self.terminal.arity(), 3)
     
@@ -68,24 +72,12 @@ class TestNode(unittest.TestCase):
         self.dom = FiniteDomain({1, 2, 3, 4, 5})
         self.label = NodeLabel("label", self.dom)
         self.node1 = Node(self.label)
-        self.node2 = Node(self.label)
+        self.node2 = Node(self.label, id="id2")
 
-    def test_value(self):
-        self.assertFalse(self.node1.has_value())
-        
-        self.node1.set_value(4)
-        self.assertTrue(self.node1.has_value())
-        self.node1.unset_value()
-        self.assertFalse(self.node1.has_value())
-        
-        self.node1.set_value(4)
-        self.assertTrue(self.node1.has_value())
-        self.node1.set_value(None)
-        self.assertFalse(self.node1.has_value())
-    
-    def test_set_value_bad_input(self):
-        with self.assertRaises(Exception):
-            self.node1.set_value(6)
+    def test_id(self):
+        self.assertEqual(self.node2.id(), "id2")
+        self.node1.set_id("id1")
+        self.assertEqual(self.node1.id(), "id1")
 
 
 
@@ -115,18 +107,6 @@ class TestEdge(unittest.TestCase):
     
     def test_node_at(self):
         self.assertEqual(self.edge1.node_at(1), self.node2)
-    
-    def test_apply_factor(self):
-        # edge is a nonterminal
-        with self.assertRaises(Exception):
-            self.edge2.apply_factor()
-        # node values not set
-        with self.assertRaises(Exception):
-            self.edge1.apply_factor()
-        # node values set
-        self.node1.set_value(1)
-        self.node2.set_value(2)
-        self.assertEqual(self.edge1.apply_factor(), 42)
 
 
 
