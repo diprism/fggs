@@ -50,14 +50,16 @@
         {
             "lhs": "S",
             "rhs": {
-                "nodes": ["T"],
+                "nodes": [ { "id": "v0", "label": "T" } ],
                 "edges": [
                     {
-                        "attachments": [0],
+                        "id": "e0",
+                        "attachments": ["v0"],
                         "label": "is_bos"
                     },
                     {
-                        "attachments": [0],
+                        "id": "e1",
+                        "attachments": ["v0"],
                         "label": "X"
                     }
                 ],
@@ -67,39 +69,51 @@
         {
             "lhs": "X",
             "rhs": {
-                "nodes": ["T", "T", "W"],
+                "nodes": [
+                    { "id": "v0", "label": "T" },
+                    { "id": "v1", "label": "T" },
+                    { "id": "v2", "label": "W" }
+                ],
                 "edges": [
                     {
-                        "attachments": [0, 1],
+                        "id": "e0",
+                        "attachments": ["v0", "v1"],
                         "label": "transition"
                     },
                     {
-                        "attachments": [1, 2],
+                        "id": "e1",
+                        "attachments": ["v1", "v2"],
                         "label": "emission"
                     },
                     {
-                        "attachments": [1],
+                        "id": "e2",
+                        "attachments": ["v1"],
                         "label": "X"
                     }
                 ],
-                "externals": [0]
+                "externals": ["v0"]
             }
         },
         {
             "lhs": "X",
             "rhs": {
-                "nodes": ["T", "T"],
+                "nodes": [
+                    { "id": "v0", "label": "T" },
+                    { "id": "v1", "label": "T" }
+                ],
                 "edges": [
                     {
-                        "attachments": [0, 1],
+                        "id": "e0",
+                        "attachments": ["v0", "v1"],
                         "label": "transition"
                     },
                     {
-                        "attachments": [1],
+                        "id": "e1",
+                        "attachments": ["v1"],
                         "label": "is_eos"
                     }
                 ],
-                "externals": [0]
+                "externals": ["v0"]
             }
         }
     ]
