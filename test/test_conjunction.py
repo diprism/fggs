@@ -84,4 +84,17 @@ class TestConjunction(unittest.TestCase):
         self.restore()
 
     def test_conjunction(self):
-        
+        conjunction_check = conjoin_fggs(self.hmm, self.conjoinand)
+        conjunction_json_check = formats.fgg_to_json(conjunction_check)
+        self.maxDiff = 10000
+        self.assertEqual(self.conjunction_json.keys(), conjunction_json_check.keys())
+        self.assertEqual(self.conjunction_json['domains'], conjunction_json_check['domains'])
+        self.assertEqual(self.conjunction_json['factors'], conjunction_json_check['factors'])
+        self.assertEqual(self.conjunction_json['nonterminals'], conjunction_json_check['nonterminals'])
+        self.assertEqual(self.conjunction_json['start'], conjunction_json_check['start'])
+
+        # ignore order of rules
+        for r in self.conjunction_json['rules']:
+            self.assertTrue(r in conjunction_json_check['rules'], f'{r} {j_check["rules"]}')
+        for r in conjunction_json_check['rules']:
+            self.assertTrue(r in self.conjunction_json['rules'], r)

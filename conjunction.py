@@ -61,7 +61,7 @@ def conjoin_rules(rule1, rule2):
     ts1 = rule1.rhs().terminals()
     ts2 = rule2.rhs().terminals()
     for edge in ts1 + ts2:
-        new_edge = fggs.Edge(label=edge.label,\
+        new_edge = fggs.Edge(label=edge.label(),\
                              nodes=[new_nodes[n.id()] for n in edge.nodes()],\
                              id=edge.id())
         new_rhs.add_edge(new_edge)
@@ -75,10 +75,14 @@ def conjoin_fggs(fgg1, fgg2):
         for rule2 in fgg2.all_rules():
             if conjoinable(rule1, rule2):
                 new_fgg.add_rule(conjoin_rules(rule1, rule2))
-    # if the appropriate start symbol exists, set it
-    # otherwise leave it blank (and maybe consider this a conjunction fail?)
+    # set the start symbol
+    # (may not actually be used in any rules)
     start_name = f"<{fgg1.start_symbol().name()},{fgg2.start_symbol().name()}>"
     if new_fgg.has_edge_label(start_name):
         start_label = new_fgg.get_edge_label(start_name)
-        new_fgg.set_start_symbol(start_label)
+    else:
+        start_label = fggs.EdgeLabel(name=start_name,\
+                                     is_terminal=False,\
+                                     type=fgg1.start_symbol().type())
+    new_fgg.set_start_symbol(start_label)
     return new_fgg
