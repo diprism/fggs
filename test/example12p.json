@@ -1,0 +1,217 @@
+{
+    "domains": {
+        "Bool": {},
+        "Bool->Bool": {},
+        "measure Bool": {},
+        "Unit": {}
+    },
+    "factors": {
+        "v=(v1,v2)": {
+            "function": "constant",
+            "type": ["Bool", "Bool", "Bool->Bool"],
+            "weights": [[[0, 0, 0, 1], [0, 0, 1, 0]],
+                        [[0, 1, 0, 0], [1, 0, 0, 0]]]
+        },
+        "v=true": {
+            "function": "constant",
+            "type": ["Unit"],
+            "weights": [0,1]
+        },
+        "v=false": {
+            "function": "constant",
+            "type": ["Unit"],
+            "weights": [1,0]
+        },
+        "=": {
+            "function": "constant",
+            "type": ["Bool", "Bool"],
+            "weights": [[1, 0], [0, 1]]
+        },
+        "!=": {
+            "function": "constant",
+            "type": ["Bool", "Bool"],
+            "weights": [[0, 1], [1, 0]]
+        },
+        "p": {
+            "function": "constant",
+            "type": ["Bool"],
+            "weights": [[0.2, 0.8]]
+        }
+    },
+    "nonterminals": {
+        "odd":         { "type" : ["Bool"] },
+        "lambda ...":  { "type" : ["Bool->Bool"] },
+        "if ...":      { "type" : ["Bool", "Bool"] },
+        "sample_p":    { "type" : ["Bool"] },
+        "odd (odd q)": { "type" : ["Bool", "Bool"] },
+        "odd q":       { "type" : ["Bool", "Bool"] },
+        "q":           { "type" : ["Bool", "Bool"] },
+        "not q":       { "type" : ["Bool", "Bool"] },
+        "odd false":   { "type" : ["Bool"] },
+        "false":       { "type" : ["Bool"] }
+    },
+    "start": "odd false",
+    "rules": [
+        {
+            "lhs": "odd false",
+            "rhs": {
+                "nodes": [
+                    { "label": "Bool->Bool" },
+                    { "label": "Bool"},
+                    { "label": "Bool"}
+                ],
+                "edges": [
+                    { "attachments": [0], "label": "odd" },
+                    { "attachments": [1], "label": "false" },
+                    { "attachments": [1,2,0], "label": "v=(v1,v2)" }
+                ],
+                "externals": [2]
+            }
+        },
+        {
+            "lhs": "odd",
+            "rhs": {
+                "nodes": [
+                    { "label": "Bool->Bool" }
+                ],
+                "edges": [
+                    { "attachments": [0], "label": "lambda ..." }
+                ],
+                "externals": [0]
+            }
+        },
+        {
+            "lhs": "lambda ...",
+            "rhs": {
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" },
+                    { "label": "Bool->Bool" }
+                ],
+                "edges": [
+                    { "attachments": [0,1], "label": "if ..." },
+                    { "attachments": [0,1,2], "label": "v=(v1,v2)" }
+                ],
+                "externals": [2]
+            }
+        },
+        {
+            "lhs": "if ...",
+            "rhs": {
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" },
+                    { "label": "Bool" }
+                ],
+                "edges": [
+                    { "attachments": [0], "label": "sample_p" },
+                    { "attachments": [0], "label": "v=true" },
+                    { "attachments": [1,2], "label": "odd (odd q)" }
+                ],
+                "externals": [1, 2]
+            }
+        },
+        {
+            "lhs": "if ...",
+            "rhs": {
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" },
+                    { "label": "Bool" }
+                ],
+                "edges": [
+                    { "attachments": [0], "label": "sample_p" },
+                    { "attachments": [0], "label": "v=false" },
+                    { "attachments": [1,2], "label": "not q" }
+                ],
+                "externals": [1, 2]
+            }
+        },
+        {
+            "lhs": "odd (odd q)",
+            "rhs": {
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" },
+                    { "label": "Bool->Bool" },
+                    { "label": "Bool" }
+                ],
+                "edges": [
+                    { "attachments": [0,1], "label": "odd q" },
+                    { "attachments": [2], "label": "odd" },
+                    { "attachments": [1,3,2], "label": "v=(v1,v2)" }
+                ],
+                "externals": [0,3]
+            }
+        },
+        {
+            "lhs": "odd q",
+            "rhs": {
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" },
+                    { "label": "Bool->Bool" },
+                    { "label": "Bool" }
+                ],
+                "edges": [
+                    { "attachments": [0,1], "label": "q" },
+                    { "attachments": [2], "label": "odd" },
+                    { "attachments": [1,3,2], "label": "v=(v1,v2)" }
+                ],
+                "externals": [0,3]
+            }
+        },
+        {
+            "lhs": "q",
+            "rhs": {
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" }
+                ],
+                "edges": [
+                    { "attachments": [0,1], "label": "=" }
+                ],
+                "externals": [0,1]
+            }
+        },
+        {
+            "lhs": "not q",
+            "rhs": {
+                "nodes": [
+                    { "label": "Bool" },
+                    { "label": "Bool" },
+                    { "label": "Bool" }
+                ],
+                "edges": [
+                    { "attachments": [0,1], "label": "q" },
+                    { "attachments": [1,2], "label": "!=" }
+                ],
+                "externals": [0,2]
+            }
+        },
+        {
+            "lhs": "false",
+            "rhs": {
+                "nodes": [
+                    { "label": "Bool" }
+                ],
+                "edges": [
+                    { "attachments": [0], "label": "v=false" }
+                ],
+                "externals": [0]
+            }
+        },
+        {
+            "lhs": "sample_p",
+            "rhs": {
+                "nodes": [
+                    { "label": "Bool" }
+                ],
+                "edges": [
+                    { "attachments": [0], "label": "p" }
+                ],
+                "externals": [0]
+            }
+        }
+    ]
+}
