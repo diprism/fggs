@@ -323,8 +323,6 @@ class FGGRepresentation:
             raise KeyError(f'no such edge label {name}')
     
     def set_start_symbol(self, start: EdgeLabel):
-        if start.arity() != 0:
-            raise Exception("Start symbol must have arity 0.")
         self.add_nonterminal(start)
         self._start = start
 
