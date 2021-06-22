@@ -11,6 +11,7 @@ class TestJson(unittest.TestCase):
                 j = json.load(f)
             g = formats.json_to_fgg(j)
             j_check = formats.fgg_to_json(g)
+
             self.maxDiff = 10000
             self.assertEqual(j.keys(), j_check.keys())
             self.assertEqual(j['domains'], j_check['domains'])
@@ -20,7 +21,7 @@ class TestJson(unittest.TestCase):
 
             # ignore order of rules
             for r in j['rules']:
-                self.assertTrue(r in j_check['rules'], f'{r} {j_check["rules"]}')
+                self.assertTrue(r in j_check['rules'], f'rule: {r}\nnot found in: {j_check["rules"]}')
             for r in j_check['rules']:
                 self.assertTrue(r in j['rules'], r)
 
