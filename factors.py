@@ -43,7 +43,7 @@ class CategoricalFactor(Factor):
                 if len(size) == 0:
                     raise ValueError('weights has too many axes')
                 if len(weights) != size[0]:
-                    raise ValueError(f'wrong number of weights ({size[0]} != {len(weights)})')
+                    raise ValueError(f'wrong number of weights (domain has {size[0]} values but weights has {len(weights)})')
                 for subweights in weights:
                     check_size(subweights, size[1:])
 

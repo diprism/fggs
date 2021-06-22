@@ -313,10 +313,6 @@ class TestFGGRepresentation(unittest.TestCase):
     def test_set_start_symbol(self):
         self.assertEqual(self.fgg.start_symbol(), self.start)
     
-    def test_set_start_symbol_bad_input(self):
-        with self.assertRaises(Exception):
-            self.fgg.set_start_symbol(self.el2)
-    
     def test_add_rule(self):
         all_rules = self.fgg.all_rules()
         self.assertEqual(len(all_rules), 2)
