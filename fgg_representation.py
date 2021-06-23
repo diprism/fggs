@@ -7,9 +7,40 @@ from factors import Factor
 
 class NodeLabel:
 
+    _registry = dict()
+
+    @staticmethod
+    def has_label(name):
+        return name in NodeLabel._registry
+
+    @staticmethod
+    def get_label(name):
+        if NodeLabel.has_label(name):
+            return NodeLabel._registry[name]
+        else:
+            return None
+
+    @staticmethod
+    def get_all_labels():
+        return list(NodeLabel._registry.keys())
+
+    @staticmethod
+    def remove_label(name):
+        if name not in NodeLabel._registry:
+            raise Exception(f"NodeLabel {name} cannot be deleted because it is not define.")
+        del NodeLabel._registry[name]
+
+    @staticmethod
+    def clear_registry():
+        for name in NodeLabel.get_all_labels():
+            del NodeLabel._registry[name]
+
     def __init__(self, name: str, domain: Domain):
+        if name in NodeLabel._registry:
+            raise Exception(f"NodeLabel {name} is already defined")
         self._name   = name
         self._domain = domain
+        NodeLabel._registry[name] = self
     
     def name(self):
         return self._name
@@ -23,12 +54,43 @@ class NodeLabel:
 
 
 class EdgeLabel:
-    
+
+    _registry = dict()
+
+    @staticmethod
+    def has_label(name):
+        return name in EdgeLabel._registry
+
+    @staticmethod
+    def get_label(name):
+        if EdgeLabel.has_label(name):
+            return EdgeLabel._registry[name]
+        else:
+            return None
+
+    @staticmethod
+    def get_all_labels():
+        return list(EdgeLabel._registry.keys())
+
+    @staticmethod
+    def remove_label(name):
+        if name not in EdgeLabel._registry:
+            raise Exception(f"NodeLabel {name} cannot be deleted because it is not define.")
+        del EdgeLabel._registry[name]
+
+    @staticmethod
+    def clear_registry():
+        for name in EdgeLabel.get_all_labels():
+            del EdgeLabel._registry[name]
+
     def __init__(self, name: str, is_terminal: bool, node_labels: Iterable[NodeLabel], fac: Optional[Factor] = None):
+        if name in EdgeLabel._registry:
+            raise Exception(f"EdgeLabel {name} is already defined")
         self._name        = name
         self._is_terminal = is_terminal
         self._node_labels = tuple(node_labels)
         self.set_factor(fac)
+        EdgeLabel._registry[name] = self
 
     def name(self):
         return self._name
@@ -284,71 +346,34 @@ class FGGRule:
 class FGGRepresentation:
     
     def __init__(self):
-        self._node_labels  = dict()    # map from names to NodeLabels    
-        self._nonterminals = dict()    # map from names to EdgeLabels
-        self._terminals    = dict()    # map from names to EdgeLabels
-        self._start        = None      # start symbol, an EdgeLabel which has arity 0
-        self._rules        = dict()    # one set of rules for each nonterminal edge label
+        self._node_labels  = set()     # set of NodeLabels
+        self._nonterminals = set()     # set of EdgeLabels
+        self._terminals    = set()     # set of EdgeLabels
+        self._start        = None      # start symbol, an EdgeLabel
+        self._rules        = dict()    # one set of rules for each nonterminal EdgeLabel
 
     def add_node_label(self, label: NodeLabel):
-        name = label.name()
-        if name in self._node_labels:
-            if self._node_labels[name] != label:
-                raise Exception(f"There is already a node label with name {name}.")
-        self._node_labels[label.name()] = label
-
-    def get_node_label(self, name):
-        return self._node_labels[name]
+        self._node_labels.add(label)
 
     def node_labels(self):
-        return [self._node_labels[name] for name in self._node_labels]
+        return list(self._node_labels)
 
     def add_nonterminal(self, label: EdgeLabel):
-        if label.is_terminal():
+        if not label.is_nonterminal():
             raise Exception(f"Can't add terminal edge label {label.name()} as a nonterminal.")
-            
-        name = label.name()
-        if name in self._nonterminals:
-            if self._nonterminals[name] != label:
-                raise Exception(f"There is already a nonterminal called {name}.")
-        if name in self._terminals:
-            raise Exception(f"Cannot have both a terminal and nonterminal with name {name}.")
-
-        self._nonterminals[name] = label
-    
-    def get_nonterminal(self, name):
-        return self._nonterminals[name]
+        self._nonterminals.add(label)
 
     def nonterminals(self):
-        return [self._nonterminals[name] for name in self._nonterminals]
+        return list(self._nonterminals)
     
     def add_terminal(self, label: EdgeLabel):
         if not label.is_terminal():
             raise Exception(f"Can't add nonterminal edge label {label.name()} as a terminal.")
-        
-        name = label.name()
-        if name in self._terminals:
-            if self._terminals[name] != label:
-                raise Exception(f"There is already a terminal called {name}.")
-        if name in self._nonterminals:
-            raise Exception(f"Cannot have both a terminal and nonterminal with name {name}.")
-        
-        self._terminals[name] = label
-
-    def get_terminal(self, name):
-        return self._terminals[name]
+        self._terminals.add(label)
 
     def terminals(self):
-        return [self._terminals[name] for name in self._terminals]
+        return list(self._terminals)
 
-    def get_edge_label(self, name):
-        if name in self._nonterminals:
-            return self._nonterminals[name]
-        elif name in self._terminals:
-            return self._terminals[name]
-        else:
-            raise KeyError(f'no such edge label {name}')
-    
     def set_start_symbol(self, start: EdgeLabel):
         self.add_nonterminal(start)
         self._start = start
@@ -369,16 +394,15 @@ class FGGRepresentation:
             else:
                 self.add_nonterminal(edge.label())
         
-        lhs_name = lhs.name()
-        if lhs_name not in self._rules:
-            self._rules[lhs_name] = set()
-        self._rules[lhs_name].add(rule)
+        if lhs not in self._rules:
+            self._rules[lhs] = set()
+        self._rules[lhs].add(rule)
 
     def all_rules(self):
-        return [rule for nt_name in self._rules for rule in self._rules[nt_name]]
+        return [rule for nt in self._rules for rule in self._rules[nt]]
     
-    def rules(self, nt_name):
-        return [rule for rule in self._rules[nt_name]]
+    def rules(self, nt):
+        return [rule for rule in self._rules[nt]]
     
     def copy(self):
         """Returns a copy of this FGGRepresentation, whose rules are all copies of the original's."""

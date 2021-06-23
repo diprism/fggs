@@ -1,10 +1,16 @@
 import unittest
+import fgg_representation as fggs
 import formats
 import json
 import os
 import copy
 
 class TestJson(unittest.TestCase):
+
+    def tearDown(self):
+        fggs.NodeLabel.clear_registry()
+        fggs.EdgeLabel.clear_registry()
+
     def test_roundtrip(self):
         for filename in ['hmm.json', 'example12p.json']:
             with open(os.path.join(os.path.dirname(__file__), filename)) as f:

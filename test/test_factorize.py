@@ -1,10 +1,16 @@
 import unittest
+import fgg_representation as fggs
 from factorize import *
 from factorize import add_node, add_edge, tree_decomposition
 import re, collections, os, json
 import formats
 
 class TestTreewidth(unittest.TestCase):
+
+    def tearDown(self):
+        fggs.NodeLabel.clear_registry()
+        fggs.EdgeLabel.clear_registry()
+
     def check(self, filename, optimal_tw, method, exact):
         g = {}
         with open(filename) as f:

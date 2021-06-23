@@ -13,7 +13,14 @@ def json_to_fgg(j):
             doms[name] = domains.FiniteDomain(d['values'])
         else:
             raise ValueError(f'invalid domain class: {d["type"]}')
-        g.add_node_label(NodeLabel(name, doms[name]))
+        label = NodeLabel.get_label(name)
+        if label != None:
+            if label.domain() != doms[name]:
+                raise Exception(f'NodeLabel is already defined: {name}')
+            else:
+                g.add_node_label(label)
+        else:
+            g.add_node_label(NodeLabel(name, doms[name]))
 
     for name, d in j['factors'].items():
         if d['function'] == 'categorical':
@@ -22,20 +29,34 @@ def json_to_fgg(j):
             f = factors.CategoricalFactor([doms[l] for l in d['type']], weights)
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
-        t = tuple(g.get_node_label(l) for l in d['type'])
-        g.add_terminal(EdgeLabel(name, True, t, f))
+        t = tuple(NodeLabel.get_label(l) for l in d['type'])
+        label = EdgeLabel.get_label(name)
+        if label != None:
+            if not label.is_terminal() or label.type() != t or label.factor() != f:
+                raise Exception(f'EdgeLabel is already defined: {name}')
+            else:
+                g.add_terminal(label)
+        else:
+            g.add_terminal(EdgeLabel(name, True, t, f))
 
     for nt, d in j['nonterminals'].items():
-        t = tuple(g.get_node_label(l) for l in d['type'])
-        g.add_nonterminal(EdgeLabel(nt, False, t, None))
-    g.set_start_symbol(g.get_nonterminal(j['start']))
+        t = tuple(NodeLabel.get_label(l) for l in d['type'])
+        label = EdgeLabel.get_label(nt)
+        if label != None:
+            if not label.is_nonterminal or label.type() != t:
+                raise Exception(f'EdgeLabel is already defined: {name}')
+            else:
+                g.add_nonterminal(label)
+        else:
+            g.add_nonterminal(EdgeLabel(nt, False, t, None))
+    g.set_start_symbol(EdgeLabel.get_label(j['start']))
 
     for r in j['rules']:
-        lhs = g.get_nonterminal(r['lhs'])
+        lhs = EdgeLabel.get_label(r['lhs'])
         rhs = FactorGraph()
         nodes = []
         for node in r['rhs']['nodes']:
-            v = Node(g.get_node_label(node['label']), id=node.get('id', None))
+            v = Node(NodeLabel.get_label(node['label']), id=node.get('id', None))
             nodes.append(v)
             rhs.add_node(v)
         for e in r['rhs']['edges']:
@@ -45,7 +66,7 @@ def json_to_fgg(j):
                     att.append(nodes[vi])
                 except IndexError:
                     raise ValueError(f'invalid attachment node number {vi} (out of {len(nodes)})')
-            rhs.add_edge(Edge(g.get_edge_label(e['label']), att, id=e.get('id', None)))
+            rhs.add_edge(Edge(EdgeLabel.get_label(e['label']), att, id=e.get('id', None)))
         ext = []
         for vi in r['rhs'].get('externals', []):
             try:

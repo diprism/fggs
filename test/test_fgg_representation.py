@@ -6,6 +6,32 @@ from fgg_representation import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FG
 
 
 
+class TestNodeLabel(unittest.TestCase):
+
+    def setUp(self):
+        self.dom  = FiniteDomain({1, 2, 3, 4, 5})
+        self.name = "nl"
+        self.nl   = NodeLabel(self.name, self.dom)
+
+    def tearDown(self):
+        NodeLabel.clear_registry()
+        EdgeLabel.clear_registry()
+
+    def test_registry(self):
+        self.assertTrue(NodeLabel.has_label("nl"))
+        self.assertFalse(NodeLabel.has_label("foo"))
+        self.assertEqual(NodeLabel.get_label("foo"), None)
+        self.assertEqual(NodeLabel.get_label(self.name), self.nl)
+        self.assertEqual(NodeLabel.get_all_labels(), [self.name])
+        with self.assertRaises(Exception):
+            nl2 = NodeLabel(self.name, self.dom)
+        NodeLabel.remove_label(self.name)
+        nl2 = NodeLabel(self.name, self.dom)
+        NodeLabel.clear_registry()
+        self.assertEqual(len(NodeLabel.get_all_labels()), 0)
+
+
+
 class TestEdgeLabel(unittest.TestCase):
     
     def setUp(self):
@@ -17,6 +43,23 @@ class TestEdgeLabel(unittest.TestCase):
         self.fac2 = ConstantFactor([self.dom]*2, 6)
         self.terminal    = EdgeLabel("t", True, (self.nl1, self.nl2, self.nl3), self.fac1)
         self.nonterminal = EdgeLabel("nt", False, (self.nl1, self.nl2))
+
+    def tearDown(self):
+        NodeLabel.clear_registry()
+        EdgeLabel.clear_registry()
+
+    def test_registry(self):
+        self.assertTrue(EdgeLabel.has_label("t"))
+        self.assertFalse(EdgeLabel.has_label("foo"))
+        self.assertEqual(EdgeLabel.get_label("foo"), None)
+        self.assertEqual(EdgeLabel.get_label("t"), self.terminal)
+        self.assertEqual(sorted(EdgeLabel.get_all_labels()), ["nt", "t"])
+        with self.assertRaises(Exception):
+            terminal2 = EdgeLabel("t", True, (self.nl1, self.nl2, self.nl3), self.fac1)
+        EdgeLabel.remove_label("t")
+        terminal2 = EdgeLabel("t", True, (self.nl1, self.nl2, self.nl3), self.fac1)
+        EdgeLabel.clear_registry()
+        self.assertEqual(len(EdgeLabel.get_all_labels()), 0)
 
     def test_init_bad_input(self):
         with self.assertRaises(ValueError):
@@ -74,6 +117,10 @@ class TestNode(unittest.TestCase):
         self.node1 = Node(self.label)
         self.node2 = Node(self.label, id="id2")
 
+    def tearDown(self):
+        NodeLabel.clear_registry()
+        EdgeLabel.clear_registry()
+
     def test_id(self):
         self.assertEqual(self.node2.id(), "id2")
         self.node1.set_id("id1")
@@ -100,6 +147,10 @@ class TestEdge(unittest.TestCase):
         
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
+
+    def tearDown(self):
+        NodeLabel.clear_registry()
+        EdgeLabel.clear_registry()
     
     def test_init_bad_input(self):
         # nodes have wrong domains
@@ -141,6 +192,10 @@ class TestFactorGraph(unittest.TestCase):
         self.graph.add_edge(self.edge1)
         self.graph.add_edge(self.edge2)
         self.graph.set_ext((self.node2,))
+
+    def tearDown(self):
+        NodeLabel.clear_registry()
+        EdgeLabel.clear_registry()
 
     def test_add_node(self):
         nodes = self.graph.nodes()
@@ -223,6 +278,10 @@ class TestFGGRule(unittest.TestCase):
             rule = FGGRule(nonterminal_mismatch, graph)
         self.rule = FGGRule(nonterminal_match, graph)
 
+    def tearDown(self):
+        NodeLabel.clear_registry()
+        EdgeLabel.clear_registry()
+
     def test_copy(self):
         rule = self.rule
         copy = self.rule.copy()
@@ -271,16 +330,15 @@ class TestFGGRepresentation(unittest.TestCase):
         self.fgg.add_rule(self.rule)
         self.fgg.add_rule(self.rule2)
 
+    def tearDown(self):
+        NodeLabel.clear_registry()
+        EdgeLabel.clear_registry()
+
     def test_add_node_label(self):
         node_labels = self.fgg.node_labels()
         self.assertEqual(len(node_labels), 2)
         self.assertTrue(self.nl1 in node_labels)
         self.assertTrue(self.nl2 in node_labels)
-    
-    def test_add_node_label_bad_input(self):
-        nl3 = NodeLabel("nl1", self.dom)
-        with self.assertRaises(Exception):
-            self.fgg.add_node_label(nl3)
 
     def test_add_nonterminal(self):
         nonterminals = self.fgg.nonterminals()
@@ -292,19 +350,6 @@ class TestFGGRepresentation(unittest.TestCase):
         # try adding a terminal
         with self.assertRaises(Exception):
             self.fgg.add_nonterminal(self.el1)
-        
-        # reusing a nonterminal name
-        nt = EdgeLabel("el2", False, (self.nl1, self.nl1))
-        with self.assertRaises(Exception):
-            self.fgg.add_nonterminal(nt)
-        
-        # a nonterminal with the same name as a terminal
-        nt = EdgeLabel("el1", False, (self.nl1, self.nl1))
-        with self.assertRaises(Exception):
-            self.fgg.add_nonterminal(nt)
-        
-        # it should allow you to add the same nt a second time
-        self.fgg.add_nonterminal(self.start)
 
     def test_add_terminal(self):
         terminals = self.fgg.terminals()
@@ -315,19 +360,6 @@ class TestFGGRepresentation(unittest.TestCase):
         # try adding a nonterminal
         with self.assertRaises(Exception):
             self.fgg.add_terminal(self.el2)
-        
-        # reusing a terminal name
-        t = EdgeLabel("el1", True, (self.nl1, self.nl1), self.fac)
-        with self.assertRaises(Exception):
-            self.fgg.add_terminal(t)
-        
-        # a nonterminal with the same name as a terminal
-        t = EdgeLabel("el2", True, (self.nl1, self.nl1), self.fac)
-        with self.assertRaises(Exception):
-            self.fgg.add_terminal(t)
-        
-        # it should allow you to add the same terminal a second time
-        self.fgg.add_terminal(self.el1)
 
     def test_set_start_symbol(self):
         self.assertEqual(self.fgg.start_symbol(), self.start)
@@ -338,7 +370,7 @@ class TestFGGRepresentation(unittest.TestCase):
         self.assertTrue(self.rule in all_rules)
         self.assertTrue(self.rule2 in all_rules)
         
-        start_rules = self.fgg.rules("S")
+        start_rules = self.fgg.rules(self.start)
         self.assertEqual(len(start_rules), 1)
         self.assertTrue(self.rule in start_rules)
 
@@ -378,4 +410,3 @@ class TestFGGRepresentation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-    
