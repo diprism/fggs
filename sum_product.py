@@ -51,5 +51,5 @@ def sum_product(fgg, method='fixed-point'):
             psi_X[name] = torch.full(size, fill_value=0.1, dtype=torch.double)
     if method == 'fixed-point':
         psi_X, start = fixed_point(F, psi_X), fgg.start_symbol().name()
-        return F(psi_X, start)[start].item()
+        return F(psi_X, start)[start]
     else: raise ValueError('unsupported method for computing sum-product')

@@ -55,7 +55,7 @@
         "odd q":       { "type" : ["Bool", "Bool"] },
         "q":           { "type" : ["Bool", "Bool"] },
         "not q":       { "type" : ["Bool", "Bool"] },
-        "odd false":   { "type" : [] },
+        "odd false":   { "type" : ["Bool"] },
         "false":       { "type" : ["Bool"] }
     },
     "start": "odd false",
@@ -73,7 +73,7 @@
                     { "id": "2", "attachments": [1], "label": "false" },
                     { "id": "3", "attachments": [1,2,0], "label": "v=(v1,v2)" }
                 ],
-                "externals": []
+                "externals": [2]
             }
         },
         {

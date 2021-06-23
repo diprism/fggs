@@ -13,12 +13,18 @@ class TestSumProduct(unittest.TestCase):
         file.close()
 
     def test_fixed_point_1(self):
-        self.assertAlmostEqual(sum_product(self.fgg_1, method='fixed-point'), 1.0)
+        self.assertAlmostEqual(sum_product(self.fgg_1, method='fixed-point').item(), 1.0)
 
     def test_fixed_point_2(self):
-        for p in (random.uniform(0.51, 0.99) for _ in range(100)):
+        from math import sqrt
+        def exact_value(p):
+            # minimal solution of (x, y) = (2pxy + (1 - p), p(x^2 + y^2)) where x = p(true) and y = p(false)
+            return ((3 - 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), ( 1 - 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p)) if p > 0.5 \
+              else ((1 + 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), (-1 + 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p))
+        for p in (random.uniform(0.01, 0.99) for _ in range(100)):
             self.fgg_2.get_terminal('p').factor()._weights = [1 - p, p]
-            self.assertAlmostEqual(sum_product(self.fgg_2, method='fixed-point'), (1 - p)/p, places=2)
+            for A, B in zip(sum_product(self.fgg_2, method='fixed-point'), exact_value(p)):
+                self.assertAlmostEqual(A.item(), B, places=2)
 
 if __name__ == '__main__':
     unittest.main()
