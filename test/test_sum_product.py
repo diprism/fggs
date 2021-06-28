@@ -1,10 +1,11 @@
 from sum_product import sum_product
 from formats import json_to_fgg
-import unittest, random, json
+import unittest, warnings, random, json
 
 class TestSumProduct(unittest.TestCase):
 
     def setUp(self):
+        warnings.filterwarnings('ignore', message='.*maximum iteration.*')
         file = open('test/hmm.json')
         self.fgg_1 = json_to_fgg(json.load(file))
         file.close()
