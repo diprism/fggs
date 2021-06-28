@@ -47,8 +47,14 @@ class CategoricalFactor(Factor):
                 for subweights in weights:
                     check_size(subweights, size[1:])
 
+        def to_float(weights):
+            if isinstance(weights, list):
+                return list(map(to_float, weights))
+            else:
+                return float(weights)
+
         check_size(weights, [d.size() for d in doms])
-        self._weights = weights
+        self._weights = to_float(weights)
 
     def weights(self):
         return self._weights
