@@ -194,6 +194,12 @@ class FactorGraph:
         self._nodes.add(node)
         self._node_ids.add(node.id())
 
+    def remove_node(self, node: Node):
+        if node not in self._nodes:
+            raise ValueError(f'Graph does not contain Node {node}')
+        self._nodes.remove(node)
+        self._node_ids.remove(node.id())
+
     def add_edge(self, edge: Edge):
         if edge not in self._edges and\
            edge.id() in self._edge_ids:
@@ -203,6 +209,12 @@ class FactorGraph:
                 self._nodes.add(node)
         self._edges.add(edge)
         self._edge_ids.add(edge.id())
+
+    def remove_edge(self, edge: Edge):
+        if edge not in self._edges:
+            raise ValueError(f'Graph does not contain Edge {edge}')
+        self._edges.remove(edge)
+        self._edge_ids.remove(edge.id())
 
     def set_ext(self, nodes: Iterable[Node]):
         for node in nodes:
@@ -226,7 +238,33 @@ class FactorGraph:
                 string += "\n" + edge.to_string(indent+1, False)
         return string
 
+    def replace(self, edge: Edge, other):
+        """Replace `edge` (which must be labeled by a `Nonterminal`) with
+        a copy of graph `other` (which must have the same type as `edge`)."""
 
+        if self is other:
+            raise ValueError("A Graph's edge can't be replaced with the Graph itself.")
+        
+        if not edge.label().is_nonterminal():
+            raise ValueError("Only a nonterminal-labeled edge can be replaced.")
+        if edge.label().type() != other.type():
+            raise ValueError("A graph fragment can only replace a edge with the same type.")
+
+        # We can keep edge's attachment nodes or other's external nodes.
+        # Arbitrarily keep the former.
+        self.remove_edge(edge)
+        node_map = dict(zip(other.ext(), edge.nodes()))
+        for v in other.nodes():
+            if v not in other.ext():
+                if v.id() in self._node_ids:
+                    v1 = Node(v.label())
+                    node_map[v] = v1
+                    v = v1
+                self.add_node(v)
+        for e in other.edges():
+            if e.id() in self._edge_ids or any(v in node_map for v in e.nodes()):
+                e = Edge(e.label(), [node_map.get(v, v) for v in e.nodes()])
+            self.add_edge(e)
 
 class FGGRule:
 
@@ -328,6 +366,15 @@ class FGGRepresentation:
 
     def start_symbol(self):
         return self._start
+
+    def start_graph(self):
+        """Construct a graph consisting of a single Edge labeled by the start
+        nonterminal symbol."""
+        g = FactorGraph()
+        s = self._start
+        e = Edge(s, [Node(l) for l in s.type()])
+        g.add_edge(e)
+        return g
         
     def add_rule(self, rule: FGGRule):
         lhs = rule.lhs()
