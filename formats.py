@@ -5,7 +5,6 @@ import domains, factors
 
 def json_to_fgg(j):
     """Convert an object loaded by json.load to an FGG."""
-    import torch
     g = FGGRepresentation()
     
     doms = {}
@@ -60,7 +59,6 @@ def json_to_fgg(j):
 
 def fgg_to_json(g):
     """Convert an FGG to an object writable by json.dump()."""
-    import torch
     j = {}
 
     j['domains'] = {}
