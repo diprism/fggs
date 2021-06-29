@@ -28,25 +28,21 @@ def sum_product(fgg, method='fixed-point'):
                 for edge in rule.rhs().edges():
                     indexing.append([Xi_R[node.id()] for node in edge.nodes()])
                     if edge.label().is_terminal():
-                        tensors.append(edge.label().factor().weights())
+                        weights = edge.label().factor().weights()
+                        tensors.append(torch.tensor(weights))
                     else:
                         tensors.append(psi_X[edge.label().name()])
-                for i, tensor in enumerate(tensors):
-                    if not isinstance(tensor, torch.Tensor):
-                        tensors[i] = torch.tensor(tensor, dtype=torch.float)
-                    elif not tensor.is_floating_point():
-                        tensors[i] = torch.float()
                 indexing = ','.join([''.join(indices) for indices in indexing]) + '->'
                 external = [Xi_R[node.id()] for node in rule.rhs().ext()]
                 if external: indexing += ''.join(external)
                 tau_R.append(torch.einsum(indexing, *tensors))
-            psi_X[nt_name] = sum(tau_R) if len(tau_R) > 1 else tau_R[0]
+            psi_X[nt_name] = sum(tau_R)
         return psi_X
     psi_X = {}
     for nt_name in fgg._nonterminals:
         for _ in fgg.rules(nt_name):
             size = [node_label.domain().size() for node_label in fgg._nonterminals[nt_name]._node_labels]
-            psi_X[nt_name] = torch.full(size, fill_value=0.0, dtype=torch.float)
+            psi_X[nt_name] = torch.full(size, fill_value=0.0)
     if method == 'fixed-point':
         return fixed_point(F, psi_X)[fgg.start_symbol().name()]
     else: raise ValueError('unsupported method for computing sum-product')
