@@ -183,14 +183,20 @@ class TestFactorGraph(unittest.TestCase):
         self.assertEqual(self.graph.type(), (self.nl2,))
 
     def test_remove_node(self):
-        self.graph.remove_node(self.node1)
-        nodes = self.graph.nodes()
-        self.assertEqual(len(nodes), 1)
-        self.assertTrue(self.node1 not in nodes)
-        self.assertTrue(self.node2 in nodes)
         with self.assertRaises(ValueError):
-            self.graph.remove_node(self.node1)
-        self.graph.add_node(self.node1)
+            self.graph.remove_node(self.node1) # because nonzero degree
+            
+        node3 = Node(self.nl1)
+        self.graph.add_node(node3)
+        self.graph.remove_node(node3)
+        nodes = self.graph.nodes()
+        self.assertEqual(len(nodes), 2)
+        self.assertTrue(self.node1 in nodes)
+        self.assertTrue(self.node2 in nodes)
+        self.assertTrue(node3 not in nodes)
+        
+        with self.assertRaises(ValueError):
+            self.graph.remove_node(node3)
 
     def test_remove_edge(self):
         self.graph.remove_edge(self.edge1)
@@ -201,16 +207,6 @@ class TestFactorGraph(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.graph.remove_edge(self.edge1)
         self.graph.add_node(self.edge1)
-
-    def test_replace(self):
-        g = FactorGraph()
-        g.add_node(self.node1)
-        g.add_node(self.node2)
-        g.add_edge(self.edge1)
-        g.add_edge(self.edge2)
-        g.replace(self.edge2, self.graph)
-        self.assertEqual(sorted(v.label().name() for v in g.nodes()), ['nl1', 'nl1', 'nl2'])
-        self.assertEqual(sorted(e.label().name() for e in g.edges()), ['el1', 'el1', 'el2'])
 
 class TestFGGRule(unittest.TestCase):
 
@@ -341,12 +337,6 @@ class TestFGGRepresentation(unittest.TestCase):
     def test_set_start_symbol(self):
         self.assertEqual(self.fgg.start_symbol(), self.start)
 
-    def test_start_graph(self):
-        s = self.fgg.start_symbol()
-        g = self.fgg.start_graph()
-        self.assertEqual([e.label() for e in g.edges()], [s])
-        self.assertEqual(len(g.nodes()), len(s.type()))
-    
     def test_add_rule(self):
         all_rules = self.fgg.all_rules()
         self.assertEqual(len(all_rules), 2)
