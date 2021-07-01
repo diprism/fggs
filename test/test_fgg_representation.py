@@ -79,7 +79,11 @@ class TestNode(unittest.TestCase):
         self.node1.set_id("id1")
         self.assertEqual(self.node1.id(), "id1")
 
-
+    def test_copy(self):
+        node = self.node1
+        copy = node.copy()
+        self.assertNotEqual(id(node), id(copy))
+        self.assertEqual(node.label(), copy.label())
 
 class TestEdge(unittest.TestCase):
     
@@ -108,8 +112,14 @@ class TestEdge(unittest.TestCase):
     def test_node_at(self):
         self.assertEqual(self.edge1.node_at(1), self.node2)
 
+    def test_copy(self):
+        edge = self.edge1
+        copy = edge.copy()
+        self.assertNotEqual(id(edge), id(copy))
+        self.assertEqual(edge.label(), copy.label())
+        self.assertEqual(edge.nodes(), copy.nodes())
 
-
+        
 class TestFactorGraph(unittest.TestCase):
 
     def setUp(self):
@@ -182,11 +192,15 @@ class TestFactorGraph(unittest.TestCase):
         self.assertEqual(self.graph.arity(), 1)
         self.assertEqual(self.graph.type(), (self.nl2,))
 
-
+    def test_copy(self):
+        graph = self.graph
+        copy = self.graph.copy()
+        self.assertNotEqual(id(graph), id(copy))
+        # to do: more tests after FactorGraph.__eq__() implemented
 
 class TestFGGRule(unittest.TestCase):
 
-    def test_init(self):
+    def setUp(self):
         dom = FiniteDomain([None])
         nl = NodeLabel("nl1", dom)
         
@@ -207,9 +221,14 @@ class TestFGGRule(unittest.TestCase):
             rule = FGGRule(terminal, graph)
         with self.assertRaises(Exception):
             rule = FGGRule(nonterminal_mismatch, graph)
-        rule = FGGRule(nonterminal_match, graph)
+        self.rule = FGGRule(nonterminal_match, graph)
 
-
+    def test_copy(self):
+        rule = self.rule
+        copy = self.rule.copy()
+        self.assertNotEqual(id(rule), id(copy))
+        self.assertEqual(rule.lhs(), copy.lhs())
+        # to do: more tests after FactorGraph.__eq__() implemented
 
 class TestFGGRepresentation(unittest.TestCase):
 
@@ -345,6 +364,18 @@ class TestFGGRepresentation(unittest.TestCase):
         self.assertTrue(new_nt in self.fgg.nonterminals())
         self.assertTrue(new_t  in self.fgg.terminals())
         
+    def test_copy(self):
+        fgg = self.fgg
+        copy = self.fgg.copy()
+        self.assertNotEqual(id(fgg), id(copy))
+        self.assertEqual(fgg.start_symbol(), copy.start_symbol())
+        self.assertEqual(fgg.node_labels(), copy.node_labels())
+        self.assertEqual(fgg.nonterminals(), copy.nonterminals())
+        self.assertEqual(fgg.terminals(), copy.terminals())
+        for x in fgg.nonterminals():
+            self.assertEqual(len(fgg.rules(x.name())), len(copy.rules(x.name())))
+        # to do: difficult to compare rule sets without rule ids
+
 if __name__ == "__main__":
     unittest.main()
     
