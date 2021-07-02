@@ -86,10 +86,6 @@ class Node:
             self.set_id(id)
         self._label  = label
 
-    def copy(self):
-        """Returns a copy of this Node, including its id."""
-        return Node(self._label, self._id)
-
     def _generate_id(self):
         letters = string.ascii_letters
         new_id = ''.join([random.choice(letters) for i in range(20)])
@@ -107,6 +103,10 @@ class Node:
     def label(self):
         return self._label
         
+    def copy(self):
+        """Returns a copy of this Node, including its id."""
+        return Node(self._label, self._id)
+
     def __str__(self):
         return f"Node {self._id} with NodeLabel {self.label().name()}"
 
@@ -125,10 +125,6 @@ class Edge:
             raise Exception(f"Can't use edge label {label.name()} with this set of nodes.")
         self._label = label
         self._nodes = tuple(nodes)
-
-    def copy(self):
-        """Returns a copy of this Edge, including its id."""
-        return Edge(self._label, self._nodes, self._id)
 
     def _generate_id(self):
         letters = string.ascii_letters
@@ -152,6 +148,10 @@ class Edge:
     
     def node_at(self, i):
         return self._nodes[i]
+
+    def copy(self):
+        """Returns a copy of this Edge, including its id."""
+        return Edge(self._label, self._nodes, self._id)
 
     def __str__(self):
         return self.to_string(0, True)
@@ -180,21 +180,6 @@ class FactorGraph:
         self._edge_ids = set()
         self._ext      = tuple()
     
-    def copy(self):
-        """Returns a copy of this FactorGraph, whose Nodes and Edges are also copies of the original's."""
-        copy = FactorGraph()
-        copy_nodes = {v.id():v.copy() for v in self._nodes}
-        copy._nodes = set(copy_nodes.values())
-        copy._node_ids = set(copy_nodes.keys())
-        copy_edges = {}
-        for e in self._edges:
-            att = [copy_nodes[v.id()] for v in e.nodes()]
-            copy_edges[e.id()] = Edge(e.label(), att, e.id())
-        copy._edges = set(copy_edges.values())
-        copy._edge_ids = set(copy_edges.keys())
-        copy._ext = tuple(copy_nodes[v.id()] for v in self._ext)
-        return copy
-
     def nodes(self):
         return list(self._nodes)
     
@@ -233,6 +218,21 @@ class FactorGraph:
                 self._nodes.add(node)
         self._ext = tuple(nodes)
     
+    def copy(self):
+        """Returns a copy of this FactorGraph, whose Nodes and Edges are also copies of the original's."""
+        copy = FactorGraph()
+        copy_nodes = {v.id():v.copy() for v in self._nodes}
+        copy._nodes = set(copy_nodes.values())
+        copy._node_ids = set(copy_nodes.keys())
+        copy_edges = {}
+        for e in self._edges:
+            att = [copy_nodes[v.id()] for v in e.nodes()]
+            copy_edges[e.id()] = Edge(e.label(), att, e.id())
+        copy._edges = set(copy_edges.values())
+        copy._edge_ids = set(copy_edges.keys())
+        copy._ext = tuple(copy_nodes[v.id()] for v in self._ext)
+        return copy
+
     def __str__(self):
         return self.to_string(0)
     def to_string(self, indent):
@@ -261,16 +261,16 @@ class FGGRule:
         self._lhs = lhs
         self._rhs = rhs
 
-    def copy(self):
-        """Returns a copy of this FGGRule, whose right-hand side is a copy of the original's."""
-        return FGGRule(self.lhs(), self.rhs().copy())
-
     def lhs(self):
         return self._lhs
     
     def rhs(self):
         return self._rhs
     
+    def copy(self):
+        """Returns a copy of this FGGRule, whose right-hand side is a copy of the original's."""
+        return FGGRule(self.lhs(), self.rhs().copy())
+
     def __str__(self):
         return self.to_string(0)
     def to_string(self, indent):
@@ -289,18 +289,6 @@ class FGGRepresentation:
         self._terminals    = dict()    # map from names to EdgeLabels
         self._start        = None      # start symbol, an EdgeLabel which has arity 0
         self._rules        = dict()    # one set of rules for each nonterminal edge label
-
-    def copy(self):
-        """Returns a copy of this FGGRepresentation, whose rules are all copies of the original's."""
-        copy = FGGRepresentation()
-        copy._node_labels = self._node_labels.copy()
-        copy._nonterminals = self._nonterminals.copy()
-        copy._terminals = self._terminals.copy()
-        copy._start = self._start
-        copy._rules = {}
-        for lhs in self._rules:
-            copy._rules[lhs] = {r.copy() for r in self._rules[lhs]}
-        return copy
 
     def add_node_label(self, label: NodeLabel):
         name = label.name()
@@ -392,6 +380,18 @@ class FGGRepresentation:
     def rules(self, nt_name):
         return [rule for rule in self._rules[nt_name]]
     
+    def copy(self):
+        """Returns a copy of this FGGRepresentation, whose rules are all copies of the original's."""
+        copy = FGGRepresentation()
+        copy._node_labels = self._node_labels.copy()
+        copy._nonterminals = self._nonterminals.copy()
+        copy._terminals = self._terminals.copy()
+        copy._start = self._start
+        copy._rules = {}
+        for lhs in self._rules:
+            copy._rules[lhs] = {r.copy() for r in self._rules[lhs]}
+        return copy
+
     def __str__(self):
         string = "Factor graph grammar with:"
         string += "\n\tNode labels:"
