@@ -3,7 +3,7 @@ import unittest
 from domains import Domain, FiniteDomain
 from factors import Factor, ConstantFactor
 from fgg_representation import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRule, FGGRepresentation
-
+import copy
 
 
 class TestEdgeLabel(unittest.TestCase):
@@ -192,6 +192,32 @@ class TestFactorGraph(unittest.TestCase):
         self.assertEqual(self.graph.arity(), 1)
         self.assertEqual(self.graph.type(), (self.nl2,))
 
+    def test_remove_node(self):
+        with self.assertRaises(ValueError):
+            self.graph.remove_node(self.node1) # because nonzero degree
+            
+        node3 = Node(self.nl1)
+        self.graph.add_node(node3)
+        self.graph.remove_node(node3)
+        nodes = self.graph.nodes()
+        self.assertEqual(len(nodes), 2)
+        self.assertTrue(self.node1 in nodes)
+        self.assertTrue(self.node2 in nodes)
+        self.assertTrue(node3 not in nodes)
+        
+        with self.assertRaises(ValueError):
+            self.graph.remove_node(node3)
+
+    def test_remove_edge(self):
+        self.graph.remove_edge(self.edge1)
+        edges = self.graph.edges()
+        self.assertEqual(len(edges), 1)
+        self.assertTrue(self.edge1 not in edges)
+        self.assertTrue(self.edge2 in edges)
+        with self.assertRaises(ValueError):
+            self.graph.remove_edge(self.edge1)
+        self.graph.add_node(self.edge1)
+
     def test_copy(self):
         graph = self.graph
         copy = self.graph.copy()
@@ -331,7 +357,7 @@ class TestFGGRepresentation(unittest.TestCase):
 
     def test_set_start_symbol(self):
         self.assertEqual(self.fgg.start_symbol(), self.start)
-    
+
     def test_add_rule(self):
         all_rules = self.fgg.all_rules()
         self.assertEqual(len(all_rules), 2)

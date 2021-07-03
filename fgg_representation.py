@@ -202,6 +202,15 @@ class FactorGraph:
         self._nodes.add(node)
         self._node_ids.add(node.id())
 
+    def remove_node(self, node: Node):
+        if node not in self._nodes:
+            raise ValueError(f'Node {node} cannot be removed because it does not belong to this FactorGraph')
+        for edge in self._edges:
+            if node in edge._nodes:
+                raise ValueError(f'Node {node} cannot be removed because it is an attachment node of Edge {edge}')
+        self._nodes.remove(node)
+        self._node_ids.remove(node.id())
+
     def add_edge(self, edge: Edge):
         if edge not in self._edges and\
            edge.id() in self._edge_ids:
@@ -211,6 +220,12 @@ class FactorGraph:
                 self._nodes.add(node)
         self._edges.add(edge)
         self._edge_ids.add(edge.id())
+
+    def remove_edge(self, edge: Edge):
+        if edge not in self._edges:
+            raise ValueError(f'FactorGraph does not contain Edge {edge}')
+        self._edges.remove(edge)
+        self._edge_ids.remove(edge.id())
 
     def set_ext(self, nodes: Iterable[Node]):
         for node in nodes:
@@ -249,8 +264,6 @@ class FactorGraph:
                 string += "\n" + edge.to_string(indent+1, False)
         return string
 
-
-
 class FGGRule:
 
     def __init__(self, lhs: EdgeLabel, rhs: FactorGraph):
@@ -278,7 +291,6 @@ class FGGRule:
         string += f"FGGRule with left-hand side {self._lhs.name()} and right-hand side as follows:\n"
         string += self._rhs.to_string(indent+1)
         return string
-
 
 
 class FGGRepresentation:
@@ -355,7 +367,7 @@ class FGGRepresentation:
 
     def start_symbol(self):
         return self._start
-        
+
     def add_rule(self, rule: FGGRule):
         lhs = rule.lhs()
         rhs = rule.rhs()
