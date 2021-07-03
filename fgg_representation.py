@@ -47,12 +47,9 @@ class NodeLabel:
     
     def domain(self):
         return self._domain
-    
-    def __str__(self):
-        return f"NodeLabel {self._name} with Domain {self._domain}"
 
-    # Two NodeLabels will only have the same name
-    # if they are the same object.
+    # Two NodeLabels are equal if they have the same name.
+    # This will only happen if they are the same object.
     def __eq__(self, other):
         return self is other
 
@@ -61,6 +58,9 @@ class NodeLabel:
 
     def __hash__(self):
         return hash(self.name())
+
+    def __str__(self):
+        return f"NodeLabel {self._name} with Domain {self._domain}"
 
 
 
@@ -132,6 +132,17 @@ class EdgeLabel:
                 raise ValueError(f"Nonterminal edge label {self._name} should not have a factor.")
         self._factor = fac
 
+    # Two EdgeLabels are equal if they have the same name.
+    # This will only happen if they are the same object.
+    def __eq__(self, other):
+        return self is other
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(self.name())
+
     def __str__(self):
         return self.to_string(0)
     def to_string(self, indent):
@@ -145,17 +156,6 @@ class EdgeLabel:
             for i, node_label in enumerate(self.type()):
                 string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name()}"
         return string
-
-    # Two EdgeLabels will only have the same name
-    # if they are the same object.
-    def __eq__(self, other):
-        return self is other
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __hash__(self):
-        return hash(self.name())
 
     
 

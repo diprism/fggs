@@ -405,7 +405,7 @@ class TestFGGRepresentation(unittest.TestCase):
         self.assertEqual(fgg.nonterminals(), copy.nonterminals())
         self.assertEqual(fgg.terminals(), copy.terminals())
         for x in fgg.nonterminals():
-            self.assertEqual(len(fgg.rules(x.name())), len(copy.rules(x.name())))
+            self.assertEqual(len(fgg.rules(x)), len(copy.rules(x)))
         # to do: difficult to compare rule sets without rule ids
 
 if __name__ == "__main__":

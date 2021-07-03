@@ -17,9 +17,9 @@ def fixed_point(F, psi_X0, tol=1e-8, maxiter=1000):
 def sum_product(fgg, method='fixed-point'):
     def F(psi_X):
         psi_X = psi_X.copy()
-        for nt_name in fgg._nonterminals:
+        for nt in fgg._nonterminals:
             tau_R = []
-            for rule in fgg.rules(nt_name):
+            for rule in fgg.rules(nt):
                 if len(rule.rhs().nodes()) > 52:
                     raise Exception('cannot assign an index to each node (maximum of 52 supported)')
                 Xi_R = {id: chr((ord('a') if i < 26 else ord('A')) + i % 26)
@@ -31,18 +31,18 @@ def sum_product(fgg, method='fixed-point'):
                         weights = edge.label().factor().weights()
                         tensors.append(torch.tensor(weights))
                     else:
-                        tensors.append(psi_X[edge.label().name()])
+                        tensors.append(psi_X[edge.label()])
                 indexing = ','.join([''.join(indices) for indices in indexing]) + '->'
                 external = [Xi_R[node.id()] for node in rule.rhs().ext()]
                 if external: indexing += ''.join(external)
                 tau_R.append(torch.einsum(indexing, *tensors))
-            psi_X[nt_name] = sum(tau_R)
+            psi_X[nt] = sum(tau_R)
         return psi_X
     psi_X = {}
-    for nt_name in fgg._nonterminals:
-        for _ in fgg.rules(nt_name):
-            size = [node_label.domain().size() for node_label in fgg._nonterminals[nt_name]._node_labels]
-            psi_X[nt_name] = torch.full(size, fill_value=0.0)
+    for nt in fgg._nonterminals:
+        for _ in fgg.rules(nt):
+            size = [node_label.domain().size() for node_label in nt._node_labels]
+            psi_X[nt] = torch.full(size, fill_value=0.0)
     if method == 'fixed-point':
-        return fixed_point(F, psi_X)[fgg.start_symbol().name()]
+        return fixed_point(F, psi_X)[fgg.start_symbol()]
     else: raise ValueError('unsupported method for computing sum-product')
