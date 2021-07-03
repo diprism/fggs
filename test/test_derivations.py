@@ -3,7 +3,7 @@ import unittest
 from domains import Domain, FiniteDomain
 from factors import Factor, ConstantFactor
 from fgg_representation import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRule, FGGRepresentation
-from derivations import start_graph, replace_edge
+from derivations import start_graph, replace_edges
 
 class TestReplace(unittest.TestCase):
     def setUp(self):
@@ -27,12 +27,7 @@ class TestReplace(unittest.TestCase):
         self.graph.set_ext((self.node2,))
 
     def test_replace(self):
-        g = FactorGraph()
-        g.add_node(self.node1)
-        g.add_node(self.node2)
-        g.add_edge(self.edge1)
-        g.add_edge(self.edge2)
-        replace_edge(g, self.edge2, self.graph)
+        g = replace_edges(self.graph, {self.edge2:self.graph})
         self.assertEqual(sorted(v.label().name() for v in g.nodes()), ['nl1', 'nl1', 'nl2'])
         self.assertEqual(sorted(e.label().name() for e in g.edges()), ['el1', 'el1', 'el2'])
 

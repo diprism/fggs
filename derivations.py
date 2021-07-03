@@ -1,3 +1,5 @@
+from typing import Dict
+
 from fgg_representation import FGGRepresentation, FGGRule, FactorGraph, Edge, Node
 
 def start_graph(g: FGGRepresentation) -> FactorGraph:
@@ -9,39 +11,52 @@ def start_graph(g: FGGRepresentation) -> FactorGraph:
     ret.add_edge(e)
     return ret
         
-def replace_edge(graph: FactorGraph, edge: Edge, other):
-    """Replace `edge` (which must be labeled by a `Nonterminal`) with
-    a copy of graph `other` (which must have the same type as `edge`)."""
+def replace_edges(graph: FactorGraph, replacements: Dict[Edge, FactorGraph]):
 
-    if graph is other:
-        raise ValueError("A FactorGraph's edge can't be replaced with the FactorGraph itself.")
+    """Return a copy of `graph` in which, for every item `(edge,
+    repl)` in `replacements`, `edge` (which must be labeled by a
+    `Nonterminal`) is replaced with a copy of graph `repl`
+    (which must have the same type as `edge`).
+    """
 
-    if not edge.label().is_nonterminal():
-        raise ValueError("Only a nonterminal-labeled edge can be replaced.")
-    
-    if isinstance(other, FGGRule):
-        if edge.label() != other.lhs():
-            raise ValueError("An edge can only be replaced with an FGGRule with a matching left-hand side.")
-        other = other.rhs()
-    if not isinstance(other, FactorGraph):
-        raise TypeError("The replacement for an edge must be an FGGRule or a FactorGraph.")
+    for (edge, repl) in replacements.items():
+        if not edge.label().is_nonterminal():
+            raise ValueError("Only a nonterminal-labeled edge can be replaced.")
 
-    if edge.label().type() != other.type():
-        raise ValueError("A graph fragment can only replace a edge with the same type.")
+        if isinstance(repl, FGGRule):
+            if edge.label() != repl.lhs():
+                raise ValueError("An edge can only be replaced with an FGGRule with a matching left-hand side.")
+        elif not isinstance(repl, FactorGraph):
+            raise TypeError("The replacement for an edge must be an FGGRule or a FactorGraph.")
 
-    # We can keep edge's attachment nodes or other's external nodes.
-    # Arbitrarily keep the former.
-    graph.remove_edge(edge)
-    node_map = dict(zip(other.ext(), edge.nodes()))
-    for v in other.nodes():
-        if v not in other.ext():
-            if v.id() in graph._node_ids:
-                v1 = Node(v.label())
-                node_map[v] = v1
-                v = v1
-            graph.add_node(v)
-    for e in other.edges():
-        if e.id() in graph._edge_ids or any(v in node_map for v in e.nodes()):
-            e = Edge(e.label(), [node_map.get(v, v) for v in e.nodes()])
-        graph.add_edge(e)
+        if edge.label().type() != repl.type():
+            raise ValueError("A graph fragment can only replace a edge with the same type.")
+
+    ret = FactorGraph()
+    nodes = {}
+    for v in graph.nodes():
+        v = v.copy()
+        nodes[v.id()] = v
+        ret.add_node(v)
+    for e in graph.edges():
+        if e in replacements:
+            repl = replacements[e]
+            if isinstance(repl, FGGRule):
+                repl = repl.rhs()
+            rnodes = {}
+            for ve, vr in zip(e.nodes(), repl.ext()):
+                rnodes[vr.id()] = nodes[ve.id()]
+            for v in repl.nodes():
+                if v.id() not in rnodes:
+                    vcopy = Node(v.label()) # don't keep id
+                    rnodes[v.id()] = vcopy
+                    ret.add_node(vcopy)
+            for e in repl.edges():
+                e = Edge(e.label(), [rnodes[v.id()] for v in e.nodes()])
+                ret.add_edge(e)
+        else:
+            e = Edge(e.label(), [nodes[v.id()] for v in e.nodes()])
+            ret.add_edge(e)
+    return ret
+
 
