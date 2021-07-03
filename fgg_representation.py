@@ -27,7 +27,7 @@ class NodeLabel:
     @staticmethod
     def remove_label(name):
         if name not in NodeLabel._registry:
-            raise Exception(f"NodeLabel {name} cannot be deleted because it is not define.")
+            raise Exception(f"NodeLabel {name} cannot be deleted because it is not defined.")
         del NodeLabel._registry[name]
 
     @staticmethod
@@ -50,6 +50,17 @@ class NodeLabel:
     
     def __str__(self):
         return f"NodeLabel {self._name} with Domain {self._domain}"
+
+    # Two NodeLabels will only have the same name
+    # if they are the same object.
+    def __eq__(self, other):
+        return self is other
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(self.name())
 
 
 
@@ -75,7 +86,7 @@ class EdgeLabel:
     @staticmethod
     def remove_label(name):
         if name not in EdgeLabel._registry:
-            raise Exception(f"NodeLabel {name} cannot be deleted because it is not define.")
+            raise Exception(f"EdgeLabel {name} cannot be deleted because it is not defined.")
         del EdgeLabel._registry[name]
 
     @staticmethod
@@ -135,6 +146,17 @@ class EdgeLabel:
                 string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name()}"
         return string
 
+    # Two EdgeLabels will only have the same name
+    # if they are the same object.
+    def __eq__(self, other):
+        return self is other
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(self.name())
+
     
 
 class Node:
@@ -154,10 +176,10 @@ class Node:
         while new_id in Node._id_registry:
             new_id = ''.join([random.choice(letters) for i in range(20)])
         return new_id
-    
+
     def id(self):
         return self._id
-    
+
     def set_id(self, id: str):
         Node._id_registry.add(id)
         self._id = id
@@ -201,7 +223,7 @@ class Edge:
     def set_id(self, id: str):
         Edge._id_registry.add(id)
         self._id = id
-    
+
     def label(self):
         return self._label
 
