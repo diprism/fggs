@@ -39,7 +39,9 @@ class FiniteDomain(Domain):
         return self._value_index[value]
 
     def __eq__(self, other):
-        return self.values() == other.values()
+        return other is not None and\
+               type(self) == type(other) and\
+               self.values() == other.values()
     
     def __ne__(self, other):
         return not self.__eq__(other)

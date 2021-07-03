@@ -79,7 +79,9 @@ class CategoricalFactor(Factor):
         return w
 
     def __eq__(self, other):
-        return self.domains() == other.domains() and\
+        return other is not None and\
+               type(self) == type(other) and\
+               self.domains() == other.domains() and\
                self.weights() == other.weights()
     
     def __ne__(self, other):
