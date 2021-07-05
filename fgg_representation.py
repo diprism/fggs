@@ -81,9 +81,9 @@ class Node:
 
     def __init__(self, label: NodeLabel, id: str = None):
         if id == None:
-            self.set_id(self._generate_id())
-        else:
-            self.set_id(id)
+            id = self._generate_id()
+        Node._id_registry.add(id)
+        self._id = id
         self._label  = label
 
     def _generate_id(self):
@@ -96,16 +96,19 @@ class Node:
     def id(self):
         return self._id
     
-    def set_id(self, id: str):
-        Node._id_registry.add(id)
-        self._id = id
-
     def label(self):
         return self._label
         
     def copy(self):
         """Returns a copy of this Node, including its id."""
         return Node(self._label, self._id)
+
+    def __eq__(self, other):
+        return self._id == other._id and self._label == other._label
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    def __hash__(self):
+        return hash((self._id, self._label))
 
     def __str__(self):
         return f"Node {self._id} with NodeLabel {self.label().name()}"
@@ -118,9 +121,10 @@ class Edge:
 
     def __init__(self, label: EdgeLabel, nodes: Iterable[Node], id: str = None):
         if id == None:
-            self.set_id(self._generate_id())
-        else:
-            self.set_id(id)
+            id = self._generate_id()
+        Edge._id_registry.add(id)
+        self._id = id
+
         if label.type() != tuple([node.label() for node in nodes]):
             raise Exception(f"Can't use edge label {label.name()} with this set of nodes.")
         self._label = label
@@ -136,10 +140,6 @@ class Edge:
     def id(self):
         return self._id
 
-    def set_id(self, id: str):
-        Edge._id_registry.add(id)
-        self._id = id
-    
     def label(self):
         return self._label
 
@@ -153,6 +153,13 @@ class Edge:
         """Returns a copy of this Edge, including its id."""
         return Edge(self._label, self._nodes, self._id)
 
+    def __eq__(self, other):
+        return self._id == other._id and self._label == other._label and self._nodes == other._nodes
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    def __hash__(self):
+        return hash((self._id, self._label, self._nodes))
+    
     def __str__(self):
         return self.to_string(0, True)
     def to_string(self, indent, verbose):
@@ -196,9 +203,8 @@ class FactorGraph:
         return tuple([node.label() for node in self._ext])
     
     def add_node(self, node: Node):
-        if node not in self._nodes and\
-           node.id() in self._node_ids:
-            raise Exception(f"Can't have two nodes with same ID {node.id()} in same FactorGraph.")
+        if node.id() in self._node_ids:
+            raise ValueError(f"Can't have two nodes with same ID {node.id()} in same FactorGraph.")
         self._nodes.add(node)
         self._node_ids.add(node.id())
 
@@ -212,9 +218,8 @@ class FactorGraph:
         self._node_ids.remove(node.id())
 
     def add_edge(self, edge: Edge):
-        if edge not in self._edges and\
-           edge.id() in self._edge_ids:
-            raise Exception(f"Can't have two edges with same ID {edge.id()} in same FactorGraph.")
+        if edge.id() in self._edge_ids:
+            raise ValueError(f"Can't have two edges with same ID {edge.id()} in same FactorGraph.")
         for node in edge.nodes():
             if node not in self._nodes:
                 self._nodes.add(node)

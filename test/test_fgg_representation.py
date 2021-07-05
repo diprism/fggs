@@ -76,8 +76,6 @@ class TestNode(unittest.TestCase):
 
     def test_id(self):
         self.assertEqual(self.node2.id(), "id2")
-        self.node1.set_id("id1")
-        self.assertEqual(self.node1.id(), "id1")
 
     def test_copy(self):
         node = self.node1
@@ -149,13 +147,12 @@ class TestFactorGraph(unittest.TestCase):
         self.assertTrue(self.node2 in nodes)
 
     def test_add_node_duplicate(self):
-        # it's fine to add the same node twice
-        self.graph.add_node(self.node1)
-        self.assertEqual(len(self.graph.nodes()), 2)
-        # can't add two different nodes with the same id though
-        id  = self.node1.id()
-        new_node = Node(self.nl1, id=id)
-        with self.assertRaises(Exception):
+        # Can't add a Node already in a FactorGraph
+        with self.assertRaises(ValueError):
+            self.graph.add_node(self.node1)
+        # nor a copy of a Node already in a FactorGraph
+        new_node = self.node1.copy()
+        with self.assertRaises(ValueError):
             self.graph.add_node(new_node)
     
     def test_add_edge(self):
@@ -165,13 +162,12 @@ class TestFactorGraph(unittest.TestCase):
         self.assertTrue(self.edge2 in edges)
 
     def test_add_edge_duplicate(self):
-        # it's fine to add the same edge twice
-        self.graph.add_edge(self.edge1)
-        self.assertEqual(len(self.graph.edges()), 2)
-        # can't add two different edges with the same id though
-        id  = self.edge1.id()
-        new_edge = Edge(self.el1, (self.node1, self.node2), id=id)
-        with self.assertRaises(Exception):
+        # Can't add an Edge already in a FactorGraph
+        with self.assertRaises(ValueError):
+            self.graph.add_edge(self.edge1)
+        # nor a copy of an Edge already in a FactorGraph
+        new_edge = self.edge1.copy()
+        with self.assertRaises(ValueError):
             self.graph.add_edge(new_edge)
     
     def test_set_ext(self):
