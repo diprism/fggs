@@ -284,6 +284,11 @@ class FGGRule:
         """Returns a copy of this FGGRule, whose right-hand side is a copy of the original's."""
         return FGGRule(self.lhs(), self.rhs().copy())
 
+    def __eq__(self, other):
+        return self._lhs == other._lhs and self._rhs == other._rhs
+    def __ne__(self, other):
+        return not self.__eq__(self, other)
+
     def __str__(self):
         return self.to_string(0)
     def to_string(self, indent):
@@ -300,7 +305,7 @@ class FGGRepresentation:
         self._nonterminals = dict()    # map from names to EdgeLabels
         self._terminals    = dict()    # map from names to EdgeLabels
         self._start        = None      # start symbol, an EdgeLabel which has arity 0
-        self._rules        = dict()    # one set of rules for each nonterminal edge label
+        self._rules        = dict()    # one list of rules for each nonterminal edge label
 
     def add_node_label(self, label: NodeLabel):
         name = label.name()
@@ -382,15 +387,13 @@ class FGGRepresentation:
                 self.add_nonterminal(edge.label())
         
         lhs_name = lhs.name()
-        if lhs_name not in self._rules:
-            self._rules[lhs_name] = set()
-        self._rules[lhs_name].add(rule)
+        self._rules.setdefault(lhs_name, []).append(rule)
 
     def all_rules(self):
         return [rule for nt_name in self._rules for rule in self._rules[nt_name]]
     
     def rules(self, nt_name):
-        return [rule for rule in self._rules[nt_name]]
+        return list(self._rules[nt_name])
     
     def copy(self):
         """Returns a copy of this FGGRepresentation, whose rules are all copies of the original's."""
@@ -401,7 +404,7 @@ class FGGRepresentation:
         copy._start = self._start
         copy._rules = {}
         for lhs in self._rules:
-            copy._rules[lhs] = {r.copy() for r in self._rules[lhs]}
+            copy._rules[lhs] = [r.copy() for r in self._rules[lhs]]
         return copy
 
     def __str__(self):

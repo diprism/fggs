@@ -102,9 +102,7 @@ class TestFactorize(unittest.TestCase):
                         replacements[e] = visit(frules[e.label()])
                 return FGGRule(fr.lhs(), replace_edges(fr.rhs(), replacements))
             rr = visit(frules[r.lhs()])
-            self.assertEqual(r.lhs(), rr.lhs())
-            self.assertEqual(r.rhs(), rr.rhs())
-            #self.assertEqual(r, rr)
+            self.assertEqual(r, rr)
             
 if __name__ == "__main__":
     unittest.main()
