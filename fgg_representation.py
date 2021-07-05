@@ -99,10 +99,6 @@ class Node:
     def label(self):
         return self._label
         
-    def copy(self):
-        """Returns a copy of this Node, including its id."""
-        return Node(self._label, self._id)
-
     def __eq__(self, other):
         return self._id == other._id and self._label == other._label
     def __ne__(self, other):
@@ -148,10 +144,6 @@ class Edge:
     
     def node_at(self, i):
         return self._nodes[i]
-
-    def copy(self):
-        """Returns a copy of this Edge, including its id."""
-        return Edge(self._label, self._nodes, self._id)
 
     def __eq__(self, other):
         return self._id == other._id and self._label == other._label and self._nodes == other._nodes
@@ -239,19 +231,22 @@ class FactorGraph:
         self._ext = tuple(nodes)
     
     def copy(self):
-        """Returns a copy of this FactorGraph, whose Nodes and Edges are also copies of the original's."""
+        """Returns a copy of this FactorGraph."""
         copy = FactorGraph()
-        copy_nodes = {v.id():v.copy() for v in self._nodes}
-        copy._nodes = set(copy_nodes.values())
-        copy._node_ids = set(copy_nodes.keys())
-        copy_edges = {}
-        for e in self._edges:
-            att = [copy_nodes[v.id()] for v in e.nodes()]
-            copy_edges[e.id()] = Edge(e.label(), att, e.id())
-        copy._edges = set(copy_edges.values())
-        copy._edge_ids = set(copy_edges.keys())
-        copy._ext = tuple(copy_nodes[v.id()] for v in self._ext)
+        copy._nodes = set(self._nodes)
+        copy._node_ids = set(self._node_ids)
+        copy._edges = set(self._edges)
+        copy._edge_ids = set(self._edge_ids)
+        copy._ext = tuple(self._ext)
         return copy
+
+    def __eq__(self, other):
+        """Tests if two FactorGraphs are equal, including their Node and Edge ids.
+
+        Runs in O(|V|+|E|) time because the ids are required to be equal."""
+        return self._nodes == other._nodes and self._edges == other._edges and self._ext == other._ext
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def __str__(self):
         return self.to_string(0)

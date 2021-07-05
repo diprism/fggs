@@ -77,11 +77,6 @@ class TestNode(unittest.TestCase):
     def test_id(self):
         self.assertEqual(self.node2.id(), "id2")
 
-    def test_copy(self):
-        node = self.node1
-        copy = node.copy()
-        self.assertNotEqual(id(node), id(copy))
-        self.assertEqual(node.label(), copy.label())
 
 class TestEdge(unittest.TestCase):
     
@@ -109,13 +104,6 @@ class TestEdge(unittest.TestCase):
     
     def test_node_at(self):
         self.assertEqual(self.edge1.node_at(1), self.node2)
-
-    def test_copy(self):
-        edge = self.edge1
-        copy = edge.copy()
-        self.assertNotEqual(id(edge), id(copy))
-        self.assertEqual(edge.label(), copy.label())
-        self.assertEqual(edge.nodes(), copy.nodes())
 
         
 class TestFactorGraph(unittest.TestCase):
@@ -151,7 +139,7 @@ class TestFactorGraph(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.graph.add_node(self.node1)
         # nor a copy of a Node already in a FactorGraph
-        new_node = self.node1.copy()
+        new_node = Node(self.nl1, id=self.node1.id())
         with self.assertRaises(ValueError):
             self.graph.add_node(new_node)
     
@@ -166,7 +154,7 @@ class TestFactorGraph(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.graph.add_edge(self.edge1)
         # nor a copy of an Edge already in a FactorGraph
-        new_edge = self.edge1.copy()
+        new_edge = Edge(self.el1, (self.node1, self.node2), id=self.edge1.id())
         with self.assertRaises(ValueError):
             self.graph.add_edge(new_edge)
     
@@ -218,7 +206,19 @@ class TestFactorGraph(unittest.TestCase):
         graph = self.graph
         copy = self.graph.copy()
         self.assertNotEqual(id(graph), id(copy))
-        # to do: more tests after FactorGraph.__eq__() implemented
+        self.assertEqual(graph, copy)
+
+    def test_equal(self):
+        self.assertEqual(self.graph, self.graph)
+        
+        copy = FactorGraph()
+        copy.add_node(self.node1)
+        copy.add_node(self.node2)
+        copy.add_edge(self.edge1)
+        copy.add_edge(self.edge2)
+        copy.set_ext((self.node2,))
+
+        self.assertEqual(self.graph, copy)
 
 class TestFGGRule(unittest.TestCase):
 
@@ -249,8 +249,7 @@ class TestFGGRule(unittest.TestCase):
         rule = self.rule
         copy = self.rule.copy()
         self.assertNotEqual(id(rule), id(copy))
-        self.assertEqual(rule.lhs(), copy.lhs())
-        # to do: more tests after FactorGraph.__eq__() implemented
+        #self.assertEqual(rule, copy)
 
 class TestFGGRepresentation(unittest.TestCase):
 

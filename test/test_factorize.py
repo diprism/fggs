@@ -1,6 +1,8 @@
 import unittest
+from fgg_representation import FGGRule
 from factorize import *
 from factorize import add_node, add_edge, tree_decomposition
+from derivations import replace_edges
 import re, collections, os, json
 import formats
 
@@ -91,7 +93,18 @@ class TestFactorize(unittest.TestCase):
         with open(os.path.join(os.path.dirname(__file__), 'hmm.json')) as f:
             j = json.load(f)
         g = formats.json_to_fgg(j)
-        g = factorize(g)
+        for r in g.all_rules():
+            frules = {fr.lhs():fr for fr in factorize_rule(r)}
+            def visit(fr):
+                replacements = {}
+                for e in fr.rhs().edges():
+                    if e.label().is_nonterminal() and e.label() not in g.nonterminals():
+                        replacements[e] = visit(frules[e.label()])
+                return FGGRule(fr.lhs(), replace_edges(fr.rhs(), replacements))
+            rr = visit(frules[r.lhs()])
+            self.assertEqual(r.lhs(), rr.lhs())
+            self.assertEqual(r.rhs(), rr.rhs())
+            #self.assertEqual(r, rr)
             
 if __name__ == "__main__":
     unittest.main()
