@@ -48,6 +48,3 @@ class FiniteDomain(Domain):
             return other is not None and\
                    type(self) == type(other) and\
                    self.values() == other.values()
-
-    def __ne__(self, other):
-        return not self.__eq__(other)

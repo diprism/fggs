@@ -16,6 +16,8 @@ class TestFiniteDomain(unittest.TestCase):
         self.assertEqual(self.dom.numberize('bar'), 1)
     
     def test_equals(self):
+        self.assertFalse(self.dom == None)
+        self.assertFalse(self.dom == 5)
         self.assertTrue(self.dom == self.dom_eq)
         self.assertFalse(self.dom == self.dom_ne)
         self.assertFalse(self.dom != self.dom_eq)
