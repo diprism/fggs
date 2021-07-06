@@ -7,6 +7,12 @@ class Domain(ABC):
     @abstractmethod
     def contains(self, value):
         pass
+    
+    def __eq__(self, other):
+        return self is other
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
 class FiniteDomain(Domain):
     """A domain for finite sets (like vocabularies).
@@ -24,7 +30,7 @@ class FiniteDomain(Domain):
         return value in self._values
 
     def values(self):
-        return self._values
+        return list(self._values)
 
     def size(self):
         return len(self._values)
@@ -34,3 +40,14 @@ class FiniteDomain(Domain):
         Values are numbered consecutively starting from zero.
         """
         return self._value_index[value]
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        else:
+            return other is not None and\
+                   type(self) == type(other) and\
+                   self.values() == other.values()
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
