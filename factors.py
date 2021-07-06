@@ -34,8 +34,7 @@ class ConstantFactor(Factor):
         if self is other:
             return True
         else:
-            return other is not None and\
-                   type(self) == type(other) and\
+            return type(self) == type(other) and\
                    self.domains() == other.domains() and\
                    self._weight == other._weight
 
@@ -87,7 +86,6 @@ class CategoricalFactor(Factor):
         if self is other:
             return True
         else:
-            return other is not None and\
-            type(self) == type(other) and\
-            self.domains() == other.domains() and\
-            self.weights() == other.weights()
+            return type(self) == type(other) and\
+                   self.domains() == other.domains() and\
+                   self.weights() == other.weights()

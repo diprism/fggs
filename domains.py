@@ -45,6 +45,5 @@ class FiniteDomain(Domain):
         if self is other:
             return True
         else:
-            return other is not None and\
-                   type(self) == type(other) and\
+            return type(self) == type(other) and\
                    self.values() == other.values()
