@@ -23,8 +23,38 @@ class NodeLabel:
 
 
 class EdgeLabel:
+    """An edge label.
+
+    name (str): The name of the edge label, which must be unique within an FGG.
+    node_labels (sequence of NodeLabels): If an edge has this label, its attachment nodes must have labels node_labels.
+    fac (Factor, optional): The factor function associated with this label.
+    is_terminal (bool, optional): This label is a terminal symbol.
+    is_nonterminal (bool, optional): This label is a nonterminal symbol.
+
+    If fac is given, the label must be terminal; otherwise, it must be
+    nonterminal. Therefore, is_terminal and is_nonterminal are
+    optional because they can be inferred from fac. But one can pass
+    them explicitly for greater clarity.
+    """
     
-    def __init__(self, name: str, is_terminal: bool, node_labels: Iterable[NodeLabel], fac: Optional[Factor] = None):
+    def __init__(self,
+                 name: str,
+                 node_labels: Iterable[NodeLabel],
+                 fac: Optional[Factor] = None,
+                 *,
+                 is_terminal: Optional[bool] = None,
+                 is_nonterminal: Optional[bool] = None):
+        
+        # is_terminal and is_nonterminal can be inferred from fac
+        if is_terminal is None:
+            is_terminal = fac is not None
+        if is_nonterminal is None:
+            is_nonterminal = fac is None
+        if is_terminal and is_nonterminal:
+            raise ValueError("An EdgeLabel can't be both terminal and nonterminal")
+        if not is_terminal and not is_nonterminal:
+            raise ValueError("An EdgeLabel must be either terminal or nonterminal")
+        
         self._name        = name
         self._is_terminal = is_terminal
         self._node_labels = tuple(node_labels)
