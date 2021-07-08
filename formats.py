@@ -63,27 +63,27 @@ def fgg_to_json(g):
 
     j['domains'] = {}
     for l in g.node_labels():
-        if isinstance(l.domain(), domains.FiniteDomain):
-            j['domains'][l.name()] = {
+        if isinstance(l.domain, domains.FiniteDomain):
+            j['domains'][l.name] = {
                 'class' : 'finite',
-                'values' : list(l.domain().values()),
+                'values' : list(l.domain.values()),
             }
         else:
-            raise NotImplementedError(f'unsupported domain type {type(j.domain())}')
+            raise NotImplementedError(f'unsupported domain type {type(j.domain)}')
 
     j['factors'] = {}
     for l in g.terminals():
         if isinstance(l.factor(), factors.CategoricalFactor):
             j['factors'][l.name()] = {
                 'function': 'categorical',
-                'type': [nl.name() for nl in l.type()],
+                'type': [nl.name for nl in l.type()],
                 'weights': l.factor().weights(),
             }
 
     j['nonterminals'] = {}
     for nt in g.nonterminals():
         j['nonterminals'][nt.name()] = {
-            'type': [l.name() for l in nt.type()],
+            'type': [l.name for l in nt.type()],
         }
     j['start'] = g.start_symbol().name()
     
@@ -94,7 +94,7 @@ def fgg_to_json(g):
         jr = {
             'lhs': gr.lhs().name(),
             'rhs': {
-                'nodes': [{'id': v.id(), 'label': v.label().name()} for v in nodes],
+                'nodes': [{'id': v.id(), 'label': v.label().name} for v in nodes],
                 'edges': [],
                 'externals': [node_nums[v] for v in gr.rhs().ext()],
             },

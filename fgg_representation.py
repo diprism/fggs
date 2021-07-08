@@ -1,21 +1,14 @@
 import random, string
 from typing import Optional, Iterable
+from dataclasses import dataclass, field
 from domains import Domain
 from factors import Factor
 
 
-
+@dataclass(frozen=True)
 class NodeLabel:
-
-    def __init__(self, name: str, domain: Domain):
-        self._name   = name
-        self._domain = domain
-    
-    def name(self):
-        return self._name
-    
-    def domain(self):
-        return self._domain
+    name: str
+    domain: Domain = field(compare=True,hash=False)
     
     def __str__(self):
         return f"NodeLabel {self._name} with Domain {self._domain}"
@@ -82,7 +75,7 @@ class EdgeLabel:
         if self._is_terminal:
             if fac is None:
                 raise ValueError(f"Terminal edge label {self._name} is missing a factor.")
-            elif fac.domains() != tuple([nl.domain() for nl in self.type()]):
+            elif fac.domains() != tuple([nl.domain for nl in self.type()]):
                 raise ValueError(f"Factor function has the wrong type for edge label {self._name}.")
         if not self._is_terminal:
             if fac is not None:
@@ -100,7 +93,7 @@ class EdgeLabel:
         if self.arity() != 0:
             string += " and endpoints of type:"
             for i, node_label in enumerate(self.type()):
-                string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name()}"
+                string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name}"
         return string
 
     
@@ -138,7 +131,7 @@ class Node:
         return Node(self._label, self._id)
 
     def __str__(self):
-        return f"Node {self._id} with NodeLabel {self.label().name()}"
+        return f"Node {self._id} with NodeLabel {self.label().name}"
 
 
 
@@ -300,7 +293,7 @@ class FGGRule:
         if lhs.is_terminal():
             raise Exception(f"Can't make FGG rule with terminal left-hand side.")
         if (lhs.type() != rhs.type()):
-            raise Exception(f"Can't make FGG rule: left-hand side of type ({','.join(l.name() for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name() for l in rhs.type())}).")
+            raise Exception(f"Can't make FGG rule: left-hand side of type ({','.join(l.name for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name for l in rhs.type())}).")
         self._lhs = lhs
         self._rhs = rhs
 
@@ -333,11 +326,11 @@ class FGGRepresentation:
         self._rules        = dict()    # one set of rules for each nonterminal edge label
 
     def add_node_label(self, label: NodeLabel):
-        name = label.name()
+        name = label.name
         if name in self._node_labels:
             if self._node_labels[name] != label:
                 raise Exception(f"There is already a node label with name {name}.")
-        self._node_labels[label.name()] = label
+        self._node_labels[label.name] = label
 
     def get_node_label(self, name):
         return self._node_labels[name]

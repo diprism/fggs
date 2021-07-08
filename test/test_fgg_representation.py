@@ -1,9 +1,46 @@
 import unittest
+from dataclasses import FrozenInstanceError
 
 from domains import Domain, FiniteDomain
 from factors import Factor, ConstantFactor
 from fgg_representation import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRule, FGGRepresentation
 import copy
+
+
+
+class TestNodeLabel(unittest.TestCase):
+
+    def setUp(self):
+        self.dom    = FiniteDomain({1, 2, 3, 4, 5})
+        self.name = "nl"
+        self.nl   = NodeLabel(self.name, self.dom)
+
+    def testImmutable(self):
+        with self.assertRaises(FrozenInstanceError):
+            self.nl.name = "foo"
+        with self.assertRaises(FrozenInstanceError):
+            self.nl.domain = FiniteDomain({"foo"})
+
+    def testEquals(self):
+        dom_eq = FiniteDomain({1, 2, 3, 4, 5})
+        dom_ne = FiniteDomain({6, 7, 8, 9, 10})
+        nl_eq  = NodeLabel(self.name, dom_eq)
+        nl_ne  = NodeLabel(self.name, dom_ne)
+        self.assertTrue(self.nl == nl_eq)
+        self.assertFalse(self.nl == nl_ne)
+
+    def testHash(self):
+        dom_eq = FiniteDomain({1, 2, 3, 4, 5})
+        dom_ne = FiniteDomain({6, 7, 8, 9, 10})
+        nl_eq  = NodeLabel(self.name, dom_eq)
+        nl_ne  = NodeLabel(self.name, dom_ne)
+        d = dict()
+        d[self.nl] = 5
+        self.assertTrue(nl_eq in d)
+        d[nl_eq] = 7
+        self.assertTrue(d[self.nl] == 7)
+        self.assertFalse(nl_ne in d)
+
 
 
 class TestEdgeLabel(unittest.TestCase):
@@ -302,9 +339,15 @@ class TestFGGRepresentation(unittest.TestCase):
         self.assertEqual(len(node_labels), 2)
         self.assertTrue(self.nl1 in node_labels)
         self.assertTrue(self.nl2 in node_labels)
+        # add a node label which is a different object but
+        # equivalent to an existing node label; code should
+        # treat them as the same node label
+        nl3 = NodeLabel("nl1", self.dom)
+        self.fgg.add_node_label(nl3)
+        self.assertEqual(len(self.fgg.node_labels()), 2)
     
     def test_add_node_label_bad_input(self):
-        nl3 = NodeLabel("nl1", self.dom)
+        nl3 = NodeLabel("nl1", FiniteDomain([4]))
         with self.assertRaises(Exception):
             self.fgg.add_node_label(nl3)
 
