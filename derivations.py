@@ -20,7 +20,7 @@ def replace_edges(graph: FactorGraph, replacements: Dict[Edge, FactorGraph]):
     """
 
     for (edge, repl) in replacements.items():
-        if not edge.label().is_nonterminal():
+        if not edge.label().is_nonterminal:
             raise ValueError("Only a nonterminal-labeled edge can be replaced.")
 
         if isinstance(repl, FGGRule):
