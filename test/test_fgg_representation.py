@@ -15,21 +15,21 @@ class TestEdgeLabel(unittest.TestCase):
         self.nl3 = NodeLabel("nl3", self.dom)
         self.fac1 = ConstantFactor([self.dom]*3, 5)
         self.fac2 = ConstantFactor([self.dom]*2, 6)
-        self.terminal    = EdgeLabel("t", True, (self.nl1, self.nl2, self.nl3), self.fac1)
-        self.nonterminal = EdgeLabel("nt", False, (self.nl1, self.nl2))
+        self.terminal    = EdgeLabel("t", (self.nl1, self.nl2, self.nl3), self.fac1)
+        self.nonterminal = EdgeLabel("nt", (self.nl1, self.nl2))
 
     def test_init_bad_input(self):
         with self.assertRaises(ValueError):
-            terminal_without_factor = EdgeLabel("t_missing_fac", True, (self.nl1, self.nl2, self.nl3), None)
+            terminal_without_factor = EdgeLabel("t_missing_fac", (self.nl1, self.nl2, self.nl3), is_terminal=True)
         with self.assertRaises(ValueError):
-            nonterminal_with_factor = EdgeLabel("nt_with_fac", False, (self.nl1, self.nl2), self.fac1)
+            nonterminal_with_factor = EdgeLabel("nt_with_fac", (self.nl1, self.nl2), self.fac1, is_nonterminal=True)
 
         bad_dom = FiniteDomain({6, 7, 8, 9, 10})
         bad_fac = ConstantFactor([bad_dom]*2, 7)
         with self.assertRaises(ValueError):
-            domain_mismatch = EdgeLabel("domain_mismatch", True, (self.nl1, self.nl2), bad_fac)
+            domain_mismatch = EdgeLabel("domain_mismatch", (self.nl1, self.nl2), bad_fac)
         with self.assertRaises(ValueError):
-            arity_mismatch = EdgeLabel("arity_mismatch", True, (self.nl1, self.nl2), self.fac1)
+            arity_mismatch = EdgeLabel("arity_mismatch", (self.nl1, self.nl2), self.fac1)
 
     def test_is_terminal(self):
         self.assertTrue(self.terminal.is_terminal())
@@ -95,8 +95,8 @@ class TestEdge(unittest.TestCase):
         self.node2 = Node(self.nl2)
         
         self.fac   = ConstantFactor([self.dom]*2, 42)
-        self.el1   = EdgeLabel("el1", True, (self.nl1, self.nl2), self.fac)
-        self.el2   = EdgeLabel("el2", False, (self.nl2,))
+        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), self.fac)
+        self.el2   = EdgeLabel("el2", (self.nl2,))
         
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
@@ -130,8 +130,8 @@ class TestFactorGraph(unittest.TestCase):
         self.node2 = Node(self.nl2)
         
         self.fac = ConstantFactor([self.dom]*2, 42)
-        self.el1   = EdgeLabel("el1", True, (self.nl1, self.nl2), self.fac)
-        self.el2   = EdgeLabel("el2", False, (self.nl2,))
+        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), self.fac)
+        self.el2   = EdgeLabel("el2", (self.nl2,))
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
         
@@ -234,9 +234,9 @@ class TestFGGRule(unittest.TestCase):
         node2 = Node(nl)
 
         fac = ConstantFactor([dom]*2, 5)
-        terminal = EdgeLabel("terminal", True, (nl, nl), fac)
-        nonterminal_mismatch = EdgeLabel("nonterminal1", False, (nl,))
-        nonterminal_match = EdgeLabel("nonterminal2", False, (nl, nl))
+        terminal = EdgeLabel("terminal", (nl, nl), fac)
+        nonterminal_mismatch = EdgeLabel("nonterminal1", (nl,))
+        nonterminal_match = EdgeLabel("nonterminal2", (nl, nl))
         
         graph = FactorGraph()
         graph.add_node(node1)
@@ -266,8 +266,8 @@ class TestFGGRepresentation(unittest.TestCase):
         self.node2 = Node(self.nl2)
         
         self.fac   = ConstantFactor([self.dom]*2, 42)
-        self.el1   = EdgeLabel("el1", True, (self.nl1, self.nl2), self.fac)
-        self.el2   = EdgeLabel("el2", False, (self.nl2,))
+        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), self.fac)
+        self.el2   = EdgeLabel("el2", (self.nl2,))
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
         
@@ -278,7 +278,7 @@ class TestFGGRepresentation(unittest.TestCase):
         self.graph.add_edge(self.edge2)
         self.graph.set_ext(tuple())
         
-        self.start = EdgeLabel("S", False, tuple())
+        self.start = EdgeLabel("S", tuple())
         self.rule = FGGRule(self.start, self.graph)
         
         self.node3 = Node(self.nl2)
@@ -320,12 +320,12 @@ class TestFGGRepresentation(unittest.TestCase):
             self.fgg.add_nonterminal(self.el1)
         
         # reusing a nonterminal name
-        nt = EdgeLabel("el2", False, (self.nl1, self.nl1))
+        nt = EdgeLabel("el2", (self.nl1, self.nl1))
         with self.assertRaises(Exception):
             self.fgg.add_nonterminal(nt)
         
         # a nonterminal with the same name as a terminal
-        nt = EdgeLabel("el1", False, (self.nl1, self.nl1))
+        nt = EdgeLabel("el1", (self.nl1, self.nl1))
         with self.assertRaises(Exception):
             self.fgg.add_nonterminal(nt)
         
@@ -343,12 +343,12 @@ class TestFGGRepresentation(unittest.TestCase):
             self.fgg.add_terminal(self.el2)
         
         # reusing a terminal name
-        t = EdgeLabel("el1", True, (self.nl1, self.nl1), self.fac)
+        t = EdgeLabel("el1", (self.nl1, self.nl1), self.fac)
         with self.assertRaises(Exception):
             self.fgg.add_terminal(t)
         
         # a nonterminal with the same name as a terminal
-        t = EdgeLabel("el2", True, (self.nl1, self.nl1), self.fac)
+        t = EdgeLabel("el2", (self.nl1, self.nl1))
         with self.assertRaises(Exception):
             self.fgg.add_terminal(t)
         
@@ -370,9 +370,9 @@ class TestFGGRepresentation(unittest.TestCase):
 
     def test_implicitly_add_node_and_edge_labels(self):
         new_nl = NodeLabel("nl3", self.dom)
-        new_nt = EdgeLabel("nt1", False, (new_nl, new_nl))
+        new_nt = EdgeLabel("nt1", (new_nl, new_nl))
         fac = ConstantFactor([self.dom], 20)
-        new_t  = EdgeLabel("nt2", True, (new_nl,), fac)
+        new_t  = EdgeLabel("nt2", (new_nl,), fac)
         
         new_node1 = Node(new_nl)
         new_node2 = Node(new_nl)

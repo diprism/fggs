@@ -23,11 +23,11 @@ def json_to_fgg(j):
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
         t = tuple(g.get_node_label(l) for l in d['type'])
-        g.add_terminal(EdgeLabel(name, True, t, f))
+        g.add_terminal(EdgeLabel(name, t, f))
 
     for nt, d in j['nonterminals'].items():
         t = tuple(g.get_node_label(l) for l in d['type'])
-        g.add_nonterminal(EdgeLabel(nt, False, t, None))
+        g.add_nonterminal(EdgeLabel(nt, t))
     g.set_start_symbol(g.get_nonterminal(j['start']))
 
     for r in j['rules']:
