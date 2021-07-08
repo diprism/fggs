@@ -41,7 +41,7 @@ def sum_product(fgg, method='fixed-point'):
     psi_X = {}
     for nt_name in fgg._nonterminals:
         for _ in fgg.rules(nt_name):
-            size = [node_label.domain().size() for node_label in fgg._nonterminals[nt_name]._node_labels]
+            size = [node_label.domain.size() for node_label in fgg._nonterminals[nt_name]._node_labels]
             psi_X[nt_name] = torch.full(size, fill_value=0.0)
     if method == 'fixed-point':
         return fixed_point(F, psi_X)[fgg.start_symbol().name()]
