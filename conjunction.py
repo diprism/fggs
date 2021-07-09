@@ -3,10 +3,7 @@ import fgg_representation as fggs
 # Test whether two FGG rules are conjoinable.
 def conjoinable(rule1, rule2):
     # Must have same Nodes (in terms of Node id) with same NodeLabels
-    # TODO: simplify this code once __eq__ is implemented for Nodes
-    nodes1 = set([(node.id, node.label) for node in rule1.rhs().nodes()])
-    nodes2 = set([(node.id, node.label) for node in rule2.rhs().nodes()])
-    if nodes1 != nodes2:
+    if rule1.rhs().nodes() != rule2.rhs().nodes():
         return False
     # Must have same nonterminal Edges (in terms of Edge id)
     # which can have different EdgeLabels, but must connect to same Nodes
@@ -25,21 +22,16 @@ def conjoinable(rule1, rule2):
 
 # Assumes rules are conjoinable.
 # Does not check for conjoinability.
-# TODO: don't need to create new Nodes / terminal Edges once Nodes and Edges are immutable
 def conjoin_rules(rule1, rule2):
     new_lhs = fggs.EdgeLabel(name=f"<{rule1.lhs().name},{rule2.lhs().name}>",
                              is_terminal=False,
                              node_labels=rule1.lhs().type())
     new_rhs = fggs.FactorGraph()
     # add nodes
-    new_nodes = dict()
     for node in rule1.rhs().nodes():
-        new_node = fggs.Node(node.label, node.id)
-        new_rhs.add_node(new_node)
-        new_nodes[node.id] = new_node
+        new_rhs.add_node(node)
     # set external nodes
-    new_ext = [new_nodes[node.id] for node in rule1.rhs().ext()]
-    new_rhs.set_ext(new_ext)
+    new_rhs.set_ext(rule1.rhs().ext())
     # add nonterminal edges
     nts1 = sorted([edge for edge in rule1.rhs().nonterminals()],
                   key=lambda edge: edge.id)
@@ -55,18 +47,12 @@ def conjoin_rules(rule1, rule2):
                                    is_terminal=False,
                                    node_labels=edge1.label.type())
             new_labels[name] = label
-        new_edge = fggs.Edge(label=label,
-                             nodes=[new_nodes[n.id] for n in edge1.nodes],
-                             id=edge1.id)
-        new_rhs.add_edge(new_edge)
+        new_rhs.add_edge(fggs.Edge(label=label, nodes=edge1.nodes, id=edge1.id))
     # add terminal edges
     ts1 = rule1.rhs().terminals()
     ts2 = rule2.rhs().terminals()
     for edge in ts1 + ts2:
-        new_edge = fggs.Edge(label=edge.label,
-                             nodes=[new_nodes[n.id] for n in edge.nodes],
-                             id=edge.id)
-        new_rhs.add_edge(new_edge)
+        new_rhs.add_edge(edge)
     return fggs.FGGRule(lhs=new_lhs, rhs=new_rhs)
 
 # Conjoin two FGGs.
