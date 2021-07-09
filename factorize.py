@@ -343,7 +343,7 @@ def factorize_rule(rule, method='min_fill'):
     g = {}
     for v in rhs.nodes():
         g[v] = set()
-    for nodes in [e.nodes() for e in rhs.edges()] + [rhs.ext()]:
+    for nodes in [e.nodes for e in rhs.edges()] + [rhs.ext()]:
         for u in nodes:
             for v in nodes:
                 if u != v:
@@ -374,7 +374,7 @@ def factorize_rule(rule, method='min_fill'):
             ext = list(bag & parent)
             lhs = fggs.EdgeLabel(f'{id(rule)}_{i}',
                                  is_terminal=False,
-                                 node_labels=tuple([v.label() for v in ext]))
+                                 node_labels=tuple([v.label for v in ext]))
             i += 1
         
         # rhs
@@ -385,8 +385,8 @@ def factorize_rule(rule, method='min_fill'):
 
         # terminal edges and existing nonterminal edges
         for e in rule.rhs().edges():
-            if (bag.issuperset(e.nodes()) and
-                (parent is None or not parent.issuperset(e.nodes()))):
+            if (bag.issuperset(e.nodes) and
+                (parent is None or not parent.issuperset(e.nodes))):
                 rhs.add_edge(e)
 
         # new nonterminal edges and recurse on children

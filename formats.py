@@ -89,21 +89,21 @@ def fgg_to_json(g):
     
     j['rules'] = []
     for gr in g.all_rules():
-        nodes = sorted(gr.rhs().nodes(), key=lambda v: v.id())
+        nodes = sorted(gr.rhs().nodes(), key=lambda v: v.id)
         node_nums = {v:vi for vi, v in enumerate(nodes)}
         jr = {
             'lhs': gr.lhs().name,
             'rhs': {
-                'nodes': [{'id': v.id(), 'label': v.label().name} for v in nodes],
+                'nodes': [{'id': v.id, 'label': v.label.name} for v in nodes],
                 'edges': [],
                 'externals': [node_nums[v] for v in gr.rhs().ext()],
             },
         }
-        for e in sorted(gr.rhs().edges(), key=lambda e: e.id()):
+        for e in sorted(gr.rhs().edges(), key=lambda e: e.id):
             jr['rhs']['edges'].append({
-                'id': e.id(),
-                'attachments': [node_nums[v] for v in e.nodes()],
-                'label': e.label().name,
+                'id': e.id,
+                'attachments': [node_nums[v] for v in e.nodes],
+                'label': e.label.name,
             })
         j['rules'].append(jr)
         
@@ -138,67 +138,67 @@ def factorgraph_to_dot(g: FactorGraph, factor_formats=None, lhs=None):
 
     dot = pydot.Dot(graph_type='graph', rankdir='LR')
     for v in g.nodes():
-        dot.add_node(pydot.Node(f'v{v.id()}',
-                                #label=v.label().name,
+        dot.add_node(pydot.Node(f'v{v.id}',
+                                #label=v.label.name,
                                 label='',
                                 shape='circle',
                                 height=0.24,
                                 margin=0,
         ))
     for e in g.edges():
-        if e.label().is_terminal():
-            dot.add_node(pydot.Node(f'e{e.id()}',
+        if e.label.is_terminal():
+            dot.add_node(pydot.Node(f'e{e.id}',
                                     label='',
-                                    xlabel=e.label().name,
+                                    xlabel=e.label.name,
                                     shape='square',
                                     height=0.16,
             ))
         else:
-            dot.add_node(pydot.Node(f'e{e.id()}',
-                                    label=e.label().name,
+            dot.add_node(pydot.Node(f'e{e.id}',
+                                    label=e.label.name,
                                     shape='square',
                                     height=0.24,
                                     margin=0.04,
             ))
-        nv = len(e.nodes())
-        for i, v in enumerate(e.nodes()):
-            format = _get_format(factor_formats, e.label(), i)
+        nv = len(e.nodes)
+        for i, v in enumerate(e.nodes):
+            format = _get_format(factor_formats, e.label, i)
             if format[0] == '>':
-                dot.add_edge(pydot.Edge(f'e{e.id()}', f'v{v.id()}',
+                dot.add_edge(pydot.Edge(f'e{e.id}', f'v{v.id}',
                                         order=i+1,
                                         label=format[1],
                 ))
             elif format[0] == '<':
-                dot.add_edge(pydot.Edge(f'v{v.id()}', f'e{e.id()}',
+                dot.add_edge(pydot.Edge(f'v{v.id}', f'e{e.id}',
                                         order=i+1,
                                         label=format[1],
                 ))
             elif format[0] == '^':
                 sub = pydot.Subgraph(rank='same')
-                sub.add_node(pydot.Node(f'v{v.id()}'))
-                sub.add_node(pydot.Node(f'e{e.id()}'))
+                sub.add_node(pydot.Node(f'v{v.id}'))
+                sub.add_node(pydot.Node(f'e{e.id}'))
                 dot.add_subgraph(sub)
-                dot.add_edge(pydot.Edge(f'v{v.id()}', f'e{e.id()}',
+                dot.add_edge(pydot.Edge(f'v{v.id}', f'e{e.id}',
                                         order=i+1,
                                         label=format[1],
                 ))
             elif format[0] == '_':
                 sub = pydot.Subgraph(rank='same')
-                sub.add_node(pydot.Node(f'v{v.id()}'))
-                sub.add_node(pydot.Node(f'e{e.id()}'))
+                sub.add_node(pydot.Node(f'v{v.id}'))
+                sub.add_node(pydot.Node(f'e{e.id}'))
                 dot.add_subgraph(sub)
-                dot.add_edge(pydot.Edge(f'e{e.id()}', f'v{v.id()}',
+                dot.add_edge(pydot.Edge(f'e{e.id}', f'v{v.id}',
                                         order=i+1,
                                         label=format[1],
                 ))
             else:
-                dot.add_edge(pydot.Edge(f'v{v.id()}', f'e{e.id()}',
+                dot.add_edge(pydot.Edge(f'v{v.id}', f'e{e.id}',
                                         order=i+1,
                                         label=format[1],
                                         constraint=False,
                 ))
     for i, v in enumerate(g.ext()):
-        [dv] = dot.get_node(f'v{v.id()}')
+        [dv] = dot.get_node(f'v{v.id}')
         attrs = dv.get_attributes()
         attrs['ext'] = i+1
         attrs['style'] = 'filled'
@@ -241,31 +241,30 @@ def factorgraph_to_tikz(g: FactorGraph, factor_formats=None, lhs=None):
             visit(s)
     visit(dot)
 
-    ys = [positions[f'v{v.id()}'][1] for v in g.nodes()]
-    ys.extend([positions[f'e{e.id()}'][1] for e in g.edges()])
+    ys = [positions[f'v{v.id}'][1] for v in g.nodes()]
+    ys.extend([positions[f'e{e.id}'][1] for e in g.edges()])
     baseline = (min(ys)+max(ys))/2
     
     res = []
     res.append(rf'\begin{{tikzpicture}}[baseline={baseline}pt]')
 
-    ext = {v.id():i for i,v in enumerate(g.ext())}
+    ext = {v.id:i for i,v in enumerate(g.ext())}
     for v in g.nodes():
-        vid = v.id()
-        if vid in ext:
-            style = f'ext,label={_get_format(factor_formats, lhs, ext[vid])[1]}'
+        if v.id in ext:
+            style = f'ext,label={_get_format(factor_formats, lhs, ext[v.id])[1]}'
         else:
             style = 'var'
-        x, y = positions[f'v{vid}']
-        res.append(rf'  \node [{style}] (v{vid}) at ({x}pt,{y}pt) {{}};')
+        x, y = positions[f'v{v.id}']
+        res.append(rf'  \node [{style}] (v{v.id}) at ({x}pt,{y}pt) {{}};')
     for e in g.edges():
-        x, y = positions[f'e{e.id()}']
-        if e.label().is_terminal():
-            res.append(rf'  \node [fac,label={{{e.label().name}}}] (e{e.id()}) at ({x}pt,{y}pt) {{}};')
+        x, y = positions[f'e{e.id}']
+        if e.label.is_terminal():
+            res.append(rf'  \node [fac,label={{{e.label.name}}}] (e{e.id}) at ({x}pt,{y}pt) {{}};')
         else:
-            res.append(rf'  \node [fac] (e{e.id()}) at ({x}pt,{y}pt) {{{e.label().name}}};')
-        for i, v in enumerate(e.nodes()):
-            label = _get_format(factor_formats, e.label(), i)[1]
-            res.append(rf'    \draw (e{e.id()}) edge node[tent,near start] {{{label}}} (v{v.id()});')
+            res.append(rf'  \node [fac] (e{e.id}) at ({x}pt,{y}pt) {{{e.label.name}}};')
+        for i, v in enumerate(e.nodes):
+            label = _get_format(factor_formats, e.label, i)[1]
+            res.append(rf'    \draw (e{e.id}) edge node[tent,near start] {{{label}}} (v{v.id});')
     res.append(r'\end{tikzpicture}')
     return '\n'.join(res)
 
