@@ -8,9 +8,18 @@ from conjunction import conjoinable, conjoin_rules, conjoin_fggs
 
 class TestConjunction(unittest.TestCase):
 
+    def setUp(self):
+        with open(os.path.join(os.path.dirname(__file__), 'hmm.json')) as f:
+            self.hmm_json = json.load(f)
+        with open(os.path.join(os.path.dirname(__file__), 'conjunct.json')) as f:
+            self.conjunct_json = json.load(f)
+        with open(os.path.join(os.path.dirname(__file__), 'conjunction.json')) as f:
+            self.conjunction_json = json.load(f)        
+        self.restore()
+
     def restore(self):
         self.hmm = formats.json_to_fgg(self.hmm_json)
-        self.conjoinand = formats.json_to_fgg(self.conjoinand_json)
+        self.conjunct = formats.json_to_fgg(self.conjunct_json)
         self.conjunction = formats.json_to_fgg(self.conjunction_json)
         
         # extract specific rules for testing conjunction
@@ -19,14 +28,14 @@ class TestConjunction(unittest.TestCase):
             if len(rule.rhs().nodes()) == 3:
                 self.xrule1 = rule
         
-        xrules2 = self.conjoinand.rules("X")
+        xrules2 = self.conjunct.rules("X")
         for rule in xrules2:
-            if "Y" in [nt.label().name() for nt in rule.rhs().nonterminals()]:
+            if "Y" in [nt.label().name for nt in rule.rhs().nonterminals()]:
                 self.xrule2 = rule
         
         xrules3 = self.conjunction.rules("<X,X>")
         for rule in xrules3:
-            if "Y" in [nt.label().name() for nt in rule.rhs().nonterminals()]:
+            if "Y" in [nt.label().name for nt in rule.rhs().nonterminals()]:
                 self.xrule3 = rule
         
         # get all the nodes for easy access
@@ -37,16 +46,7 @@ class TestConjunction(unittest.TestCase):
         self.nl_t = self.hmm.get_node_label("T")
         self.nl_w = self.hmm.get_node_label("W")
         self.el_x1 = self.hmm.get_edge_label("X")
-        self.el_x2 = self.conjoinand.get_edge_label("X")
-
-    def setUp(self):
-        with open(os.path.join(os.path.dirname(__file__), 'hmm.json')) as f:
-            self.hmm_json = json.load(f)
-        with open(os.path.join(os.path.dirname(__file__), 'conjoinand.json')) as f:
-            self.conjoinand_json = json.load(f)
-        with open(os.path.join(os.path.dirname(__file__), 'conjunction.json')) as f:
-            self.conjunction_json = json.load(f)        
-        self.restore()
+        self.el_x2 = self.conjunct.get_edge_label("X")
 
     def test_conjoinable(self):    
         self.assertTrue(conjoinable(self.xrule1, self.xrule2))        
@@ -84,7 +84,7 @@ class TestConjunction(unittest.TestCase):
         self.restore()
 
     def test_conjunction(self):
-        conjunction_check = conjoin_fggs(self.hmm, self.conjoinand)
+        conjunction_check = conjoin_fggs(self.hmm, self.conjunct)
         conjunction_json_check = formats.fgg_to_json(conjunction_check)
         self.maxDiff = 10000
         self.assertEqual(self.conjunction_json.keys(), conjunction_json_check.keys())
@@ -95,6 +95,6 @@ class TestConjunction(unittest.TestCase):
 
         # ignore order of rules
         for r in self.conjunction_json['rules']:
-            self.assertTrue(r in conjunction_json_check['rules'], f'{r} {j_check["rules"]}')
+            self.assertTrue(r in conjunction_json_check['rules'])
         for r in conjunction_json_check['rules']:
-            self.assertTrue(r in self.conjunction_json['rules'], r)
+            self.assertTrue(r in self.conjunction_json['rules'])

@@ -208,11 +208,11 @@ class FactorGraph:
         return list(self._edges)
     
     def terminals(self):
-        return [edge for edge in self._edges if edge.label().is_terminal()]    
+        return [edge for edge in self._edges if edge.label().is_terminal()]
 
     def nonterminals(self):
         return [edge for edge in self._edges if edge.label().is_nonterminal()]
-    
+
     def ext(self):
         return self._ext
     
@@ -320,6 +320,7 @@ class FGGRule:
         string += f"FGGRule with left-hand side {self._lhs.name} and right-hand side as follows:\n"
         string += self._rhs.to_string(indent+1)
         return string
+
 
 
 class FGGRepresentation:

@@ -3,8 +3,9 @@ import fgg_representation as fggs
 # Test whether two FGG rules are conjoinable.
 def conjoinable(rule1, rule2):
     # Must have same Nodes (in terms of Node id) with same NodeLabels
-    nodes1 = set([(node.id(), node.label().name()) for node in rule1.rhs().nodes()])
-    nodes2 = set([(node.id(), node.label().name()) for node in rule2.rhs().nodes()])
+    # TODO: simplify this code once __eq__ is implemented for Nodes
+    nodes1 = set([(node.id(), node.label()) for node in rule1.rhs().nodes()])
+    nodes2 = set([(node.id(), node.label()) for node in rule2.rhs().nodes()])
     if nodes1 != nodes2:
         return False
     # Must have same nonterminal Edges (in terms of Edge id)
@@ -24,10 +25,11 @@ def conjoinable(rule1, rule2):
 
 # Assumes rules are conjoinable.
 # Does not check for conjoinability.
+# TODO: don't need to create new Nodes / terminal Edges once Nodes and Edges are immutable
 def conjoin_rules(rule1, rule2):
-    new_lhs = fggs.EdgeLabel(name=f"<{rule1.lhs().name()},{rule2.lhs().name()}>",\
+    new_lhs = fggs.EdgeLabel(name=f"<{rule1.lhs().name},{rule2.lhs().name}>",\
                              is_terminal=False,\
-                             type=rule1.lhs().type())
+                             node_labels=rule1.lhs().type())
     new_rhs = fggs.FactorGraph()
     # add nodes
     new_nodes = dict()
@@ -45,13 +47,13 @@ def conjoin_rules(rule1, rule2):
                   key=lambda edge: edge.id())
     new_labels = dict()
     for (edge1,edge2) in zip(nts1,nts2):
-        name = f"<{edge1.label().name()},{edge2.label().name}>"
+        name = f"<{edge1.label().name},{edge2.label().name}>"
         if name in new_labels:
             label = new_labels[name]
         else:
             label = fggs.EdgeLabel(name=name,\
                                    is_terminal=False,\
-                                   type=edge1.label().type())
+                                   node_labels=edge1.label().type())
             new_labels[name] = label
         new_edge = fggs.Edge(label=label,\
                              nodes=[new_nodes[n.id()] for n in edge1.nodes()],\
@@ -77,12 +79,12 @@ def conjoin_fggs(fgg1, fgg2):
                 new_fgg.add_rule(conjoin_rules(rule1, rule2))
     # set the start symbol
     # (may not actually be used in any rules)
-    start_name = f"<{fgg1.start_symbol().name()},{fgg2.start_symbol().name()}>"
+    start_name = f"<{fgg1.start_symbol().name},{fgg2.start_symbol().name}>"
     if new_fgg.has_edge_label(start_name):
         start_label = new_fgg.get_edge_label(start_name)
     else:
         start_label = fggs.EdgeLabel(name=start_name,\
                                      is_terminal=False,\
-                                     type=fgg1.start_symbol().type())
+                                     node_labels=fgg1.start_symbol().type())
     new_fgg.set_start_symbol(start_label)
     return new_fgg
