@@ -68,6 +68,46 @@ class TestEdgeLabel(unittest.TestCase):
         with self.assertRaises(ValueError):
             arity_mismatch = EdgeLabel("arity_mismatch", (self.nl1, self.nl2), self.fac1)
 
+    def testImmutable(self):
+        with self.assertRaises(FrozenInstanceError):
+            self.terminal.name = "foo"
+        with self.assertRaises(FrozenInstanceError):
+            self.terminal.node_labels = (self.nl1, self.nl2)
+        with self.assertRaises(FrozenInstanceError):
+            self.terminal.factor = self.fac2
+        with self.assertRaises(FrozenInstanceError):
+            self.terminal.is_terminal = False
+        with self.assertRaises(FrozenInstanceError):
+            self.terminal.is_nonterminal = True
+
+    def testEquals(self):
+        fac_eq = ConstantFactor([self.dom]*3, 5)
+        fac_ne = ConstantFactor([self.dom]*3, 6)
+        terminal_eq_fac  = EdgeLabel("t", (self.nl1, self.nl2, self.nl3), fac_eq)
+        terminal_ne_name = EdgeLabel("x", (self.nl1, self.nl2, self.nl3), self.fac1)
+        terminal_ne_type = EdgeLabel("t", (self.nl1, self.nl3, self.nl2), self.fac1)
+        terminal_ne_fac  = EdgeLabel("t", (self.nl1, self.nl2, self.nl3), fac_ne)
+        self.assertTrue(self.terminal == terminal_eq_fac)
+        self.assertFalse(self.terminal == terminal_ne_name)
+        self.assertFalse(self.terminal == terminal_ne_type)
+        self.assertFalse(self.terminal == terminal_ne_fac)
+
+    def testHash(self):
+        fac_eq = ConstantFactor([self.dom]*3, 5)
+        fac_ne = ConstantFactor([self.dom]*3, 6)
+        terminal_eq_fac  = EdgeLabel("t", (self.nl1, self.nl2, self.nl3), fac_eq)
+        terminal_ne_name = EdgeLabel("x", (self.nl1, self.nl2, self.nl3), self.fac1)
+        terminal_ne_type = EdgeLabel("t", (self.nl1, self.nl3, self.nl2), self.fac1)
+        terminal_ne_fac  = EdgeLabel("t", (self.nl1, self.nl2, self.nl3), fac_ne)
+        d = dict()
+        d[self.terminal] = 5
+        self.assertTrue(terminal_eq_fac in d)
+        self.assertFalse(terminal_ne_name in d)
+        self.assertFalse(terminal_ne_type in d)
+        self.assertFalse(terminal_ne_fac in d)
+        d[terminal_eq_fac] = 7
+        self.assertTrue(d[self.terminal] == 7)
+
     def test_is_terminal(self):
         self.assertTrue(self.terminal.is_terminal())
         self.assertFalse(self.nonterminal.is_terminal())
@@ -82,25 +122,6 @@ class TestEdgeLabel(unittest.TestCase):
     def test_type(self):
         self.assertEqual(self.terminal.type(), (self.nl1, self.nl2, self.nl3))
     
-    def test_set_factor(self):
-        self.assertEqual(self.terminal.factor(), self.fac1)
-        new_fac = ConstantFactor([self.dom]*3, 8)
-        self.terminal.set_factor(new_fac)
-        self.assertEqual(self.terminal.factor(), new_fac)
-
-    def test_set_factor_bad_input(self):
-        with self.assertRaises(ValueError):
-            self.terminal.set_factor(None)
-        with self.assertRaises(ValueError):
-            self.nonterminal.set_factor(self.fac1)
-
-        bad_dom = FiniteDomain({6, 7, 8, 9, 10})
-        bad_fac = ConstantFactor([bad_dom]*3, 147)
-        with self.assertRaises(ValueError):
-            self.terminal.set_factor(bad_fac)
-        with self.assertRaises(ValueError):
-            self.terminal.set_factor(self.fac2)
-
 
 
 class TestNode(unittest.TestCase):
@@ -121,6 +142,8 @@ class TestNode(unittest.TestCase):
         copy = node.copy()
         self.assertNotEqual(id(node), id(copy))
         self.assertEqual(node.label(), copy.label())
+
+
 
 class TestEdge(unittest.TestCase):
     
@@ -442,7 +465,7 @@ class TestFGGRepresentation(unittest.TestCase):
         self.assertEqual(fgg.nonterminals(), copy.nonterminals())
         self.assertEqual(fgg.terminals(), copy.terminals())
         for x in fgg.nonterminals():
-            self.assertEqual(len(fgg.rules(x.name())), len(copy.rules(x.name())))
+            self.assertEqual(len(fgg.rules(x.name)), len(copy.rules(x.name)))
         # to do: difficult to compare rule sets without rule ids
 
 if __name__ == "__main__":
