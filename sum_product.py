@@ -26,14 +26,14 @@ def sum_product(fgg, method='fixed-point'):
                     for i, id in enumerate(rule.rhs()._node_ids)}
                 indexing, tensors = [], []
                 for edge in rule.rhs().edges():
-                    indexing.append([Xi_R[node.id()] for node in edge.nodes()])
-                    if edge.label().is_terminal():
-                        weights = edge.label().factor.weights()
+                    indexing.append([Xi_R[node.id] for node in edge.nodes])
+                    if edge.label.is_terminal():
+                        weights = edge.label.factor.weights()
                         tensors.append(torch.tensor(weights))
                     else:
-                        tensors.append(psi_X[edge.label().name])
+                        tensors.append(psi_X[edge.label.name])
                 indexing = ','.join([''.join(indices) for indices in indexing]) + '->'
-                external = [Xi_R[node.id()] for node in rule.rhs().ext()]
+                external = [Xi_R[node.id] for node in rule.rhs().ext()]
                 if external: indexing += ''.join(external)
                 tau_R.append(torch.einsum(indexing, *tensors))
             psi_X[nt_name] = sum(tau_R)

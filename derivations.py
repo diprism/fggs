@@ -20,14 +20,14 @@ def replace_edges(graph: FactorGraph, replacements: Dict[Edge, FactorGraph]):
     """
 
     for (edge, repl) in replacements.items():
-        if not edge.label().is_nonterminal():
+        if not edge.label.is_nonterminal():
             raise ValueError("Only a nonterminal-labeled edge can be replaced.")
 
         if isinstance(repl, FGGRule):
-            if edge.label() != repl.lhs():
+            if edge.label != repl.lhs():
                 raise ValueError("An edge can only be replaced with an FGGRule with a matching left-hand side.")
         elif isinstance(repl, FactorGraph):
-            if edge.label().type() != repl.type():
+            if edge.label.type() != repl.type():
                 raise ValueError("A graph fragment can only replace a edge with the same type.")
         else:
             raise TypeError("The replacement for an edge must be an FGGRule or a FactorGraph.")
@@ -38,35 +38,35 @@ def replace_edges(graph: FactorGraph, replacements: Dict[Edge, FactorGraph]):
     edge_ids = set() # because ret._edge_ids is "private"
     for v in graph.nodes():
         ret.add_node(v)
-        node_ids.add(v.id())
+        node_ids.add(v.id)
     ret.set_ext(graph.ext())
     for e in graph.edges():
         if e not in replacements:
             ret.add_edge(e)
-            edge_ids.add(e.id())
+            edge_ids.add(e.id)
     for e in replacements:
         repl = replacements[e]
         if isinstance(repl, FGGRule):
             repl = repl.rhs()
         rnodes = {}
-        for ve, vr in zip(e.nodes(), repl.ext()):
+        for ve, vr in zip(e.nodes, repl.ext()):
             rnodes[vr] = ve
         for v in repl.nodes():
             if v not in rnodes: # i.e., if v not in repl.ext()
-                if v.id() in node_ids:
-                    vcopy = Node(v.label()) # generate fresh id
+                if v.id in node_ids:
+                    vcopy = Node(v.label) # generate fresh id
                 else:
                     vcopy = v
                 rnodes[v] = vcopy
                 ret.add_node(vcopy)
-                node_ids.add(vcopy.id())
+                node_ids.add(vcopy.id)
         for er in repl.edges():
-            if er.id() in edge_ids:
-                er = Edge(er.label(), [rnodes[v] for v in er.nodes()]) # fresh id
+            if er.id in edge_ids:
+                er = Edge(er.label, [rnodes[v] for v in er.nodes]) # fresh id
             else:
-                er = Edge(er.label(), [rnodes[v] for v in er.nodes()], id=er.id())
+                er = Edge(er.label, [rnodes[v] for v in er.nodes], id=er.id)
             ret.add_edge(er)
-            edge_ids.add(er.id())
+            edge_ids.add(er.id)
     return ret
 
 

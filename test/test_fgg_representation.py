@@ -133,7 +133,7 @@ class TestNode(unittest.TestCase):
         self.node2 = Node(self.label, id="id2")
 
     def test_id(self):
-        self.assertEqual(self.node2.id(), "id2")
+        self.assertEqual(self.node2.id, "id2")
 
 
 
@@ -162,9 +162,6 @@ class TestEdge(unittest.TestCase):
         with self.assertRaises(Exception):
             bad_edge = self.Edge(self.el2, (self.node2, self.node2))
     
-    def test_node_at(self):
-        self.assertEqual(self.edge1.node_at(1), self.node2)
-
         
 class TestFactorGraph(unittest.TestCase):
 
@@ -199,7 +196,7 @@ class TestFactorGraph(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.graph.add_node(self.node1)
         # nor a copy of a Node already in a FactorGraph
-        new_node = Node(self.nl1, id=self.node1.id())
+        new_node = Node(self.nl1, id=self.node1.id)
         with self.assertRaises(ValueError):
             self.graph.add_node(new_node)
     
@@ -214,7 +211,7 @@ class TestFactorGraph(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.graph.add_edge(self.edge1)
         # nor a copy of an Edge already in a FactorGraph
-        new_edge = Edge(self.el1, (self.node1, self.node2), id=self.edge1.id())
+        new_edge = Edge(self.el1, (self.node1, self.node2), id=self.edge1.id)
         with self.assertRaises(ValueError):
             self.graph.add_edge(new_edge)
     

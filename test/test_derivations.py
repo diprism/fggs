@@ -28,8 +28,8 @@ class TestReplace(unittest.TestCase):
 
     def test_replace(self):
         g = replace_edges(self.graph, {self.edge2:self.graph})
-        self.assertEqual(sorted(v.label().name for v in g.nodes()), ['nl1', 'nl1', 'nl2'])
-        self.assertEqual(sorted(e.label().name for e in g.edges()), ['el1', 'el1', 'el2'])
+        self.assertEqual(sorted(v.label.name for v in g.nodes()), ['nl1', 'nl1', 'nl2'])
+        self.assertEqual(sorted(e.label.name for e in g.edges()), ['el1', 'el1', 'el2'])
 
 class TestStartGraph(unittest.TestCase):        
     def setUp(self):
@@ -41,7 +41,7 @@ class TestStartGraph(unittest.TestCase):
     def test_start_graph(self):
         s = self.fgg.start_symbol()
         g = start_graph(self.fgg)
-        self.assertEqual([e.label() for e in g.edges()], [s])
+        self.assertEqual([e.label for e in g.edges()], [s])
         self.assertEqual(len(g.nodes()), len(s.type()))
     
     
