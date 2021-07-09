@@ -14,8 +14,8 @@ class TestReplace(unittest.TestCase):
         self.node2 = Node(self.nl2)
         
         self.fac = ConstantFactor([self.dom]*2, 42)
-        self.el1   = EdgeLabel("el1", True, (self.nl1, self.nl2), self.fac)
-        self.el2   = EdgeLabel("el2", False, (self.nl2,))
+        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), self.fac)
+        self.el2   = EdgeLabel("el2", (self.nl2,))
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
         
@@ -28,12 +28,12 @@ class TestReplace(unittest.TestCase):
 
     def test_replace(self):
         g = replace_edges(self.graph, {self.edge2:self.graph})
-        self.assertEqual(sorted(v.label().name() for v in g.nodes()), ['nl1', 'nl1', 'nl2'])
-        self.assertEqual(sorted(e.label().name() for e in g.edges()), ['el1', 'el1', 'el2'])
+        self.assertEqual(sorted(v.label().name for v in g.nodes()), ['nl1', 'nl1', 'nl2'])
+        self.assertEqual(sorted(e.label().name for e in g.edges()), ['el1', 'el1', 'el2'])
 
 class TestStartGraph(unittest.TestCase):        
     def setUp(self):
-        self.start = EdgeLabel("S", False, tuple())
+        self.start = EdgeLabel("S", tuple())
 
         self.fgg = FGGRepresentation()
         self.fgg.set_start_symbol(self.start)

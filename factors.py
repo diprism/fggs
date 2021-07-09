@@ -15,6 +15,12 @@ class Factor(ABC):
     @abstractmethod
     def apply(self, values):
         pass
+    
+    def __eq__(self, other):
+        return self is other
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
 class ConstantFactor(Factor):
     def __init__(self, doms, weight):
@@ -23,6 +29,14 @@ class ConstantFactor(Factor):
 
     def apply(self, values):
         return self._weight
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        else:
+            return type(self) == type(other) and\
+                   self.domains() == other.domains() and\
+                   self._weight == other._weight
 
 class CategoricalFactor(Factor):
     def __init__(self, doms, weights):
@@ -67,3 +81,11 @@ class CategoricalFactor(Factor):
         for d, v in zip(self._domains, values):
             w = w[d.numberize(v)]
         return w
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        else:
+            return type(self) == type(other) and\
+                   self.domains() == other.domains() and\
+                   self.weights() == other.weights()
