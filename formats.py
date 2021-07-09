@@ -146,7 +146,7 @@ def factorgraph_to_dot(g: FactorGraph, factor_formats=None, lhs=None):
                                 margin=0,
         ))
     for e in g.edges():
-        if e.label().is_terminal:
+        if e.label().is_terminal():
             dot.add_node(pydot.Node(f'e{e.id()}',
                                     label='',
                                     xlabel=e.label().name,
@@ -259,7 +259,7 @@ def factorgraph_to_tikz(g: FactorGraph, factor_formats=None, lhs=None):
         res.append(rf'  \node [{style}] (v{vid}) at ({x}pt,{y}pt) {{}};')
     for e in g.edges():
         x, y = positions[f'e{e.id()}']
-        if e.label().is_terminal:
+        if e.label().is_terminal():
             res.append(rf'  \node [fac,label={{{e.label().name}}}] (e{e.id()}) at ({x}pt,{y}pt) {{}};')
         else:
             res.append(rf'  \node [fac] (e{e.id()}) at ({x}pt,{y}pt) {{{e.label().name}}};')

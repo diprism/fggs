@@ -27,7 +27,7 @@ def sum_product(fgg, method='fixed-point'):
                 indexing, tensors = [], []
                 for edge in rule.rhs().edges():
                     indexing.append([Xi_R[node.id()] for node in edge.nodes()])
-                    if edge.label().is_terminal:
+                    if edge.label().is_terminal():
                         weights = edge.label().factor.weights()
                         tensors.append(torch.tensor(weights))
                     else:

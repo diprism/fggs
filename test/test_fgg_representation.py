@@ -108,6 +108,14 @@ class TestEdgeLabel(unittest.TestCase):
         d[terminal_eq_fac] = 7
         self.assertTrue(d[self.terminal] == 7)
 
+    def test_is_terminal(self):
+        self.assertTrue(self.terminal.is_terminal())
+        self.assertFalse(self.nonterminal.is_terminal())
+    
+    def test_is_nonterminal(self):
+        self.assertFalse(self.terminal.is_nonterminal())
+        self.assertTrue(self.nonterminal.is_nonterminal())
+
     def test_arity(self):
         self.assertEqual(self.terminal.arity(), 3)
     
