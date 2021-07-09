@@ -30,17 +30,17 @@ class TestConjunction(unittest.TestCase):
         
         xrules2 = self.conjunct.rules("X")
         for rule in xrules2:
-            if "Y" in [nt.label().name for nt in rule.rhs().nonterminals()]:
+            if "Y" in [nt.label.name for nt in rule.rhs().nonterminals()]:
                 self.xrule2 = rule
         
         xrules3 = self.conjunction.rules("<X,X>")
         for rule in xrules3:
-            if "Y" in [nt.label().name for nt in rule.rhs().nonterminals()]:
+            if "Y" in [nt.label.name for nt in rule.rhs().nonterminals()]:
                 self.xrule3 = rule
         
         # get all the nodes for easy access
-        self.nodes1 = {node.id():node for node in self.xrule1.rhs().nodes()}
-        self.nodes2 = {node.id():node for node in self.xrule2.rhs().nodes()}
+        self.nodes1 = {node.id:node for node in self.xrule1.rhs().nodes()}
+        self.nodes2 = {node.id:node for node in self.xrule2.rhs().nodes()}
 
         # extract node labels and edge labels for use in testing
         self.nl_t = self.hmm.get_node_label("T")

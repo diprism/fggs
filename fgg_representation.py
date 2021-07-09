@@ -164,10 +164,10 @@ class FactorGraph:
         return list(self._edges)
     
     def terminals(self):
-        return [edge for edge in self._edges if edge.label().is_terminal()]
+        return [edge for edge in self._edges if edge.label.is_terminal()]
 
     def nonterminals(self):
-        return [edge for edge in self._edges if edge.label().is_nonterminal()]
+        return [edge for edge in self._edges if edge.label.is_nonterminal()]
 
     def ext(self):
         return self._ext
