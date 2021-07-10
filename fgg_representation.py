@@ -228,7 +228,10 @@ class FactorGraph:
         """Tests if two FactorGraphs are equal, including their Node and Edge ids.
 
         Runs in O(|V|+|E|) time because the ids are required to be equal."""
-        return self._nodes == other._nodes and self._edges == other._edges and self._ext == other._ext
+        return (isinstance(other, FactorGraph) and
+                self._nodes == other._nodes and
+                self._edges == other._edges and
+                self._ext == other._ext)
     def __ne__(self, other):
         return not self.__eq__(other)
 
@@ -271,7 +274,9 @@ class FGGRule:
         return FGGRule(self.lhs(), self.rhs().copy())
 
     def __eq__(self, other):
-        return self._lhs == other._lhs and self._rhs == other._rhs
+        return (isinstance(other, FGGRule) and
+                self._lhs == other._lhs and
+                self._rhs == other._rhs)
     def __ne__(self, other):
         return not self.__eq__(self, other)
 
@@ -396,6 +401,20 @@ class FGGRepresentation:
         for lhs in self._rules:
             copy._rules[lhs] = [r.copy() for r in self._rules[lhs]]
         return copy
+
+    def __eq__(self, other):
+        """Return True iff self and other are equal. If X is a nonterminal and
+        self.rules(X) and other.rules(X) have the same rules but in a
+        different order, then self and other are *not* considered
+        equal."""
+        return (isinstance(other, FGGRepresentation) and
+                self._rules == other._rules and
+                self._start == other._start and
+                self._node_labels == other._node_labels and
+                self._nonterminals == other._nonterminals and
+                self._terminals == other._terminals)
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def __str__(self):
         string = "Factor graph grammar with:"
