@@ -163,6 +163,12 @@ class FactorGraph:
     def edges(self):
         return list(self._edges)
     
+    def terminals(self):
+        return [edge for edge in self._edges if edge.label.is_terminal()]
+
+    def nonterminals(self):
+        return [edge for edge in self._edges if edge.label.is_nonterminal()]
+
     def ext(self):
         return self._ext
     
@@ -283,6 +289,7 @@ class FGGRule:
         return string
 
 
+
 class FGGRepresentation:
     
     def __init__(self):
@@ -342,6 +349,10 @@ class FGGRepresentation:
 
     def terminals(self):
         return [self._terminals[name] for name in self._terminals]
+
+    def has_edge_label(self, name):
+        return name in self._nonterminals or\
+               name in self._terminals
 
     def get_edge_label(self, name):
         if name in self._nonterminals:

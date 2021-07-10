@@ -233,6 +233,10 @@ class TestFactorGraph(unittest.TestCase):
         self.assertEqual(self.graph.arity(), 1)
         self.assertEqual(self.graph.type(), (self.nl2,))
 
+    def test_terminals_and_nonterminals(self):
+        self.assertEqual(self.graph.terminals(), [self.edge1])
+        self.assertEqual(self.graph.nonterminals(), [self.edge2])
+
     def test_remove_node(self):
         with self.assertRaises(ValueError):
             self.graph.remove_node(self.node1) # because nonzero degree
