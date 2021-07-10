@@ -222,7 +222,10 @@ class FactorGraph:
         """Tests if two FactorGraphs are equal, including their Node and Edge ids.
 
         Runs in O(|V|+|E|) time because the ids are required to be equal."""
-        return self._nodes == other._nodes and self._edges == other._edges and self._ext == other._ext
+        return (isinstance(other, FactorGraph) and
+                self._nodes == other._nodes and
+                self._edges == other._edges and
+                self._ext == other._ext)
     def __ne__(self, other):
         return not self.__eq__(other)
 
@@ -265,7 +268,9 @@ class FGGRule:
         return FGGRule(self.lhs(), self.rhs().copy())
 
     def __eq__(self, other):
-        return self._lhs == other._lhs and self._rhs == other._rhs
+        return (isinstance(other, FGGRule) and
+                self._lhs == other._lhs and
+                self._rhs == other._rhs)
     def __ne__(self, other):
         return not self.__eq__(self, other)
 

@@ -302,7 +302,7 @@ class TestFGGRule(unittest.TestCase):
             rule = FGGRule(nonterminal_mismatch, graph)
         self.rule = FGGRule(nonterminal_match, graph)
 
-    def test_copyequal(self):
+    def test_copy_equal(self):
         rule = self.rule
         copy = self.rule.copy()
         self.assertNotEqual(id(rule), id(copy))
