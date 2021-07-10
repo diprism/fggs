@@ -11,7 +11,7 @@ class NodeLabel:
     domain: Domain = field(compare=True,hash=False)
     
     def __str__(self):
-        return f"NodeLabel {self._name} with Domain {self._domain}"
+        return f"NodeLabel {self.name} with Domain {self.domain}"
 
 
 @dataclass(frozen=True,init=False)
@@ -94,100 +94,56 @@ class EdgeLabel:
                 string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name}"
         return string
 
-    
 
+def _generate_id():
+    letters = string.ascii_letters
+    new_id = ''.join([random.choice(letters) for i in range(20)])
+    return new_id
+    
+@dataclass(frozen=True)
 class Node:
-
-    _id_registry = set()
-
-    def __init__(self, label: NodeLabel, id: str = None):
-        if id == None:
-            self.set_id(self._generate_id())
-        else:
-            self.set_id(id)
-        self._label  = label
-
-    def _generate_id(self):
-        letters = string.ascii_letters
-        new_id = ''.join([random.choice(letters) for i in range(20)])
-        while new_id in Node._id_registry:
-            new_id = ''.join([random.choice(letters) for i in range(20)])
-        return new_id
     
-    def id(self):
-        return self._id
-    
-    def set_id(self, id: str):
-        Node._id_registry.add(id)
-        self._id = id
+    label: NodeLabel
+    id: str = None
 
-    def label(self):
-        return self._label
-        
-    def copy(self):
-        """Returns a copy of this Node, including its id."""
-        return Node(self._label, self._id)
+    def __post_init__(self):
+        if self.id == None:
+            object.__setattr__(self, 'id', _generate_id())
 
     def __str__(self):
-        return f"Node {self._id} with NodeLabel {self.label().name}"
+        return f"Node {self.id} with NodeLabel {self.label}"
 
 
-
+@dataclass(frozen=True)
 class Edge:
 
-    _id_registry = set()
+    label: EdgeLabel
+    nodes: Iterable[NodeLabel]
+    id: str = None
 
-    def __init__(self, label: EdgeLabel, nodes: Iterable[Node], id: str = None):
-        if id == None:
-            self.set_id(self._generate_id())
-        else:
-            self.set_id(id)
-        if label.type() != tuple([node.label() for node in nodes]):
-            raise ValueError(f"Can't use edge label {label.name} with this set of nodes.")
-        self._label = label
-        self._nodes = tuple(nodes)
+    def __post_init__(self):
+        if self.id == None:
+            object.__setattr__(self, 'id', _generate_id())
 
-    def _generate_id(self):
-        letters = string.ascii_letters
-        new_id = ''.join([random.choice(letters) for i in range(20)])
-        while new_id in Edge._id_registry:
-            new_id = ''.join([random.choice(letters) for i in range(20)])
-        return new_id
-
-    def id(self):
-        return self._id
-
-    def set_id(self, id: str):
-        Edge._id_registry.add(id)
-        self._id = id
+        if self.label.type() != tuple([node.label for node in self.nodes]):
+            raise ValueError(f"Can't use edge label {self.label.name} with this set of nodes.")
+        if not isinstance(self.nodes, tuple):
+            object.__setattr__(self, 'nodes', tuple(self.nodes))
     
-    def label(self):
-        return self._label
-
-    def nodes(self):
-        return self._nodes
-    
-    def node_at(self, i):
-        return self._nodes[i]
-
-    def copy(self):
-        """Returns a copy of this Edge, including its id."""
-        return Edge(self._label, self._nodes, self._id)
-
     def __str__(self):
         return self.to_string(0, True)
     def to_string(self, indent, verbose):
-        arity = len(self.nodes())
+        arity = len(self.nodes)
         string = "\t"*indent
-        string += f"Edge {self._id} with EdgeLabel {self.label().name}, connecting to {arity} nodes"
+        string += f"Edge {self.id} with EdgeLabel {self.label}, connecting to {arity} nodes"
         if arity > 0:
             string += ":"
-            for node in self._nodes:
+            for node in self.nodes:
                 string += "\n\t" + "\t"*indent
                 if verbose:
                     string += f"{node}"
                 else:
-                    string += f"Node {node.id()}"
+                    string += f"Node {node.id}"
         return string
 
 
@@ -214,39 +170,37 @@ class FactorGraph:
         return len(self._ext)
     
     def type(self):
-        return tuple([node.label() for node in self._ext])
+        return tuple([node.label for node in self._ext])
     
     def add_node(self, node: Node):
-        if node not in self._nodes and\
-           node.id() in self._node_ids:
-            raise Exception(f"Can't have two nodes with same ID {node.id()} in same FactorGraph.")
+        if node.id in self._node_ids:
+            raise ValueError(f"Can't have two nodes with same ID {node.id} in same FactorGraph.")
         self._nodes.add(node)
-        self._node_ids.add(node.id())
+        self._node_ids.add(node.id)
 
     def remove_node(self, node: Node):
         if node not in self._nodes:
             raise ValueError(f'Node {node} cannot be removed because it does not belong to this FactorGraph')
         for edge in self._edges:
-            if node in edge._nodes:
+            if node in edge.nodes:
                 raise ValueError(f'Node {node} cannot be removed because it is an attachment node of Edge {edge}')
         self._nodes.remove(node)
-        self._node_ids.remove(node.id())
+        self._node_ids.remove(node.id)
 
     def add_edge(self, edge: Edge):
-        if edge not in self._edges and\
-           edge.id() in self._edge_ids:
-            raise Exception(f"Can't have two edges with same ID {edge.id()} in same FactorGraph.")
-        for node in edge.nodes():
+        if edge.id in self._edge_ids:
+            raise ValueError(f"Can't have two edges with same ID {edge.id} in same FactorGraph.")
+        for node in edge.nodes:
             if node not in self._nodes:
                 self._nodes.add(node)
         self._edges.add(edge)
-        self._edge_ids.add(edge.id())
+        self._edge_ids.add(edge.id)
 
     def remove_edge(self, edge: Edge):
         if edge not in self._edges:
             raise ValueError(f'FactorGraph does not contain Edge {edge}')
         self._edges.remove(edge)
-        self._edge_ids.remove(edge.id())
+        self._edge_ids.remove(edge.id)
 
     def set_ext(self, nodes: Iterable[Node]):
         for node in nodes:
@@ -255,19 +209,25 @@ class FactorGraph:
         self._ext = tuple(nodes)
     
     def copy(self):
-        """Returns a copy of this FactorGraph, whose Nodes and Edges are also copies of the original's."""
+        """Returns a copy of this FactorGraph."""
         copy = FactorGraph()
-        copy_nodes = {v.id():v.copy() for v in self._nodes}
-        copy._nodes = set(copy_nodes.values())
-        copy._node_ids = set(copy_nodes.keys())
-        copy_edges = {}
-        for e in self._edges:
-            att = [copy_nodes[v.id()] for v in e.nodes()]
-            copy_edges[e.id()] = Edge(e.label(), att, e.id())
-        copy._edges = set(copy_edges.values())
-        copy._edge_ids = set(copy_edges.keys())
-        copy._ext = tuple(copy_nodes[v.id()] for v in self._ext)
+        copy._nodes = set(self._nodes)
+        copy._node_ids = set(self._node_ids)
+        copy._edges = set(self._edges)
+        copy._edge_ids = set(self._edge_ids)
+        copy._ext = tuple(self._ext)
         return copy
+
+    def __eq__(self, other):
+        """Tests if two FactorGraphs are equal, including their Node and Edge ids.
+
+        Runs in O(|V|+|E|) time because the ids are required to be equal."""
+        return (isinstance(other, FactorGraph) and
+                self._nodes == other._nodes and
+                self._edges == other._edges and
+                self._ext == other._ext)
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def __str__(self):
         return self.to_string(0)
@@ -307,6 +267,13 @@ class FGGRule:
         """Returns a copy of this FGGRule, whose right-hand side is a copy of the original's."""
         return FGGRule(self.lhs(), self.rhs().copy())
 
+    def __eq__(self, other):
+        return (isinstance(other, FGGRule) and
+                self._lhs == other._lhs and
+                self._rhs == other._rhs)
+    def __ne__(self, other):
+        return not self.__eq__(self, other)
+
     def __str__(self):
         return self.to_string(0)
     def to_string(self, indent):
@@ -323,7 +290,7 @@ class FGGRepresentation:
         self._nonterminals = dict()    # map from names to EdgeLabels
         self._terminals    = dict()    # map from names to EdgeLabels
         self._start        = None      # start symbol, an EdgeLabel which has arity 0
-        self._rules        = dict()    # one set of rules for each nonterminal edge label
+        self._rules        = dict()    # one list of rules for each nonterminal edge label
 
     def add_node_label(self, label: NodeLabel):
         name = label.name
@@ -397,23 +364,20 @@ class FGGRepresentation:
         
         self.add_nonterminal(lhs)
         for node in rhs.nodes():
-            self.add_node_label(node.label())
+            self.add_node_label(node.label)
         for edge in rhs.edges():
-            if edge.label().is_terminal():
-                self.add_terminal(edge.label())
+            if edge.label.is_terminal():
+                self.add_terminal(edge.label)
             else:
-                self.add_nonterminal(edge.label())
+                self.add_nonterminal(edge.label)
         
-        lhs_name = lhs.name
-        if lhs_name not in self._rules:
-            self._rules[lhs_name] = set()
-        self._rules[lhs_name].add(rule)
+        self._rules.setdefault(lhs.name, []).append(rule)
 
     def all_rules(self):
         return [rule for nt_name in self._rules for rule in self._rules[nt_name]]
     
     def rules(self, nt_name):
-        return [rule for rule in self._rules[nt_name]]
+        return list(self._rules[nt_name])
     
     def copy(self):
         """Returns a copy of this FGGRepresentation, whose rules are all copies of the original's."""
@@ -424,8 +388,22 @@ class FGGRepresentation:
         copy._start = self._start
         copy._rules = {}
         for lhs in self._rules:
-            copy._rules[lhs] = {r.copy() for r in self._rules[lhs]}
+            copy._rules[lhs] = [r.copy() for r in self._rules[lhs]]
         return copy
+
+    def __eq__(self, other):
+        """Return True iff self and other are equal. If X is a nonterminal and
+        self.rules(X) and other.rules(X) have the same rules but in a
+        different order, then self and other are *not* considered
+        equal."""
+        return (isinstance(other, FGGRepresentation) and
+                self._rules == other._rules and
+                self._start == other._start and
+                self._node_labels == other._node_labels and
+                self._nonterminals == other._nonterminals and
+                self._terminals == other._terminals)
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def __str__(self):
         string = "Factor graph grammar with:"

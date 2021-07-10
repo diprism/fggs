@@ -49,15 +49,15 @@ def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0
                     for i, id in enumerate(rule.rhs()._node_ids)}
                 indexing, tensors = [], []
                 for edge in rule.rhs().edges():
-                    indexing.append([Xi_R[node.id()] for node in edge.nodes()])
-                    if edge.label().factor is None:
-                        (n, k), shape = nt_dict[edge.label().name]
+                    indexing.append([Xi_R[node.id] for node in edge.nodes])
+                    if edge.label.is_nonterminal():
+                        (n, k), shape = nt_dict[edge.label.name]
                         tensors.append(psi_X0[n:k].reshape(shape))
                     else:
-                        weights = edge.label().factor._weights
+                        weights = edge.label.factor._weights
                         tensors.append(torch.tensor(weights))
                 equation = ','.join([''.join(indices) for indices in indexing]) + '->'
-                external = [Xi_R[node.id()] for node in rule.rhs().ext()]
+                external = [Xi_R[node.id] for node in rule.rhs().ext()]
                 if external: equation += ''.join(external)
                 tau_R.append(torch.einsum(equation, *tensors))
             (n, k), _ = nt_dict[nt_name]
