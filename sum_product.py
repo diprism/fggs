@@ -1,5 +1,5 @@
 from fgg_representation import FGGRepresentation as FGG
-from typing import Callable, Dict
+from typing import Callable
 from functools import reduce
 import warnings, torch
 
@@ -12,41 +12,36 @@ def fixed_point(F: Function, psi_X0: Tensor, *, tol: float = 1e-8, maxiter: int 
     psi_X1 = F(psi_X0)
     k = 0
     while any(torch.abs(psi_X1 - psi_X0) > tol) and k <= maxiter:
-        psi_X0[:], psi_X1[:] = psi_X1, F(psi_X1)
+        psi_X0[...], psi_X1[...] = psi_X1, F(psi_X1)
         k += 1
     if k > maxiter:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
-    return psi_X1
 
 def broyden(F: Function, J: Tensor, psi_X0: Tensor, *, tol: float = 1e-8, maxiter: int = 1000) -> Tensor:
     psi_X1 = torch.full(psi_X0.shape, fill_value=0.0)
     F_X0 = F(psi_X0)
     k = 0
     while any(torch.abs(F_X0) > tol) and k <= maxiter:
-        psi_X1[:] = psi_X0 + torch.linalg.solve(J, -F_X0)
+        psi_X1[...] = psi_X0 + torch.linalg.solve(J, -F_X0)
         h = psi_X1 - psi_X0
-        J += torch.einsum('i,j', (F(psi_X1) - F_X0) - torch.einsum('ij,j', J, h), h) / torch.dot(h, h)
-        psi_X0[:], F_X0 = psi_X1, F(psi_X1)
+        J += torch.outer((F(psi_X1) - F(psi_X0)) - torch.matmul(J, h), h) / torch.dot(h, h)
+        psi_X0[...], F_X0 = psi_X1, F(psi_X1)
         k += 1
     if k > maxiter:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
-    return psi_X1
 
 def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0) -> Tensor:
-    def get_dict(psi_X: Tensor) -> Dict[str, torch.Tensor]:
-        n, nt_dict = 0, {}
-        for nt_name in fgg._nonterminals:
-            shape = tuple(node_label.domain.size() for node_label in fgg._nonterminals[nt_name].node_labels)
-            k = n + (reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1)
-            nt_dict[nt_name] = ((n, k), shape)
-            n = k
-        for nt_name in nt_dict:
-            (n, k), shape = nt_dict[nt_name]
-            nt_dict[nt_name] = psi_X[n:k].reshape(shape)
-        return nt_dict
-    def F(psi_X0: Tensor, soln_type: str) -> Tensor:
-        psi_X1 = psi_X0.clone()
-        nt_dict_1 = get_dict(psi_X1)
+    n, nt_dict = 0, []
+    for nt_name in fgg._nonterminals:
+        shape = tuple(node_label.domain.size() for node_label in fgg._nonterminals[nt_name].node_labels)
+        k = n + (reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1)
+        nt_dict.append((nt_name, ((n, k), shape)))
+        n = k
+    psi_X = torch.full((n,), fill_value=0.0)
+    def F(psi_X0: Tensor) -> Tensor:
+        psi_X1, nt_dict_1 = psi_X0.clone(), {}
+        for nt_name, ((n, k), shape) in nt_dict:
+            nt_dict_1[nt_name] = psi_X1[n:k].reshape(shape)
         nt_dict_0 = {nt_name: nt_dict_1[nt_name].clone() for nt_name in nt_dict_1}
         for nt_name in fgg._nonterminals:
             tau_R = []
@@ -68,19 +63,17 @@ def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0
                 if external: equation += ''.join(external)
                 tau_R.append(torch.einsum(equation, *tensors))
             nt_dict_1[nt_name][...] = sum(tau_R)
-            if soln_type == 'zero':
-                nt_dict_1[nt_name][...] -= nt_dict_0[nt_name]
         return psi_X1
-    size = 0
-    for nt_name in fgg._nonterminals:
-        shape = tuple(node_label.domain.size() for node_label in fgg._nonterminals[nt_name].node_labels)
-        size += reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1
-    psi_X = torch.full((size,), fill_value=0.0)
     if method == 'fixed-point':
-        psi_X = fixed_point(lambda x: F(x, soln_type='fixed-point'), psi_X)
+        fixed_point(F, psi_X)
     elif method == 'broyden':
+        # Broyden's method may fail to converge without a sufficient
+        # initial approximation of the Jacobian. If the method doesn't
+        # converge within N iteration(s), perturb the initial approximation.
+        # Source: Numerical Recipes in C: the Art of Scientific Computing
         J = -torch.eye(len(psi_X), len(psi_X)) * perturbation
-        psi_X = broyden(lambda x: F(x, soln_type='zero'), J, psi_X)
+        broyden(lambda psi_X: F(psi_X) - psi_X, J, psi_X)
     else: raise ValueError('unsupported method for computing sum-product')
-    nt_dict = get_dict(psi_X)
-    return nt_dict[fgg.start_symbol().name]
+    for nt_name, ((n, k), shape) in nt_dict:
+        if nt_name == fgg.start_symbol().name:
+            return psi_X[n:k].reshape(shape)
