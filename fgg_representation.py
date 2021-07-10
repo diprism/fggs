@@ -286,7 +286,7 @@ class FGGRule:
 class FGGRepresentation:
     
     def __init__(self):
-        self._node_labels  = dict()    # map from names to NodeLabels    
+        self._node_labels  = dict()    # map from names to NodeLabels
         self._nonterminals = dict()    # map from names to EdgeLabels
         self._terminals    = dict()    # map from names to EdgeLabels
         self._start        = None      # start symbol, an EdgeLabel which has arity 0
@@ -371,13 +371,13 @@ class FGGRepresentation:
             else:
                 self.add_nonterminal(edge.label)
         
-        self._rules.setdefault(lhs.name, []).append(rule)
+        self._rules.setdefault(lhs, []).append(rule)
 
     def all_rules(self):
         return [rule for nt_name in self._rules for rule in self._rules[nt_name]]
     
-    def rules(self, nt_name):
-        return list(self._rules[nt_name])
+    def rules(self, lhs):
+        return list(self._rules[lhs])
     
     def copy(self):
         """Returns a copy of this FGGRepresentation, whose rules are all copies of the original's."""

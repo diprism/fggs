@@ -422,7 +422,7 @@ class TestFGGRepresentation(unittest.TestCase):
         self.assertTrue(self.rule in all_rules)
         self.assertTrue(self.rule2 in all_rules)
         
-        start_rules = self.fgg.rules("S")
+        start_rules = self.fgg.rules(self.start)
         self.assertEqual(len(start_rules), 1)
         self.assertTrue(self.rule in start_rules)
 
