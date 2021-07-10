@@ -34,7 +34,7 @@ def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0
     def get_dict(psi_X: Tensor) -> Dict[str, torch.Tensor]:
         n, nt_dict = 0, {}
         for nt_name in fgg._nonterminals:
-            shape = tuple(node_label.domain().size() for node_label in fgg._nonterminals[nt_name]._node_labels)
+            shape = tuple(node_label.domain.size() for node_label in fgg._nonterminals[nt_name].node_labels)
             k = n + (reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1)
             nt_dict[nt_name] = ((n, k), shape)
             n = k
@@ -56,11 +56,11 @@ def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0
                 indexing, tensors = [], []
                 for edge in rule.rhs().edges():
                     indexing.append([Xi_R[node.id()] for node in edge.nodes()])
-                    if edge.label().is_terminal():
-                        weights = edge.label().factor().weights()
+                    if edge.label().factor is not None:
+                        weights = edge.label().factor._weights
                         tensors.append(torch.tensor(weights))
                     else:
-                        tensors.append(nt_dict_0[edge.label().name()])
+                        tensors.append(nt_dict_0[edge.label().name])
                 equation = ','.join([''.join(indices) for indices in indexing]) + '->'
                 external = [Xi_R[node.id()] for node in rule.rhs().ext()]
                 if external: equation += ''.join(external)
@@ -71,7 +71,7 @@ def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0
         return psi_X1
     size = 0
     for nt_name in fgg._nonterminals:
-        shape = tuple(node_label.domain().size() for node_label in fgg._nonterminals[nt_name]._node_labels)
+        shape = tuple(node_label.domain.size() for node_label in fgg._nonterminals[nt_name].node_labels)
         size += reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1
     psi_X = torch.full((size,), fill_value=0.0)
     if method == 'fixed-point':
@@ -81,4 +81,4 @@ def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0
         psi_X = broyden(lambda x: F(x, soln_type='zero'), J, psi_X)
     else: raise ValueError('unsupported method for computing sum-product')
     nt_dict = get_dict(psi_X)
-    return nt_dict[fgg.start_symbol().name()]
+    return nt_dict[fgg.start_symbol().name]

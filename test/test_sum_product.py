@@ -23,7 +23,7 @@ class TestSumProduct(unittest.TestCase):
             return ((3 - 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), ( 1 - 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p)) if p > 0.5 \
               else ((1 + 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), (-1 + 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p))
         for p in (random.uniform(0.01, 0.99) for _ in range(50)):
-            self.fgg_2.get_terminal('p').factor()._weights = [1 - p, p]
+            self.fgg_2.get_terminal('p').factor._weights = [1 - p, p]
             for A, B in zip(sum_product(self.fgg_2, method='fixed-point'), exact_value(p)):
                 self.assertAlmostEqual(A.item(), B, places=2)
 
@@ -36,8 +36,8 @@ class TestSumProduct(unittest.TestCase):
             # minimal solution of (x, y) = (2pxy + (1 - p), p(x^2 + y^2)) where x = p(true) and y = p(false)
             return ((3 - 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), ( 1 - 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p)) if p > 0.5 \
               else ((1 + 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), (-1 + 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p))
-        for p in (random.uniform(0.01, 0.99) for _ in range(50)):
-            self.fgg_2.get_terminal('p').factor()._weights = [1 - p, p]
+        for p in (random.uniform(0.01, 0.99) for _ in range(10)):
+            self.fgg_2.get_terminal('p').factor._weights = [1 - p, p]
             try:
                 for A, B in zip(sum_product(self.fgg_2, method='broyden'), exact_value(p)):
                     self.assertAlmostEqual(A.item(), B, places=2)

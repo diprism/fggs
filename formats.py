@@ -23,11 +23,11 @@ def json_to_fgg(j):
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
         t = tuple(g.get_node_label(l) for l in d['type'])
-        g.add_terminal(EdgeLabel(name, True, t, f))
+        g.add_terminal(EdgeLabel(name, t, f))
 
     for nt, d in j['nonterminals'].items():
         t = tuple(g.get_node_label(l) for l in d['type'])
-        g.add_nonterminal(EdgeLabel(nt, False, t, None))
+        g.add_nonterminal(EdgeLabel(nt, t))
     g.set_start_symbol(g.get_nonterminal(j['start']))
 
     for r in j['rules']:
@@ -63,38 +63,38 @@ def fgg_to_json(g):
 
     j['domains'] = {}
     for l in g.node_labels():
-        if isinstance(l.domain(), domains.FiniteDomain):
-            j['domains'][l.name()] = {
+        if isinstance(l.domain, domains.FiniteDomain):
+            j['domains'][l.name] = {
                 'class' : 'finite',
-                'values' : list(l.domain().values()),
+                'values' : list(l.domain.values()),
             }
         else:
-            raise NotImplementedError(f'unsupported domain type {type(j.domain())}')
+            raise NotImplementedError(f'unsupported domain type {type(j.domain)}')
 
     j['factors'] = {}
     for l in g.terminals():
-        if isinstance(l.factor(), factors.CategoricalFactor):
-            j['factors'][l.name()] = {
+        if isinstance(l.factor, factors.CategoricalFactor):
+            j['factors'][l.name] = {
                 'function': 'categorical',
-                'type': [nl.name() for nl in l.type()],
-                'weights': l.factor().weights(),
+                'type': [nl.name for nl in l.type()],
+                'weights': l.factor.weights(),
             }
 
     j['nonterminals'] = {}
     for nt in g.nonterminals():
-        j['nonterminals'][nt.name()] = {
-            'type': [l.name() for l in nt.type()],
+        j['nonterminals'][nt.name] = {
+            'type': [l.name for l in nt.type()],
         }
-    j['start'] = g.start_symbol().name()
+    j['start'] = g.start_symbol().name
     
     j['rules'] = []
     for gr in g.all_rules():
         nodes = sorted(gr.rhs().nodes(), key=lambda v: v.id())
         node_nums = {v:vi for vi, v in enumerate(nodes)}
         jr = {
-            'lhs': gr.lhs().name(),
+            'lhs': gr.lhs().name,
             'rhs': {
-                'nodes': [{'id': v.id(), 'label': v.label().name()} for v in nodes],
+                'nodes': [{'id': v.id(), 'label': v.label().name} for v in nodes],
                 'edges': [],
                 'externals': [node_nums[v] for v in gr.rhs().ext()],
             },
@@ -103,7 +103,7 @@ def fgg_to_json(g):
             jr['rhs']['edges'].append({
                 'id': e.id(),
                 'attachments': [node_nums[v] for v in e.nodes()],
-                'label': e.label().name(),
+                'label': e.label().name,
             })
         j['rules'].append(jr)
         
@@ -114,9 +114,9 @@ def fgg_to_json(g):
 def _get_format(factor_formats, x, i):
     if (x is None or
         factor_formats is None or
-        x.name() not in factor_formats):
+        x.name not in factor_formats):
         return ('', str(i+1))
-    fmt = factor_formats[x.name()][i]
+    fmt = factor_formats[x.name][i]
     if len(fmt) > 0 and fmt[0] in '<>^_':
         return (fmt[0], fmt[1:])
     else:
@@ -139,7 +139,7 @@ def factorgraph_to_dot(g: FactorGraph, factor_formats=None, lhs=None):
     dot = pydot.Dot(graph_type='graph', rankdir='LR')
     for v in g.nodes():
         dot.add_node(pydot.Node(f'v{v.id()}',
-                                #label=v.label().name(),
+                                #label=v.label().name,
                                 label='',
                                 shape='circle',
                                 height=0.24,
@@ -149,13 +149,13 @@ def factorgraph_to_dot(g: FactorGraph, factor_formats=None, lhs=None):
         if e.label().is_terminal():
             dot.add_node(pydot.Node(f'e{e.id()}',
                                     label='',
-                                    xlabel=e.label().name(),
+                                    xlabel=e.label().name,
                                     shape='square',
                                     height=0.16,
             ))
         else:
             dot.add_node(pydot.Node(f'e{e.id()}',
-                                    label=e.label().name(),
+                                    label=e.label().name,
                                     shape='square',
                                     height=0.24,
                                     margin=0.04,
@@ -260,9 +260,9 @@ def factorgraph_to_tikz(g: FactorGraph, factor_formats=None, lhs=None):
     for e in g.edges():
         x, y = positions[f'e{e.id()}']
         if e.label().is_terminal():
-            res.append(rf'  \node [fac,label={{{e.label().name()}}}] (e{e.id()}) at ({x}pt,{y}pt) {{}};')
+            res.append(rf'  \node [fac,label={{{e.label().name}}}] (e{e.id()}) at ({x}pt,{y}pt) {{}};')
         else:
-            res.append(rf'  \node [fac] (e{e.id()}) at ({x}pt,{y}pt) {{{e.label().name()}}};')
+            res.append(rf'  \node [fac] (e{e.id()}) at ({x}pt,{y}pt) {{{e.label().name}}};')
         for i, v in enumerate(e.nodes()):
             label = _get_format(factor_formats, e.label(), i)[1]
             res.append(rf'    \draw (e{e.id()}) edge node[tent,near start] {{{label}}} (v{v.id()});')
