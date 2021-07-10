@@ -31,18 +31,15 @@ def broyden(F: Function, J: Tensor, psi_X0: Tensor, *, tol: float = 1e-8, maxite
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
 def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0) -> Tensor:
-    n, nt_dict = 0, []
+    n, nt_dict = 0, {}
     for nt_name in fgg._nonterminals:
         shape = tuple(node_label.domain.size() for node_label in fgg._nonterminals[nt_name].node_labels)
         k = n + (reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1)
-        nt_dict.append((nt_name, ((n, k), shape)))
+        nt_dict[nt_name] = ((n, k), shape)
         n = k
     psi_X = torch.full((n,), fill_value=0.0)
     def F(psi_X0: Tensor) -> Tensor:
-        psi_X1, nt_dict_1 = psi_X0.clone(), {}
-        for nt_name, ((n, k), shape) in nt_dict:
-            nt_dict_1[nt_name] = psi_X1[n:k].reshape(shape)
-        nt_dict_0 = {nt_name: nt_dict_1[nt_name].clone() for nt_name in nt_dict_1}
+        psi_X1 = psi_X0.clone()
         for nt_name in fgg._nonterminals:
             tau_R = []
             for rule in fgg.rules(nt_name):
@@ -53,16 +50,18 @@ def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0
                 indexing, tensors = [], []
                 for edge in rule.rhs().edges():
                     indexing.append([Xi_R[node.id()] for node in edge.nodes()])
-                    if edge.label().factor is not None:
+                    if edge.label().factor is None:
+                        (n, k), shape = nt_dict[edge.label().name]
+                        tensors.append(psi_X0[n:k].reshape(shape))
+                    else:
                         weights = edge.label().factor._weights
                         tensors.append(torch.tensor(weights))
-                    else:
-                        tensors.append(nt_dict_0[edge.label().name])
                 equation = ','.join([''.join(indices) for indices in indexing]) + '->'
                 external = [Xi_R[node.id()] for node in rule.rhs().ext()]
                 if external: equation += ''.join(external)
                 tau_R.append(torch.einsum(equation, *tensors))
-            nt_dict_1[nt_name][...] = sum(tau_R)
+            (n, k), _ = nt_dict[nt_name]
+            psi_X1[n:k] = sum(tau_R).flatten()
         return psi_X1
     if method == 'fixed-point':
         fixed_point(F, psi_X)
@@ -74,6 +73,5 @@ def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0
         J = -torch.eye(len(psi_X), len(psi_X)) * perturbation
         broyden(lambda psi_X: F(psi_X) - psi_X, J, psi_X)
     else: raise ValueError('unsupported method for computing sum-product')
-    for nt_name, ((n, k), shape) in nt_dict:
-        if nt_name == fgg.start_symbol().name:
-            return psi_X[n:k].reshape(shape)
+    (n, k), shape = nt_dict[fgg.start_symbol().name]
+    return psi_X[n:k].reshape(shape)
