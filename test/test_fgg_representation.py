@@ -448,17 +448,11 @@ class TestFGGRepresentation(unittest.TestCase):
         self.assertTrue(new_nt in self.fgg.nonterminals())
         self.assertTrue(new_t  in self.fgg.terminals())
         
-    def test_copy(self):
+    def test_copy_equal(self):
         fgg = self.fgg
         copy = self.fgg.copy()
         self.assertNotEqual(id(fgg), id(copy))
-        self.assertEqual(fgg.start_symbol(), copy.start_symbol())
-        self.assertEqual(fgg.node_labels(), copy.node_labels())
-        self.assertEqual(fgg.nonterminals(), copy.nonterminals())
-        self.assertEqual(fgg.terminals(), copy.terminals())
-        for x in fgg.nonterminals():
-            self.assertEqual(len(fgg.rules(x.name)), len(copy.rules(x.name)))
-        # to do: difficult to compare rule sets without rule ids
+        self.assertEqual(fgg, copy)
 
 if __name__ == "__main__":
     unittest.main()
