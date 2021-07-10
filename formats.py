@@ -1,11 +1,11 @@
-from fgg_representation import *
+from fggs import *
 import domains, factors
 
 ### JSON
 
 def json_to_fgg(j):
     """Convert an object loaded by json.load to an FGG."""
-    g = FGGRepresentation()
+    g = FGG()
     
     doms = {}
     for name, d in j['domains'].items():

@@ -2,7 +2,7 @@ import unittest
 import json
 import os
 import formats
-import fgg_representation as fggs
+import fggs
 from conjunction import conjoinable, conjoin_rules, conjoin_fggs
 
 

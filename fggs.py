@@ -290,7 +290,7 @@ class FGGRule:
 
 
 
-class FGGRepresentation:
+class FGG:
     
     def __init__(self):
         self._node_labels  = dict()    # map from names to NodeLabels    
@@ -391,8 +391,8 @@ class FGGRepresentation:
         return list(self._rules[nt_name])
     
     def copy(self):
-        """Returns a copy of this FGGRepresentation, whose rules are all copies of the original's."""
-        copy = FGGRepresentation()
+        """Returns a copy of this FGG, whose rules are all copies of the original's."""
+        copy = FGG()
         copy._node_labels = self._node_labels.copy()
         copy._nonterminals = self._nonterminals.copy()
         copy._terminals = self._terminals.copy()
@@ -407,7 +407,7 @@ class FGGRepresentation:
         self.rules(X) and other.rules(X) have the same rules but in a
         different order, then self and other are *not* considered
         equal."""
-        return (isinstance(other, FGGRepresentation) and
+        return (isinstance(other, FGG) and
                 self._rules == other._rules and
                 self._start == other._start and
                 self._node_labels == other._node_labels and

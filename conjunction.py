@@ -1,4 +1,4 @@
-import fgg_representation as fggs
+import fggs
 
 # Test whether two FGG rules are conjoinable.
 def conjoinable(rule1, rule2):
@@ -57,7 +57,7 @@ def conjoin_rules(rule1, rule2):
 
 # Conjoin two FGGs.
 def conjoin_fggs(fgg1, fgg2):
-    new_fgg = fggs.FGGRepresentation()
+    new_fgg = fggs.FGG()
     # add rules
     for rule1 in fgg1.all_rules():
         for rule2 in fgg2.all_rules():

@@ -1,8 +1,8 @@
 from typing import Dict
 
-from fgg_representation import FGGRepresentation, FGGRule, FactorGraph, Edge, Node
+from fggs import FGG, FGGRule, FactorGraph, Edge, Node
 
-def start_graph(g: FGGRepresentation) -> FactorGraph:
+def start_graph(g: FGG) -> FactorGraph:
     """Construct a graph consisting of a single Edge labeled by the start
     nonterminal symbol."""
     ret = FactorGraph()
