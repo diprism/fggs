@@ -388,6 +388,8 @@ class FGG:
         return [rule for nt_name in self._rules for rule in self._rules[nt_name]]
     
     def rules(self, lhs):
+        if isinstance(lhs, str):
+            lhs = self.get_nonterminal(lhs)
         return list(self._rules[lhs])
     
     def copy(self):
