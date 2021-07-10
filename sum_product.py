@@ -8,7 +8,7 @@ def _formatwarning(message, category, filename=None, lineno=None, file=None, lin
 warnings.formatwarning = _formatwarning
 Tensor = torch.Tensor; Function = Callable[[Tensor], Tensor]
 
-def fixed_point(F: Function, psi_X0: Tensor, *, tol: float = 1e-8, maxiter: int = 1000) -> Tensor:
+def fixed_point(F: Function, psi_X0: Tensor, *, tol: float = 1e-8, maxiter: int = 1000) -> None:
     psi_X1 = F(psi_X0)
     k = 0
     while any(torch.abs(psi_X1 - psi_X0) > tol) and k <= maxiter:
@@ -17,7 +17,7 @@ def fixed_point(F: Function, psi_X0: Tensor, *, tol: float = 1e-8, maxiter: int 
     if k > maxiter:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
-def broyden(F: Function, J: Tensor, psi_X0: Tensor, *, tol: float = 1e-8, maxiter: int = 1000) -> Tensor:
+def broyden(F: Function, J: Tensor, psi_X0: Tensor, *, tol: float = 1e-8, maxiter: int = 1000) -> None:
     psi_X1 = torch.full(psi_X0.shape, fill_value=0.0)
     F_X0 = F(psi_X0)
     k = 0
