@@ -19,16 +19,18 @@ def fixed_point(F: Function, psi_X0: Tensor, *, tol: float = 1e-8, maxiter: int 
     return psi_X1
 
 def broyden(F: Function, J: Tensor, psi_X0: Tensor, *, tol: float = 1e-8, maxiter: int = 1000) -> Tensor:
+    psi_X1 = torch.full(psi_X0.shape, fill_value=0.0)
+    F_X0 = F(psi_X0)
     k = 0
-    while any(torch.abs(F(psi_X0)) > tol) and k <= maxiter:
-        psi_X1 = psi_X0 + torch.linalg.solve(J, -F(psi_X0))
+    while any(torch.abs(F_X0) > tol) and k <= maxiter:
+        psi_X1[:] = psi_X0 + torch.linalg.solve(J, -F_X0)
         h = psi_X1 - psi_X0
-        J += torch.einsum('i,j', (F(psi_X1) - F(psi_X0)) - torch.einsum('ij,j', J, h), h) / torch.dot(h, h)
-        psi_X0[:] = psi_X1
+        J += torch.einsum('i,j', (F(psi_X1) - F_X0) - torch.einsum('ij,j', J, h), h) / torch.dot(h, h)
+        psi_X0[:], F_X0 = psi_X1, F(psi_X1)
         k += 1
     if k > maxiter:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
-    return psi_X0
+    return psi_X1
 
 def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0) -> Tensor:
     def get_dict(psi_X: Tensor) -> Dict[str, torch.Tensor]:

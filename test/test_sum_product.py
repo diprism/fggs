@@ -14,7 +14,7 @@ class TestSumProduct(unittest.TestCase):
         file.close()
 
     def test_fixed_point_1(self):
-        self.assertAlmostEqual(sum_product(self.fgg_1, method='fixed-point').item(), 1.0)
+        self.assertAlmostEqual(sum_product(self.fgg_1, method='fixed-point').item(), 1.0, places=2)
 
     def test_fixed_point_2(self):
         from math import sqrt
@@ -28,7 +28,7 @@ class TestSumProduct(unittest.TestCase):
                 self.assertAlmostEqual(A.item(), B, places=2)
 
     def test_broyden_1(self):
-        self.assertAlmostEqual(sum_product(self.fgg_1, method='broyden').item(), 1.0, places=6)
+        self.assertAlmostEqual(sum_product(self.fgg_1, method='broyden').item(), 1.0, places=2)
 
     def test_broyden_2(self):
         from math import sqrt
