@@ -2,7 +2,7 @@ import unittest
 
 from domains import Domain, FiniteDomain
 from factors import Factor, ConstantFactor
-from fgg_representation import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRule, FGGRepresentation
+from fggs import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRule, FGG
 from derivations import start_graph, replace_edges
 
 class TestReplace(unittest.TestCase):
@@ -35,7 +35,7 @@ class TestStartGraph(unittest.TestCase):
     def setUp(self):
         self.start = EdgeLabel("S", tuple())
 
-        self.fgg = FGGRepresentation()
+        self.fgg = FGG()
         self.fgg.set_start_symbol(self.start)
 
     def test_start_graph(self):

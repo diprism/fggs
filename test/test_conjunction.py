@@ -2,7 +2,7 @@ import unittest
 import json
 import os
 import formats
-import fgg_representation as fggs
+import fggs
 from conjunction import conjoinable, conjoin_rules, conjoin_fggs
 
 
@@ -23,17 +23,17 @@ class TestConjunction(unittest.TestCase):
         self.conjunction = formats.json_to_fgg(self.conjunction_json)
         
         # extract specific rules for testing conjunction
-        xrules1 = self.hmm.rules("X")
+        xrules1 = self.hmm.rules(self.hmm.get_nonterminal("X"))
         for rule in xrules1:
             if len(rule.rhs().nodes()) == 3:
                 self.xrule1 = rule
         
-        xrules2 = self.conjunct.rules("X")
+        xrules2 = self.conjunct.rules(self.conjunct.get_nonterminal("X"))
         for rule in xrules2:
             if "Y" in [nt.label.name for nt in rule.rhs().nonterminals()]:
                 self.xrule2 = rule
         
-        xrules3 = self.conjunction.rules("<X,X>")
+        xrules3 = self.conjunction.rules(self.conjunction.get_nonterminal("<X,X>"))
         for rule in xrules3:
             if "Y" in [nt.label.name for nt in rule.rhs().nonterminals()]:
                 self.xrule3 = rule

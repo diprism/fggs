@@ -1,5 +1,5 @@
 import unittest
-from fgg_representation import FGGRule
+from fggs import FGGRule
 from factorize import *
 from factorize import add_node, add_edge, tree_decomposition
 from derivations import replace_edges

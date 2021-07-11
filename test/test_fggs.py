@@ -3,7 +3,7 @@ from dataclasses import FrozenInstanceError
 
 from domains import Domain, FiniteDomain
 from factors import Factor, ConstantFactor
-from fgg_representation import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRule, FGGRepresentation
+from fggs import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRule, FGG
 import copy
 
 
@@ -312,7 +312,7 @@ class TestFGGRule(unittest.TestCase):
         self.assertNotEqual(id(rule), id(copy))
         self.assertEqual(rule, copy)
         
-class TestFGGRepresentation(unittest.TestCase):
+class TestFGG(unittest.TestCase):
 
     def setUp(self):
         self.dom   = FiniteDomain({1, 2, 3, 4, 5})
@@ -343,7 +343,7 @@ class TestFGGRepresentation(unittest.TestCase):
         self.graph2.set_ext((self.node3,))
         self.rule2 = FGGRule(self.el2, self.graph2)
 
-        self.fgg = FGGRepresentation()
+        self.fgg = FGG()
         self.fgg.add_node_label(self.nl1)
         self.fgg.add_node_label(self.nl2)
         self.fgg.add_terminal(self.el1)

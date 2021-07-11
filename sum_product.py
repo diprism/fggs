@@ -1,4 +1,4 @@
-from fgg_representation import FGGRepresentation as FGG
+from fggs import FGG
 from typing import Callable
 from functools import reduce
 import warnings, torch

@@ -1,6 +1,6 @@
 __all__ = ['factorize_rule', 'factorize']
 
-import fgg_representation as fggs
+import fggs
 import copy
 
 def add_node(graph, v):
@@ -407,7 +407,7 @@ def factorize(g, method='min_fill'):
     """Factorize a FGG's rules into smaller rules, hopefully with
     lower maximum treewidth.
     """
-    gnew = fggs.FGGRepresentation()
+    gnew = fggs.FGG()
     for r in g.all_rules():
         for rnew in factorize_rule(r, method=method):
             gnew.add_rule(rnew)
