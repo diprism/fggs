@@ -1,5 +1,5 @@
 import unittest
-from domains import *
+from fggs import *
 
 class TestFiniteDomain(unittest.TestCase):
     

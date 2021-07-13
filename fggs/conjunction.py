@@ -1,7 +1,11 @@
-import fggs
+__all__ = ['conjoin_fggs']
 
-# Test whether two FGG rules are conjoinable.
+from . import fggs
+
+
 def conjoinable(rule1, rule2):
+    """Test whether two FGG rules are conjoinable."""
+    
     # Must have same Nodes (in terms of Node id) with same NodeLabels
     if rule1.rhs().nodes() != rule2.rhs().nodes():
         return False
@@ -20,9 +24,12 @@ def conjoinable(rule1, rule2):
         return False
     return True
 
-# Assumes rules are conjoinable.
-# Does not check for conjoinability.
 def conjoin_rules(rule1, rule2):
+    """Conjoin two FGG rules.
+
+    Assumes rules are conjoinable.
+    Does not check for conjoinability."""
+    
     new_lhs = fggs.EdgeLabel(name=f"<{rule1.lhs().name},{rule2.lhs().name}>",
                              is_terminal=False,
                              node_labels=rule1.lhs().type())
@@ -55,8 +62,8 @@ def conjoin_rules(rule1, rule2):
         new_rhs.add_edge(edge)
     return fggs.FGGRule(lhs=new_lhs, rhs=new_rhs)
 
-# Conjoin two FGGs.
 def conjoin_fggs(fgg1, fgg2):
+    """Conjoin two FGGS."""
     new_fgg = fggs.FGG()
     # add rules
     for rule1 in fgg1.all_rules():

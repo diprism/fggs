@@ -1,3 +1,5 @@
+__all__ = ['Domain', 'FiniteDomain']
+
 from abc import ABC, abstractmethod
 
 # this somehow needs to be able to express continuous and discrete infinite domains

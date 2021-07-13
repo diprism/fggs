@@ -1,10 +1,7 @@
 import unittest
-from fggs import FGGRule
-from factorize import *
-from factorize import add_node, add_edge, tree_decomposition
-from derivations import replace_edges
+from fggs import *
+from fggs.factorize import add_node, add_edge, tree_decomposition
 import re, collections, os, json
-import formats
 
 class TestTreewidth(unittest.TestCase):
     def check(self, filename, optimal_tw, method, exact):
@@ -92,7 +89,7 @@ class TestFactorize(unittest.TestCase):
     def test_factorize(self):
         with open(os.path.join(os.path.dirname(__file__), 'hmm.json')) as f:
             j = json.load(f)
-        g = formats.json_to_fgg(j)
+        g = json_to_fgg(j)
         for r in g.all_rules():
             frules = {fr.lhs():fr for fr in factorize_rule(r)}
             def visit(fr):

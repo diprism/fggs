@@ -1,6 +1,5 @@
 import unittest
-from domains import *
-from factors import *
+from fggs import *
 
 class TestCategoricalFactor(unittest.TestCase):
 

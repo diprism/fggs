@@ -1,5 +1,7 @@
+__all__ = ['Factor', 'ConstantFactor', 'CategoricalFactor']
+
 from abc import ABC, abstractmethod
-import domains
+from . import domains
 
 class Factor(ABC):
     """Abstract base class for factors."""

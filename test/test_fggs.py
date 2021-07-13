@@ -1,8 +1,8 @@
 import unittest
 from dataclasses import FrozenInstanceError
 
-from domains import Domain, FiniteDomain
-from factors import Factor, ConstantFactor
+from fggs import Domain, FiniteDomain
+from fggs import Factor, ConstantFactor
 from fggs import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRule, FGG
 import copy
 

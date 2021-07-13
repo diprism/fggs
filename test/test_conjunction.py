@@ -1,9 +1,8 @@
 import unittest
 import json
 import os
-import formats
 import fggs
-from conjunction import conjoinable, conjoin_rules, conjoin_fggs
+from fggs.conjunction import conjoinable, conjoin_rules, conjoin_fggs
 
 
 class TestConjunction(unittest.TestCase):
@@ -18,9 +17,9 @@ class TestConjunction(unittest.TestCase):
         self.restore()
 
     def restore(self):
-        self.hmm = formats.json_to_fgg(self.hmm_json)
-        self.conjunct = formats.json_to_fgg(self.conjunct_json)
-        self.conjunction = formats.json_to_fgg(self.conjunction_json)
+        self.hmm = fggs.json_to_fgg(self.hmm_json)
+        self.conjunct = fggs.json_to_fgg(self.conjunct_json)
+        self.conjunction = fggs.json_to_fgg(self.conjunction_json)
         
         # extract specific rules for testing conjunction
         xrules1 = self.hmm.rules(self.hmm.get_nonterminal("X"))
@@ -85,7 +84,7 @@ class TestConjunction(unittest.TestCase):
 
     def test_conjunction(self):
         conjunction_check = conjoin_fggs(self.hmm, self.conjunct)
-        conjunction_json_check = formats.fgg_to_json(conjunction_check)
+        conjunction_json_check = fggs.fgg_to_json(conjunction_check)
         self.maxDiff = 10000
         self.assertEqual(self.conjunction_json.keys(), conjunction_json_check.keys())
         self.assertEqual(self.conjunction_json['domains'], conjunction_json_check['domains'])

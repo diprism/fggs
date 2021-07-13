@@ -1,6 +1,8 @@
+__all__ = ['start_graph', 'replace_edges']
+
 from typing import Dict
 
-from fggs import FGG, FGGRule, FactorGraph, Edge, Node
+from .fggs import FGG, FGGRule, FactorGraph, Edge, Node
 
 def start_graph(g: FGG) -> FactorGraph:
     """Construct a graph consisting of a single Edge labeled by the start
