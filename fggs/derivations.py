@@ -2,7 +2,7 @@ __all__ = ['start_graph', 'replace_edges']
 
 from typing import Dict
 
-from .fggs import *
+from fggs.fggs import *
 
 def start_graph(g: FGG) -> FactorGraph:
     """Construct a graph consisting of a single Edge labeled by the start

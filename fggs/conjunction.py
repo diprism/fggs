@@ -1,6 +1,6 @@
 __all__ = ['conjoin_fggs']
 
-from . import fggs
+from fggs import fggs
 
 
 def conjoinable(rule1, rule2):

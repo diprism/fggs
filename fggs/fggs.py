@@ -3,8 +3,8 @@ __all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'FactorGraph', 'FGGRule', '
 import random, string
 from typing import Optional, Iterable, Tuple
 from dataclasses import dataclass, field
-from .domains import Domain
-from .factors import Factor
+from fggs.domains import Domain
+from fggs.factors import Factor
 
 
 @dataclass(frozen=True)
