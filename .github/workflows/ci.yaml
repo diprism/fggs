@@ -14,7 +14,4 @@ jobs:
       - name: install dependencies
         run: python -m pip install -r requirements.txt
       - name: perform unit testing
-        run: |
-          ls
-          python -c 'import fggs; print(fggs); print(dir(fggs))'
-          python -m unittest
+        run: python -m unittest
