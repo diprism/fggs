@@ -1,16 +1,16 @@
 import unittest
-import formats
 import json
 import os
 import copy
+import fggs
 
 class TestJson(unittest.TestCase):
     def test_roundtrip(self):
         for filename in ['hmm.json', 'example12p.json']:
             with open(os.path.join(os.path.dirname(__file__), filename)) as f:
                 j = json.load(f)
-            g = formats.json_to_fgg(j)
-            j_check = formats.fgg_to_json(g)
+            g = fggs.json_to_fgg(j)
+            j_check = fggs.fgg_to_json(g)
 
             self.maxDiff = 10000
             self.assertEqual(j.keys(), j_check.keys())
@@ -31,11 +31,11 @@ class TestJson(unittest.TestCase):
             jcopy = copy.deepcopy(j)
             jcopy['rules'][0]['rhs']['edges'][0]['attachments'] = [100]
             with self.assertRaises(ValueError):
-                _ = formats.json_to_fgg(jcopy)
+                _ = fggs.json_to_fgg(jcopy)
             jcopy = copy.deepcopy(j)
             jcopy['rules'][0]['rhs']['externals'] = [100]
             with self.assertRaises(ValueError):
-                _ = formats.json_to_fgg(jcopy)
+                _ = fggs.json_to_fgg(jcopy)
 
 if __name__ == "__main__":
     unittest.main()

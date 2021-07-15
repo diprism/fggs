@@ -1,9 +1,6 @@
 import unittest
 
-from domains import Domain, FiniteDomain
-from factors import Factor, ConstantFactor
-from fggs import NodeLabel, EdgeLabel, Node, Edge, FactorGraph, FGGRule, FGG
-from derivations import start_graph, replace_edges
+from fggs import *
 
 class TestReplace(unittest.TestCase):
     def setUp(self):

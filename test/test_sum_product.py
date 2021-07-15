@@ -1,5 +1,5 @@
-from sum_product import sum_product
-from formats import json_to_fgg
+from fggs import sum_product
+from fggs import json_to_fgg
 import unittest, warnings, random, json
 
 class TestSumProduct(unittest.TestCase):

@@ -1,5 +1,7 @@
-from fggs import *
-import domains, factors
+__all__ = ['json_to_fgg', 'fgg_to_json', 'factorgraph_to_dot', 'factorgraph_to_tikz', 'fgg_to_tikz']
+
+from fggs.fggs import *
+from fggs import domains, factors
 
 ### JSON
 
