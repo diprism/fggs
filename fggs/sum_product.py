@@ -1,6 +1,6 @@
 __all__ = ['sum_product']
 
-from .fggs import FGG
+from fggs.fggs import FGG
 from typing import Callable
 from functools import reduce
 import warnings, torch

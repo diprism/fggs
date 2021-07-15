@@ -1,6 +1,6 @@
 __all__ = ['factorize_rule', 'factorize']
 
-from . import fggs
+from fggs import fggs
 import copy
 
 def add_node(graph, v):
