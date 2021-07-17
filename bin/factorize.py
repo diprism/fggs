@@ -14,8 +14,13 @@ if __name__ == '__main__':
 
     args = ap.parse_args()
 
-    fgg = json_to_fgg(json.load(open(args.input)))
-    fgg = factorize(fgg, method=args.method)
+    fgg_in = json_to_fgg(json.load(open(args.input)))
+    fgg_out = factorize(fgg_in, method=args.method)
+
+    width_in = max(len(r.rhs().nodes()) for r in fgg_in.all_rules())
+    width_out = max(len(r.rhs().nodes()) for r in fgg_out.all_rules())
+    print(f'maximum rule width: {width_in} -> {width_out}', file=sys.stderr)
+    
     with open(args.output, 'w') as outfile:
-        json.dump(fgg_to_json(fgg), outfile, indent=4)
+        json.dump(fgg_to_json(fgg_out), outfile, indent=4)
         
