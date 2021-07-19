@@ -201,13 +201,17 @@ def acb(g):
     for c in connected_components(g):
         c = {v:g[v] for v in c}
         ub, _ = upper_bound(c)
+        if ub == 0:
+            unrooted = {}
+            add_node(unrooted, frozenset(c.keys()))
+            return unrooted
         for k in range(1, ub+1):
             comptree = acb_connected(c, k)
             if comptree is not False:
                 comptrees.append(comptree)
                 break
         else:
-            assert False
+            assert False, f"No tree decomposition with width bounded by upper bound of {ub}"
     if len(comptrees) == 1:
         tree = comptrees[0]
     else:
@@ -237,7 +241,7 @@ def acb_connected(g, k):
     assert len(connected_components(g)) == 1
     
     if len(g) <= k+1:
-        return (set(g), [])
+        return (frozenset(g), [])
 
     chart = {}
     # for each set C_i of k vertices in G
@@ -262,30 +266,30 @@ def acb_connected(g, k):
         # A graph of size k+1 (or less) is a partial k-tree
         if h <= k+1:
             chart[i][j] = (j, [])
-            continue
-        for v in j - i:
-            # examine all k-vertex separators C_m in C_i | {v},
-            # except C_i itself (not stated in pseudocode; see Lemma 4.4)
-            bag = i | {v}
-            children = []
-            union = set()
-            for u in i:
-                m = bag - {u}
-                # consider all C_m^l in C_i^j which are partial k-trees
-                if m in chart:
-                    for l in chart[m]:
-                        lm = l-m
-                        if lm.issubset(j-bag) and chart[m][l] not in [None, False]:
-                            # the C_m^l \ C_m are disjoint but there could be repeats
-                            if len(lm & union) == 0:
-                                union |= lm
-                                children.append(chart[m][l])
-                            else:
-                                assert lm.issubset(union)
-            # if the C_m^l \ C_m partition C_i^j - C_i - {v}, then set answer to YES
-            if union == j-bag:
-                chart[i][j] = (bag, children)
-                break
+        else:
+            for v in j - i:
+                # examine all k-vertex separators C_m in C_i | {v},
+                # except C_i itself (not stated in pseudocode; see Lemma 4.4)
+                bag = i | {v}
+                children = []
+                union = set()
+                for u in i:
+                    m = bag - {u}
+                    # consider all C_m^l in C_i^j which are partial k-trees
+                    if m in chart:
+                        for l in chart[m]:
+                            lm = l-m
+                            if lm.issubset(j-bag) and chart[m][l] not in [None, False]:
+                                # the C_m^l \ C_m are disjoint but there could be repeats
+                                if len(lm & union) == 0:
+                                    union |= lm
+                                    children.append(chart[m][l])
+                                else:
+                                    assert lm.issubset(union)
+                # if the C_m^l \ C_m partition C_i^j - C_i - {v}, then set answer to YES
+                if union == j-bag:
+                    chart[i][j] = (bag, children)
+                    break
 
         # if no answer was set for C_i^j, set answer to NO
         if chart[i][j] is None:
@@ -297,7 +301,7 @@ def acb_connected(g, k):
         # if G has a separator C_i such that all C_i^j graph have YES, return YES
         if all(chart[i][j] not in [None, False] for j in chart[i]):
             return (i, [chart[i][j] for j in chart[i]])
-    assert False
+    assert False, f"No decomposition found with width {k}"
 
 def tree_decomposition_from_order(graph, order):
     tree = {}

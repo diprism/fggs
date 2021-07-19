@@ -1,6 +1,7 @@
 __all__ = ['sum_product']
 
 from fggs.fggs import FGG
+from fggs.factors import CategoricalFactor
 from typing import Callable
 from functools import reduce
 import warnings, torch
@@ -55,9 +56,11 @@ def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0
                     if edge.label.is_nonterminal():
                         (n, k), shape = nt_dict[edge.label]
                         tensors.append(psi_X0[n:k].reshape(shape))
-                    else:
+                    elif isinstance(edge.label.factor, CategoricalFactor):
                         weights = edge.label.factor._weights
                         tensors.append(torch.tensor(weights))
+                    else:
+                        raise TypeError(f"Can't compute sum-product of FGG with factor {edge.label.factor}")
                 equation = ','.join([''.join(indices) for indices in indexing]) + '->'
                 external = [Xi_R[node.id] for node in rule.rhs().ext()]
                 if external: equation += ''.join(external)
