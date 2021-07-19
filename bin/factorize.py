@@ -7,7 +7,7 @@ import argparse
 from fggs import factorize, json_to_fgg, fgg_to_json
 
 if __name__ == '__main__':
-    ap = argparse.ArgumentParser(description='Compute the sum-product of an FGG.')
+    ap = argparse.ArgumentParser(description='Factorize an FGG.')
     ap.add_argument('input', metavar='json')
     ap.add_argument('-o', dest='output', metavar='json', required=True)
     ap.add_argument('-m', dest='method', metavar='method', default='min_fill', choices=['min_fill', 'quickbb', 'acb'])
