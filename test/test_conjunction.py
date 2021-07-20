@@ -1,8 +1,9 @@
 import unittest
 import json
 import os
+import warnings
 import fggs
-from fggs.conjunction import conjoinable, conjoin_rules, conjoin_fggs
+from fggs.conjunction import check_namespace_collisions, conjoinable, conjoin_rules, conjoin_fggs
 
 
 class TestConjunction(unittest.TestCase):
@@ -46,6 +47,28 @@ class TestConjunction(unittest.TestCase):
         self.nl_w = self.hmm.get_node_label("W")
         self.el_x1 = self.hmm.get_edge_label("X")
         self.el_x2 = self.conjunct.get_edge_label("X")
+
+    def test_check_namespace_collisions(self):
+        dom1 = fggs.FiniteDomain([5])
+        nl1 = fggs.NodeLabel("collide_nl", dom1)
+        nl2 = fggs.NodeLabel("collide_nl", fggs.FiniteDomain([6]))
+        el1 = fggs.EdgeLabel("collide_el", [nl1], fggs.ConstantFactor([dom1], 7))
+        el2 = fggs.EdgeLabel("collide_el", [nl1])
+        nl3 = fggs.NodeLabel("don't_collide", fggs.FiniteDomain([8]))
+        el3 = fggs.EdgeLabel("don't_collide", [nl1])
+        self.hmm.add_node_label(nl1)
+        self.conjunct.add_node_label(nl2)
+        self.hmm.add_terminal(el1)
+        self.conjunct.add_nonterminal(el2)
+        self.hmm.add_node_label(nl3)
+        self.conjunct.add_nonterminal(el3)
+        (n, e) = check_namespace_collisions(self.hmm, self.conjunct)
+        self.assertTrue(len(n) == 1)
+        self.assertTrue(len(e) == 1)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            conjoin_fggs(self.hmm, self.conjunct)
+            assert len(w) == 2
 
     def test_conjoinable(self):    
         self.assertTrue(conjoinable(self.xrule1, self.xrule2))        
