@@ -1,8 +1,5 @@
-# Example 19 from FGG paper
-
 # PCFG should be in Chomsky normal form in the format:
-# X -> Y Z # count
-# The first rule's LHS is the start symbol.
+# X -> Y Z / prob
 
 import sys
 import re
@@ -10,14 +7,18 @@ import collections
 import fggs
 import json
 
+if len(sys.argv) != 4:
+    print("usage: make_pcfg.py <pcfg> <start> <json>")
+    exit(1)
+
 cfg = collections.defaultdict(dict)
 nonterminals = set()
 terminals = set()
-start = None
+
 for line in open(sys.argv[1]):
-    m = re.fullmatch(r'(\S+)\s*->\s*(.*)\s*#\s*(\S+)\s*', line)
+    m = re.fullmatch(r'(\S+)\s*->\s*(.*)\s*/\s*(\S+)\s*', line)
     lhs = m.group(1)
-    if start is None: start = lhs
+    nonterminals.add(lhs)
     rhs = tuple(m.group(2).split())
     if len(rhs) == 2:
         nonterminals.update(rhs)
@@ -25,12 +26,11 @@ for line in open(sys.argv[1]):
         terminals.update(rhs)
     else:
         raise ValueError()
-    count = int(m.group(3))
+    count = float(m.group(3))
     cfg[lhs][rhs] = count
-for lhs in cfg:
-    z = sum(cfg[lhs].values())
-    for rhs in cfg[lhs]:
-        cfg[lhs][rhs] /= z
+
+start = sys.argv[2]
+    
 nonterminals = list(nonterminals)
 nonterminal_index = {x:i for i,x in enumerate(nonterminals)}
 terminals = list(terminals)
@@ -67,6 +67,6 @@ fac._weights = [
     for x in nonterminals
 ]
 
-with open(sys.argv[2], 'w') as outfile:
+with open(sys.argv[3], 'w') as outfile:
     json.dump(fggs.fgg_to_json(g), outfile, indent=4)
     
