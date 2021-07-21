@@ -1,7 +1,26 @@
 __all__ = ['conjoin_fggs']
 
+import warnings
 from fggs import fggs
 
+
+def check_namespace_collisions(fgg1, fgg2):
+    """Checks whether two FGGs have any conflicting NodeLabels or EdgeLabels."""
+    # check for conflicting NodeLabels
+    node_collisions = []
+    for nl1 in fgg1.node_labels():
+        if fgg2.has_node_label(nl1.name):
+            nl2 = fgg2.get_node_label(nl1.name)
+            if nl1 != nl2:
+                node_collisions.append((nl1, nl2))
+    # check for conflicting EdgeLabels
+    edge_collisions = []
+    for el1 in fgg1.edge_labels():
+        if fgg2.has_edge_label(el1.name):
+            el2 = fgg2.get_edge_label(el1.name)
+            if el1 != el2:
+                edge_collisions.append((el1, el2))
+    return (node_collisions, edge_collisions)
 
 def conjoinable(rule1, rule2):
     """Test whether two FGG rules are conjoinable."""
@@ -64,6 +83,12 @@ def conjoin_rules(rule1, rule2):
 
 def conjoin_fggs(fgg1, fgg2):
     """Conjoin two FGGS."""
+    # first check for namespace collisions, and warn the user
+    (n_col, e_col) = check_namespace_collisions(fgg1, fgg2)
+    for (nl1, nl2) in n_col:
+        warnings.warn(f"Warning during conjunction: fgg1 and fgg2 each have a different NodeLabel called {nl1.name}")
+    for (el1, el2) in e_col:
+        warnings.warn(f"Warning during conjunction: fgg1 and fgg2 each have a different EdgeLabel called {el1.name}")
     new_fgg = fggs.FGG()
     # add rules
     for rule1 in fgg1.all_rules():

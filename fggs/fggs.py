@@ -308,6 +308,9 @@ class FGG:
                 raise Exception(f"There is already a node label with name {name}.")
         self._node_labels[label.name] = label
 
+    def has_node_label(self, name):
+        return name in self._node_labels
+
     def get_node_label(self, name):
         return self._node_labels[name]
 
@@ -363,7 +366,10 @@ class FGG:
             return self._terminals[name]
         else:
             raise KeyError(f'no such edge label {name}')
-    
+
+    def edge_labels(self):
+        return self.nonterminals() + self.terminals()
+
     def set_start_symbol(self, start: EdgeLabel):
         self.add_nonterminal(start)
         self._start = start
