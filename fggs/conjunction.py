@@ -50,7 +50,7 @@ def conjoin_rules(rule1, rule2):
     Does not check for conjoinability."""
     
     new_lhs = fggs.EdgeLabel(name=f"<{rule1.lhs().name},{rule2.lhs().name}>",
-                             is_terminal=False,
+                             is_nonterminal=True,
                              node_labels=rule1.lhs().type())
     new_rhs = fggs.FactorGraph()
     # add nodes
@@ -70,7 +70,7 @@ def conjoin_rules(rule1, rule2):
             label = new_labels[name]
         else:
             label = fggs.EdgeLabel(name=name,
-                                   is_terminal=False,
+                                   is_nonterminal=True,
                                    node_labels=edge1.label.type())
             new_labels[name] = label
         new_rhs.add_edge(fggs.Edge(label=label, nodes=edge1.nodes, id=edge1.id))
@@ -102,7 +102,7 @@ def conjoin_fggs(fgg1, fgg2):
         start_label = new_fgg.get_edge_label(start_name)
     else:
         start_label = fggs.EdgeLabel(name=start_name,\
-                                     is_terminal=False,\
+                                     is_nonterminal=True,\
                                      node_labels=fgg1.start_symbol().type())
     new_fgg.set_start_symbol(start_label)
     return new_fgg

@@ -9,29 +9,22 @@ import copy
 class TestNodeLabel(unittest.TestCase):
 
     def setUp(self):
-        self.dom    = FiniteDomain({1, 2, 3, 4, 5})
         self.name = "nl"
-        self.nl   = NodeLabel(self.name, self.dom)
+        self.nl   = NodeLabel(self.name)
 
     def testImmutable(self):
         with self.assertRaises(FrozenInstanceError):
             self.nl.name = "foo"
-        with self.assertRaises(FrozenInstanceError):
-            self.nl.domain = FiniteDomain({"foo"})
 
     def testEquals(self):
-        dom_eq = FiniteDomain({1, 2, 3, 4, 5})
-        dom_ne = FiniteDomain({6, 7, 8, 9, 10})
-        nl_eq  = NodeLabel(self.name, dom_eq)
-        nl_ne  = NodeLabel(self.name, dom_ne)
+        nl_eq  = NodeLabel(self.name)
+        nl_ne  = NodeLabel(self.name + "*")
         self.assertTrue(self.nl == nl_eq)
         self.assertFalse(self.nl == nl_ne)
 
     def testHash(self):
-        dom_eq = FiniteDomain({1, 2, 3, 4, 5})
-        dom_ne = FiniteDomain({6, 7, 8, 9, 10})
-        nl_eq  = NodeLabel(self.name, dom_eq)
-        nl_ne  = NodeLabel(self.name, dom_ne)
+        nl_eq  = NodeLabel(self.name)
+        nl_ne  = NodeLabel(self.name + "*")
         d = dict()
         d[self.nl] = 5
         self.assertTrue(nl_eq in d)
@@ -44,27 +37,11 @@ class TestNodeLabel(unittest.TestCase):
 class TestEdgeLabel(unittest.TestCase):
     
     def setUp(self):
-        self.dom = FiniteDomain({1, 2, 3, 4, 5})
-        self.nl1 = NodeLabel("nl1", self.dom)
-        self.nl2 = NodeLabel("nl2", self.dom)
-        self.nl3 = NodeLabel("nl3", self.dom)
-        self.fac1 = ConstantFactor([self.dom]*3, 5)
-        self.fac2 = ConstantFactor([self.dom]*2, 6)
-        self.terminal    = EdgeLabel("t", (self.nl1, self.nl2, self.nl3), self.fac1)
-        self.nonterminal = EdgeLabel("nt", (self.nl1, self.nl2))
-
-    def test_init_bad_input(self):
-        with self.assertRaises(ValueError):
-            terminal_without_factor = EdgeLabel("t_missing_fac", (self.nl1, self.nl2, self.nl3), is_terminal=True)
-        with self.assertRaises(ValueError):
-            nonterminal_with_factor = EdgeLabel("nt_with_fac", (self.nl1, self.nl2), self.fac1, is_nonterminal=True)
-
-        bad_dom = FiniteDomain({6, 7, 8, 9, 10})
-        bad_fac = ConstantFactor([bad_dom]*2, 7)
-        with self.assertRaises(ValueError):
-            domain_mismatch = EdgeLabel("domain_mismatch", (self.nl1, self.nl2), bad_fac)
-        with self.assertRaises(ValueError):
-            arity_mismatch = EdgeLabel("arity_mismatch", (self.nl1, self.nl2), self.fac1)
+        self.nl1 = NodeLabel("nl1")
+        self.nl2 = NodeLabel("nl2")
+        self.nl3 = NodeLabel("nl3")
+        self.terminal    = EdgeLabel("t", (self.nl1, self.nl2, self.nl3), is_terminal=True)
+        self.nonterminal = EdgeLabel("nt", (self.nl1, self.nl2), is_nonterminal=True)
 
     def testImmutable(self):
         with self.assertRaises(FrozenInstanceError):
@@ -72,47 +49,29 @@ class TestEdgeLabel(unittest.TestCase):
         with self.assertRaises(FrozenInstanceError):
             self.terminal.node_labels = (self.nl1, self.nl2)
         with self.assertRaises(FrozenInstanceError):
-            self.terminal.factor = self.fac2
-        with self.assertRaises(FrozenInstanceError):
             self.terminal.is_terminal = False
         with self.assertRaises(FrozenInstanceError):
             self.terminal.is_nonterminal = True
 
     def testEquals(self):
-        fac_eq = ConstantFactor([self.dom]*3, 5)
-        fac_ne = ConstantFactor([self.dom]*3, 6)
-        terminal_eq_fac  = EdgeLabel("t", (self.nl1, self.nl2, self.nl3), fac_eq)
-        terminal_ne_name = EdgeLabel("x", (self.nl1, self.nl2, self.nl3), self.fac1)
-        terminal_ne_type = EdgeLabel("t", (self.nl1, self.nl3, self.nl2), self.fac1)
-        terminal_ne_fac  = EdgeLabel("t", (self.nl1, self.nl2, self.nl3), fac_ne)
-        self.assertTrue(self.terminal == terminal_eq_fac)
+        terminal_eq = EdgeLabel("t", (self.nl1, self.nl2, self.nl3), is_terminal=True)
+        terminal_ne_name = EdgeLabel("x", (self.nl1, self.nl2, self.nl3), is_terminal=True)
+        terminal_ne_type = EdgeLabel("t", (self.nl1, self.nl3, self.nl2), is_terminal=True)
+        self.assertTrue(self.terminal == terminal_eq)
         self.assertFalse(self.terminal == terminal_ne_name)
         self.assertFalse(self.terminal == terminal_ne_type)
-        self.assertFalse(self.terminal == terminal_ne_fac)
 
     def testHash(self):
-        fac_eq = ConstantFactor([self.dom]*3, 5)
-        fac_ne = ConstantFactor([self.dom]*3, 6)
-        terminal_eq_fac  = EdgeLabel("t", (self.nl1, self.nl2, self.nl3), fac_eq)
-        terminal_ne_name = EdgeLabel("x", (self.nl1, self.nl2, self.nl3), self.fac1)
-        terminal_ne_type = EdgeLabel("t", (self.nl1, self.nl3, self.nl2), self.fac1)
-        terminal_ne_fac  = EdgeLabel("t", (self.nl1, self.nl2, self.nl3), fac_ne)
+        terminal_eq = EdgeLabel("t", (self.nl1, self.nl2, self.nl3), is_terminal=True)
+        terminal_ne_name = EdgeLabel("x", (self.nl1, self.nl2, self.nl3), is_terminal=True)
+        terminal_ne_type = EdgeLabel("t", (self.nl1, self.nl3, self.nl2), is_terminal=True)
         d = dict()
         d[self.terminal] = 5
-        self.assertTrue(terminal_eq_fac in d)
+        self.assertTrue(terminal_eq in d)
         self.assertFalse(terminal_ne_name in d)
         self.assertFalse(terminal_ne_type in d)
-        self.assertFalse(terminal_ne_fac in d)
-        d[terminal_eq_fac] = 7
+        d[terminal_eq] = 7
         self.assertTrue(d[self.terminal] == 7)
-
-    def test_is_terminal(self):
-        self.assertTrue(self.terminal.is_terminal())
-        self.assertFalse(self.nonterminal.is_terminal())
-    
-    def test_is_nonterminal(self):
-        self.assertFalse(self.terminal.is_nonterminal())
-        self.assertTrue(self.nonterminal.is_nonterminal())
 
     def test_arity(self):
         self.assertEqual(self.terminal.arity(), 3)
@@ -125,8 +84,7 @@ class TestEdgeLabel(unittest.TestCase):
 class TestNode(unittest.TestCase):
     
     def setUp(self):
-        self.dom = FiniteDomain({1, 2, 3, 4, 5})
-        self.label = NodeLabel("label", self.dom)
+        self.label = NodeLabel("label")
         self.node1 = Node(self.label)
         self.node2 = Node(self.label, id="id2")
 
@@ -139,21 +97,19 @@ class TestNode(unittest.TestCase):
 class TestEdge(unittest.TestCase):
     
     def setUp(self):
-        self.dom   = FiniteDomain({1, 2, 3, 4, 5})
-        self.nl1   = NodeLabel("nl1", self.dom)
-        self.nl2   = NodeLabel("nl2", self.dom)
+        self.nl1   = NodeLabel("nl1")
+        self.nl2   = NodeLabel("nl2")
         self.node1 = Node(self.nl1)
         self.node2 = Node(self.nl2)
         
-        self.fac   = ConstantFactor([self.dom]*2, 42)
-        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), self.fac)
-        self.el2   = EdgeLabel("el2", (self.nl2,))
+        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), is_terminal=True)
+        self.el2   = EdgeLabel("el2", (self.nl2,), is_terminal=True)
         
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
     
     def test_init_bad_input(self):
-        # nodes have wrong domains
+        # nodes have wrong labels
         with self.assertRaises(Exception):
             bad_edge = self.Edge(self.el2, (self.node1,))
         # list of nodes has wrong arity
@@ -164,15 +120,13 @@ class TestEdge(unittest.TestCase):
 class TestFactorGraph(unittest.TestCase):
 
     def setUp(self):
-        self.dom   = FiniteDomain({1, 2, 3, 4, 5})
-        self.nl1   = NodeLabel("nl1", self.dom)
-        self.nl2   = NodeLabel("nl2", self.dom)
+        self.nl1   = NodeLabel("nl1")
+        self.nl2   = NodeLabel("nl2")
         self.node1 = Node(self.nl1)
         self.node2 = Node(self.nl2)
         
-        self.fac = ConstantFactor([self.dom]*2, 42)
-        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), self.fac)
-        self.el2   = EdgeLabel("el2", (self.nl2,))
+        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), is_terminal=True)
+        self.el2   = EdgeLabel("el2", (self.nl2,), is_nonterminal=True)
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
         
@@ -282,16 +236,14 @@ class TestFactorGraph(unittest.TestCase):
 class TestFGGRule(unittest.TestCase):
 
     def setUp(self):
-        dom = FiniteDomain([None])
-        nl = NodeLabel("nl1", dom)
+        nl = NodeLabel("nl1")
         
         node1 = Node(nl)
         node2 = Node(nl)
 
-        fac = ConstantFactor([dom]*2, 5)
-        terminal = EdgeLabel("terminal", (nl, nl), fac)
-        nonterminal_mismatch = EdgeLabel("nonterminal1", (nl,))
-        nonterminal_match = EdgeLabel("nonterminal2", (nl, nl))
+        terminal = EdgeLabel("terminal", (nl, nl), is_terminal=True)
+        nonterminal_mismatch = EdgeLabel("nonterminal1", (nl,), is_nonterminal=True)
+        nonterminal_match = EdgeLabel("nonterminal2", (nl, nl), is_nonterminal=True)
         
         graph = FactorGraph()
         graph.add_node(node1)
@@ -313,15 +265,13 @@ class TestFGGRule(unittest.TestCase):
 class TestFGG(unittest.TestCase):
 
     def setUp(self):
-        self.dom   = FiniteDomain({1, 2, 3, 4, 5})
-        self.nl1   = NodeLabel("nl1", self.dom)
-        self.nl2   = NodeLabel("nl2", self.dom)
+        self.nl1   = NodeLabel("nl1")
+        self.nl2   = NodeLabel("nl2")
         self.node1 = Node(self.nl1)
         self.node2 = Node(self.nl2)
         
-        self.fac   = ConstantFactor([self.dom]*2, 42)
-        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), self.fac)
-        self.el2   = EdgeLabel("el2", (self.nl2,))
+        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), is_terminal=True)
+        self.el2   = EdgeLabel("el2", (self.nl2,), is_nonterminal=True)
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
         
@@ -332,7 +282,7 @@ class TestFGG(unittest.TestCase):
         self.graph.add_edge(self.edge2)
         self.graph.set_ext(tuple())
         
-        self.start = EdgeLabel("S", tuple())
+        self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
         self.rule = FGGRule(self.start, self.graph)
         
         self.node3 = Node(self.nl2)
@@ -359,15 +309,10 @@ class TestFGG(unittest.TestCase):
         # add a node label which is a different object but
         # equivalent to an existing node label; code should
         # treat them as the same node label
-        nl3 = NodeLabel("nl1", self.dom)
+        nl3 = NodeLabel("nl1")
         self.fgg.add_node_label(nl3)
         self.assertEqual(len(self.fgg.node_labels()), 2)
     
-    def test_add_node_label_bad_input(self):
-        nl3 = NodeLabel("nl1", FiniteDomain([4]))
-        with self.assertRaises(Exception):
-            self.fgg.add_node_label(nl3)
-
     def test_add_nonterminal(self):
         nonterminals = self.fgg.nonterminals()
         self.assertEqual(len(nonterminals), 2)
@@ -380,12 +325,12 @@ class TestFGG(unittest.TestCase):
             self.fgg.add_nonterminal(self.el1)
         
         # reusing a nonterminal name
-        nt = EdgeLabel("el2", (self.nl1, self.nl1))
+        nt = EdgeLabel("el2", (self.nl1, self.nl1), is_nonterminal=True)
         with self.assertRaises(Exception):
             self.fgg.add_nonterminal(nt)
         
         # a nonterminal with the same name as a terminal
-        nt = EdgeLabel("el1", (self.nl1, self.nl1))
+        nt = EdgeLabel("el1", (self.nl1, self.nl1), is_nonterminal=True)
         with self.assertRaises(Exception):
             self.fgg.add_nonterminal(nt)
         
@@ -403,12 +348,12 @@ class TestFGG(unittest.TestCase):
             self.fgg.add_terminal(self.el2)
         
         # reusing a terminal name
-        t = EdgeLabel("el1", (self.nl1, self.nl1), self.fac)
+        t = EdgeLabel("el1", (self.nl1, self.nl1), is_terminal=True)
         with self.assertRaises(Exception):
             self.fgg.add_terminal(t)
         
         # a nonterminal with the same name as a terminal
-        t = EdgeLabel("el2", (self.nl1, self.nl1))
+        t = EdgeLabel("el2", (self.nl1, self.nl1), is_nonterminal=True)
         with self.assertRaises(Exception):
             self.fgg.add_terminal(t)
         
@@ -429,10 +374,9 @@ class TestFGG(unittest.TestCase):
         self.assertTrue(self.rule in start_rules)
 
     def test_implicitly_add_node_and_edge_labels(self):
-        new_nl = NodeLabel("nl3", self.dom)
-        new_nt = EdgeLabel("nt1", (new_nl, new_nl))
-        fac = ConstantFactor([self.dom], 20)
-        new_t  = EdgeLabel("nt2", (new_nl,), fac)
+        new_nl = NodeLabel("nl3")
+        new_nt = EdgeLabel("nt1", (new_nl, new_nl), is_nonterminal=True)
+        new_t  = EdgeLabel("nt2", (new_nl,), is_terminal=True)
         
         new_node1 = Node(new_nl)
         new_node2 = Node(new_nl)
@@ -456,6 +400,77 @@ class TestFGG(unittest.TestCase):
         self.assertNotEqual(id(fgg), id(copy))
         self.assertEqual(fgg, copy)
 
+
+class TestFGGInterpretation(unittest.TestCase):
+
+    def setUp(self):
+        self.dom1 = FiniteDomain(['foo', 'bar', 'baz'])
+        self.dom2 = FiniteDomain(['jia', 'yi', 'bing', 'ding'])
+
+        self.fac1 = CategoricalFactor([self.dom1, self.dom2],
+                                      [[1, 2, 3, 4],
+                                       [5, 6, 7, 8],
+                                       [1, 2, 3, 4]])
+        self.fac2 = CategoricalFactor([self.dom1, self.dom1],
+                                      [[1, 2, 3],
+                                       [5, 6, 7],
+                                       [1, 2, 3]])
+        
+        self.nl1   = NodeLabel("nl1")
+        self.nl2   = NodeLabel("nl2")
+        self.node1 = Node(self.nl1)
+        self.node2 = Node(self.nl2)
+        
+        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), is_terminal=True)
+        self.el2   = EdgeLabel("el2", (self.nl2,), is_nonterminal=True)
+        self.edge1 = Edge(self.el1, (self.node1, self.node2))
+        self.edge2 = Edge(self.el2, (self.node2,))
+        
+        self.graph = FactorGraph()
+        self.graph.add_node(self.node1)
+        self.graph.add_node(self.node2)
+        self.graph.add_edge(self.edge1)
+        self.graph.add_edge(self.edge2)
+        self.graph.set_ext(tuple())
+        
+        self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
+        self.rule = FGGRule(self.start, self.graph)
+        
+        self.node3 = Node(self.nl2)
+        self.graph2 = FactorGraph()
+        self.graph2.add_node(self.node3)
+        self.graph2.set_ext((self.node3,))
+        self.rule2 = FGGRule(self.el2, self.graph2)
+
+        self.fgg = FGG()
+        self.fgg.add_node_label(self.nl1)
+        self.fgg.add_node_label(self.nl2)
+        self.fgg.add_terminal(self.el1)
+        self.fgg.add_nonterminal(self.el2)
+        self.fgg.add_nonterminal(self.start)
+        self.fgg.set_start_symbol(self.start)
+        self.fgg.add_rule(self.rule)
+        self.fgg.add_rule(self.rule2)
+
+    def test_can_interpret(self):
+        interp = FGGInterpretation()
+        interp.domains[self.nl1] = self.dom1
+        interp.domains[self.nl2] = self.dom2
+        interp.factors[self.el1] = self.fac1
+        self.assertTrue(interp.can_interpret(self.fgg))
+        
+        del interp.domains[self.nl2]
+        self.assertFalse(interp.can_interpret(self.fgg))
+        
+        interp.domains[self.nl2] = self.dom1
+        self.assertFalse(interp.can_interpret(self.fgg))
+        
+        interp.domains[self.nl2] = self.dom2
+        del interp.factors[self.el1]
+        self.assertFalse(interp.can_interpret(self.fgg))
+        
+        interp.factors[self.el1] = self.fac2
+        self.assertFalse(interp.can_interpret(self.fgg))
+        
 if __name__ == "__main__":
     unittest.main()
-    

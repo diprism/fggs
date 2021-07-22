@@ -1,6 +1,6 @@
 __all__ = ['sum_product']
 
-from fggs.fggs import FGG
+from fggs.fggs import FGG, FGGInterpretation
 from fggs.factors import CategoricalFactor
 from typing import Callable
 from functools import reduce
@@ -33,10 +33,10 @@ def broyden(F: Function, J: Tensor, psi_X0: Tensor, *, tol: float = 1e-8, maxite
     if k > maxiter:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
-def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0) -> Tensor:
+def sum_product(fgg: FGG, interp: FGGInterpretation, method: str = 'fixed-point', perturbation: float = 1.0) -> Tensor:
     n, nt_dict = 0, {}
     for nt in fgg.nonterminals():
-        shape = tuple(node_label.domain.size() for node_label in nt.node_labels)
+        shape = tuple(interp.domains[node_label].size() for node_label in nt.node_labels)
         k = n + (reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1)
         nt_dict[nt] = ((n, k), shape)
         n = k
@@ -53,14 +53,14 @@ def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0
                 indexing, tensors = [], []
                 for edge in rule.rhs().edges():
                     indexing.append([Xi_R[node.id] for node in edge.nodes])
-                    if edge.label.is_nonterminal():
+                    if edge.label.is_nonterminal:
                         (n, k), shape = nt_dict[edge.label]
                         tensors.append(psi_X0[n:k].reshape(shape))
-                    elif isinstance(edge.label.factor, CategoricalFactor):
-                        weights = edge.label.factor._weights
+                    elif isinstance(interp.factors[edge.label], CategoricalFactor):
+                        weights = interp.factors[edge.label]._weights
                         tensors.append(torch.tensor(weights))
                     else:
-                        raise TypeError(f"Can't compute sum-product of FGG with factor {edge.label.factor}")
+                        raise TypeError(f"Can't compute sum-product of FGG with factor {interp.factors[edge.label]}")
                 equation = ','.join([''.join(indices) for indices in indexing]) + '->'
                 external = [Xi_R[node.id] for node in rule.rhs().ext()]
                 if external: equation += ''.join(external)

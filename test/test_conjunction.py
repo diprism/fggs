@@ -49,26 +49,22 @@ class TestConjunction(unittest.TestCase):
         self.el_x2 = self.conjunct.get_edge_label("X")
 
     def test_check_namespace_collisions(self):
-        dom1 = fggs.FiniteDomain([5])
-        nl1 = fggs.NodeLabel("collide_nl", dom1)
-        nl2 = fggs.NodeLabel("collide_nl", fggs.FiniteDomain([6]))
-        el1 = fggs.EdgeLabel("collide_el", [nl1], fggs.ConstantFactor([dom1], 7))
-        el2 = fggs.EdgeLabel("collide_el", [nl1])
-        nl3 = fggs.NodeLabel("don't_collide", fggs.FiniteDomain([8]))
-        el3 = fggs.EdgeLabel("don't_collide", [nl1])
-        self.hmm.add_node_label(nl1)
-        self.conjunct.add_node_label(nl2)
+        nl = fggs.NodeLabel("nl")
+        el1 = fggs.EdgeLabel("collide_el", [nl], is_terminal=True)
+        el2 = fggs.EdgeLabel("collide_el", [nl], is_nonterminal=True)
+        el3 = fggs.EdgeLabel("don't_collide", [nl], is_nonterminal=True)
+        self.hmm.add_node_label(nl)
+        self.conjunct.add_node_label(nl)
         self.hmm.add_terminal(el1)
         self.conjunct.add_nonterminal(el2)
-        self.hmm.add_node_label(nl3)
         self.conjunct.add_nonterminal(el3)
         (n, e) = check_namespace_collisions(self.hmm, self.conjunct)
-        self.assertTrue(len(n) == 1)
-        self.assertTrue(len(e) == 1)
+        self.assertEqual(len(n), 0)
+        self.assertEqual(len(e), 1)
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             conjoin_fggs(self.hmm, self.conjunct)
-            assert len(w) == 2
+            self.assertEqual(len(w), 1)
 
     def test_conjoinable(self):    
         self.assertTrue(conjoinable(self.xrule1, self.xrule2))        
@@ -110,8 +106,7 @@ class TestConjunction(unittest.TestCase):
         conjunction_json_check = fggs.fgg_to_json(conjunction_check)
         self.maxDiff = 10000
         self.assertEqual(self.conjunction_json.keys(), conjunction_json_check.keys())
-        self.assertEqual(self.conjunction_json['domains'], conjunction_json_check['domains'])
-        self.assertEqual(self.conjunction_json['factors'], conjunction_json_check['factors'])
+        self.assertEqual(self.conjunction_json['terminals'], conjunction_json_check['terminals'])
         self.assertEqual(self.conjunction_json['nonterminals'], conjunction_json_check['nonterminals'])
         self.assertEqual(self.conjunction_json['start'], conjunction_json_check['start'])
 

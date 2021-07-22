@@ -1,4 +1,4 @@
-__all__ = ['json_to_fgg', 'fgg_to_json', 'factorgraph_to_dot', 'factorgraph_to_tikz', 'fgg_to_tikz']
+__all__ = ['json_to_fgg', 'fgg_to_json', 'json_to_fggi', 'fggi_to_json', 'factorgraph_to_dot', 'factorgraph_to_tikz', 'fgg_to_tikz']
 
 from fggs.fggs import *
 from fggs import domains, factors
@@ -9,27 +9,14 @@ def json_to_fgg(j):
     """Convert an object loaded by json.load to an FGG."""
     g = FGG()
     
-    doms = {}
-    for name, d in j['domains'].items():
-        if d['class'] == 'finite':
-            doms[name] = domains.FiniteDomain(d['values'])
-        else:
-            raise ValueError(f'invalid domain class: {d["type"]}')
-        g.add_node_label(NodeLabel(name, doms[name]))
-
-    for name, d in j['factors'].items():
-        if d['function'] == 'categorical':
-            size = [doms[l].size() for l in d['type']]
-            weights = d['weights']
-            f = factors.CategoricalFactor([doms[l] for l in d['type']], weights)
-        else:
-            raise ValueError(f'invalid factor function: {d["function"]}')
-        t = tuple(g.get_node_label(l) for l in d['type'])
-        g.add_terminal(EdgeLabel(name, t, f))
+    for name, d in j['terminals'].items():
+        t = tuple(NodeLabel(l) for l in d['type'])
+        g.add_terminal(EdgeLabel(name, t, is_terminal=True))
 
     for nt, d in j['nonterminals'].items():
-        t = tuple(g.get_node_label(l) for l in d['type'])
-        g.add_nonterminal(EdgeLabel(nt, t))
+        t = tuple(NodeLabel(l) for l in d['type'])
+        g.add_nonterminal(EdgeLabel(nt, t, is_nonterminal=True))
+        
     g.set_start_symbol(g.get_nonterminal(j['start']))
 
     for r in j['rules']:
@@ -37,7 +24,7 @@ def json_to_fgg(j):
         rhs = FactorGraph()
         nodes = []
         for node in r['rhs']['nodes']:
-            v = Node(g.get_node_label(node['label']), id=node.get('id', None))
+            v = Node(NodeLabel(node['label']), id=node.get('id', None))
             nodes.append(v)
             rhs.add_node(v)
         for e in r['rhs']['edges']:
@@ -63,30 +50,18 @@ def fgg_to_json(g):
     """Convert an FGG to an object writable by json.dump()."""
     j = {}
 
-    j['domains'] = {}
-    for l in g.node_labels():
-        if isinstance(l.domain, domains.FiniteDomain):
-            j['domains'][l.name] = {
-                'class' : 'finite',
-                'values' : list(l.domain.values()),
-            }
-        else:
-            raise NotImplementedError(f'unsupported domain type {type(j.domain)}')
-
-    j['factors'] = {}
-    for l in g.terminals():
-        if isinstance(l.factor, factors.CategoricalFactor):
-            j['factors'][l.name] = {
-                'function': 'categorical',
-                'type': [nl.name for nl in l.type()],
-                'weights': l.factor.weights(),
-            }
-
+    j['terminals'] = {}
+    for t in g.terminals():
+        j['terminals'][t.name] = {
+            'type': [l.name for l in t.type()],
+        }
+        
     j['nonterminals'] = {}
     for nt in g.nonterminals():
         j['nonterminals'][nt.name] = {
             'type': [l.name for l in nt.type()],
         }
+        
     j['start'] = g.start_symbol().name
     
     j['rules'] = []
@@ -109,6 +84,54 @@ def fgg_to_json(g):
             })
         j['rules'].append(jr)
         
+    return j
+
+def json_to_fggi(j):
+    """Convert an object loaded by json.load to an FGGInterpretation."""
+    fggi = FGGInterpretation()
+
+    for name, d in j['domains'].items():
+        nl = NodeLabel(name)
+        if d['class'] == 'finite':
+            fggi.domains[nl] = domains.FiniteDomain(d['values'])
+        else:
+            raise ValueError(f'invalid domain class: {d["type"]}')
+
+    for name, d in j['factors'].items():
+        nls = [NodeLabel(nl) for nl in d['type']]
+        el = EdgeLabel(name, nls, is_terminal=True)
+        if d['function'] == 'categorical':
+            size = [fggi.domains[nl].size() for nl in nls]
+            weights = d['weights']
+            fggi.factors[el] = factors.CategoricalFactor([fggi.domains[nl] for nl in nls], weights)
+        else:
+            raise ValueError(f'invalid factor function: {d["function"]}')
+        
+    return fggi
+
+def fggi_to_json(g):
+    """Convert an FGGInterpretation to an object writable by json.dump()."""
+    j = {}
+
+    j['domains'] = {}
+    for nl, dom in fggi.domains.items():
+        if isinstance(dom, domains.FiniteDomain):
+            j['domains'][nl.name] = {
+                'class' : 'finite',
+                'values' : list(dom.values()),
+            }
+        else:
+            raise NotImplementedError(f'unsupported domain type {type(j.domain)}')
+
+    j['factors'] = {}
+    for el, fac in fggi.factors.items():
+        if isinstance(fac, factors.CategoricalFactor):
+            j['factors'][el.name] = {
+                'function': 'categorical',
+                'type': [nl.name for nl in el.type()],
+                'weights': fac.weights(),
+            }
+            
     return j
 
 ### GraphViz and TikZ

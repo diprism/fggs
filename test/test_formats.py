@@ -14,8 +14,7 @@ class TestJson(unittest.TestCase):
 
             self.maxDiff = 10000
             self.assertEqual(j.keys(), j_check.keys())
-            self.assertEqual(j['domains'], j_check['domains'])
-            self.assertEqual(j['factors'], j_check['factors'])
+            self.assertEqual(j['terminals'], j_check['terminals'])
             self.assertEqual(j['nonterminals'], j_check['nonterminals'])
             self.assertEqual(j['start'], j_check['start'])
 
