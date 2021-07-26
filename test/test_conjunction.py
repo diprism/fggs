@@ -1,7 +1,6 @@
 import unittest
 import json
 import os
-import warnings
 import fggs
 from fggs.conjunction import check_namespace_collisions, conjoinable, conjoin_rules, conjoin_fggs
 
@@ -65,10 +64,8 @@ class TestConjunction(unittest.TestCase):
         (n, e) = check_namespace_collisions(self.hmm, self.conjunct)
         self.assertTrue(len(n) == 1)
         self.assertTrue(len(e) == 1)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with self.assertRaises(ValueError):
             conjoin_fggs(self.hmm, self.conjunct)
-            assert len(w) == 2
 
     def test_conjoinable(self):    
         self.assertTrue(conjoinable(self.xrule1, self.xrule2))        

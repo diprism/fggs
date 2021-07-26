@@ -1,6 +1,5 @@
 __all__ = ['conjoin_fggs']
 
-import warnings
 from fggs import fggs
 
 
@@ -86,9 +85,10 @@ def conjoin_fggs(fgg1, fgg2):
     # first check for namespace collisions, and warn the user
     (n_col, e_col) = check_namespace_collisions(fgg1, fgg2)
     for (nl1, nl2) in n_col:
-        warnings.warn(f"Warning during conjunction: fgg1 and fgg2 each have a different NodeLabel called {nl1.name}")
+        raise ValueError(f"Cannot conjoin fgg1 and fgg2 because they each have a different NodeLabel called {nl1.name}")
     for (el1, el2) in e_col:
-        warnings.warn(f"Warning during conjunction: fgg1 and fgg2 each have a different EdgeLabel called {el1.name}")
+        if el1.is_terminal and el2.is_terminal:
+            raise ValueError(f"Cannot conjoin fgg1 and fgg2 because they each have a different terminal EdgeLabel called {el1.name}")
     new_fgg = fggs.FGG()
     # add rules
     for rule1 in fgg1.all_rules():
