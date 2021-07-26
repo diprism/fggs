@@ -1,0 +1,77 @@
+{
+    "domains": {
+        "N": {
+            "class": "finite",
+            "values": ["S"]
+        },
+        "W": {
+            "class": "finite",
+            "values": ["a"]
+        }
+    },
+    "factors": {
+        "start": {
+            "function": "categorical",
+            "type": ["N"],
+            "weights": [1]
+        },
+        "binary": {
+            "function": "categorical",
+            "type": ["N", "N", "N"],
+            "weights": [[[0.8]]]
+        },
+        "terminal": {
+            "function": "categorical",
+            "type": ["N", "W"],
+            "weights": [[0.2]]
+        }
+    },
+    "nonterminals": {
+        "S'": { "type": [] },
+        "X": { "type": ["N"] }
+    },
+    "start": "S'",
+    "rules": [
+        {
+            "lhs": "S'",
+            "rhs": {
+                "nodes": [
+                    { "label": "N" }
+                ],
+                "edges": [
+                    { "attachments": [0], "label": "start" },
+                    { "attachments": [0], "label": "X" }
+                ]
+            }
+        },
+        {
+            "lhs": "X",
+            "rhs": {
+                "nodes": [
+                    { "label": "N" },
+                    { "label": "N" },
+                    { "label": "N" }
+                ],
+                "edges": [
+                    { "attachments": [0, 1, 2], "label": "binary" },
+                    { "attachments": [1], "label": "X" },
+                    { "attachments": [2], "label": "X" }
+                ],
+                "externals": [0]
+            }
+        },
+        {
+            "lhs": "X",
+            "rhs": {
+                "nodes": [
+                    { "label": "N" },
+                    { "label": "W" }
+                ],
+                "edges": [
+                    { "attachments": [0, 1], "label": "terminal" }
+                ],
+                "externals": [0]
+            }
+        }
+    ]
+}
