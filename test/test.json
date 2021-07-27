@@ -6,20 +6,25 @@
         }
     },
     "factors": {
-        "fac1": {
+        "start": {
             "function": "categorical",
             "type": ["dom"],
             "weights": [3, 0, 5]
         },
+        "fac0": {
+            "function": "categorical",
+            "type": ["dom"],
+            "weights": [1, 7, 0]
+        },
+        "fac1": {
+            "function": "categorical",
+            "type": ["dom"],
+            "weights": [0.5, 11, 1]
+        },
         "fac2": {
             "function": "categorical",
             "type": ["dom"],
-            "weights": [0.5, 1, 1]
-        },
-        "fac3": {
-            "function": "categorical",
-            "type": ["dom"],
-            "weights": [7, 11, 0]
+            "weights": [0, 0, 1]
         }
     },
     "nonterminals": {
@@ -28,8 +33,7 @@
         "Empty": { "type": ["dom"] },
         "Unreachable": { "type": ["dom"] },
         "Unproductive1": { "type": ["dom"] },
-        "Unproductive2": { "type": ["dom"] },
-        "Unproductive3": { "type": ["dom"] }
+        "Unproductive2": { "type": ["dom"] }
     },
     "start": "A",
     "rules": [
@@ -40,7 +44,7 @@
                     { "label": "dom" }
                 ],
                 "edges": [
-                    { "attachments": [0], "label": "fac1" },
+                    { "attachments": [0], "label": "start" },
                     { "attachments": [0], "label": "B" }
                 ],
                 "externals": [0]
@@ -83,18 +87,6 @@
             }
         },
         {
-            "lhs": "A",
-            "rhs": {
-                "nodes": [
-                    { "label": "dom" }
-                ],
-                "edges": [
-                    { "attachments": [0], "label": "Unproductive3" }
-                ],
-                "externals": [0]
-            }
-        },
-        {
             "lhs": "B",
             "rhs": {
                 "nodes": [
@@ -102,6 +94,7 @@
                 ],
                 "edges": [
                     { "attachments": [0], "label": "fac2" },
+                    { "attachments": [0], "label": "B" },
                     { "attachments": [0], "label": "B" }
                 ],
                 "externals": [0]
@@ -114,7 +107,20 @@
                     { "label": "dom" }
                 ],
                 "edges": [
-                    { "attachments": [0], "label": "fac3" }
+                    { "attachments": [0], "label": "fac1" },
+                    { "attachments": [0], "label": "B" }
+                ],
+                "externals": [0]
+            }
+        },
+        {
+            "lhs": "B",
+            "rhs": {
+                "nodes": [
+                    { "label": "dom" }
+                ],
+                "edges": [
+                    { "attachments": [0], "label": "fac0" }
                 ],
                 "externals": [0]
             }
@@ -142,6 +148,7 @@
             }
         },
         {
+            "comment": "This rule and the next one make the Jacobian singular",
             "lhs": "Unproductive2",
             "rhs": {
                 "nodes": [
@@ -154,14 +161,14 @@
             }
         },
         {
-            "lhs": "Unproductive3",
+            "lhs": "Unproductive2",
             "rhs": {
                 "nodes": [
                     { "label": "dom" }
                 ],
                 "edges": [
-                    { "attachments": [0], "label": "Unproductive3" },
-                    { "attachments": [0], "label": "Unproductive3" }
+                    { "attachments": [0], "label": "Unproductive2" },
+                    { "attachments": [0], "label": "Unproductive2" }
                 ],
                 "externals": [0]
             }
