@@ -63,7 +63,8 @@ def _generate_id():
     letters = string.ascii_letters
     new_id = ''.join([random.choice(letters) for i in range(20)])
     return new_id
-    
+
+
 @dataclass(frozen=True)
 class Node:
     
@@ -109,7 +110,6 @@ class Edge:
                 else:
                     string += f"Node {node.id}"
         return string
-
 
 
 class FactorGraph:
@@ -216,7 +216,6 @@ class FactorGraph:
         return string
 
 
-
 class FGGRule:
 
     def __init__(self, lhs: EdgeLabel, rhs: FactorGraph):
@@ -251,7 +250,6 @@ class FGGRule:
         string += f"FGGRule with left-hand side {self._lhs.name} and right-hand side as follows:\n"
         string += self._rhs.to_string(indent+1)
         return string
-
 
 
 class FGG:
@@ -399,6 +397,7 @@ class FGG:
                 string += f"\n{rule.to_string(2)}"
         return string
 
+    
 class FGGInterpretation:
     def __init__(self):
         self.domains = {}
