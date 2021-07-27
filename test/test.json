@@ -2,24 +2,24 @@
     "domains": {
         "dom": {
             "class": "finite",
-            "values": ["jia", "yi", "bing", "ding"]
+            "values": ["a", "b", "c"]
         }
     },
     "factors": {
         "fac1": {
             "function": "categorical",
             "type": ["dom"],
-            "weights": [0, 1, 1, 1]
+            "weights": [0, 1, 1]
         },
         "fac2": {
             "function": "categorical",
             "type": ["dom"],
-            "weights": [101, 103, 1, 1]
+            "weights": [101, 103, 1]
         },
         "fac3": {
             "function": "categorical",
             "type": ["dom"],
-            "weights": [1, 1, 0, 1]
+            "weights": [1, 0, 1]
         }
     },
     "nonterminals": {

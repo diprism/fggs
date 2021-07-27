@@ -10,7 +10,7 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='Compute the sum-product of an FGG.')
     ap.add_argument('fgg', metavar='json')
     ap.add_argument('-m', metavar='method', dest='method', default='fixed-point', choices=['fixed-point', 'broyden'])
-    ap.add_argument('-w', metavar=('factor', 'weights'), dest='weights', action='append', nargs=2)
+    ap.add_argument('-w', metavar=('factor', 'weights'), dest='weights', default=[], action='append', nargs=2)
 
     args = ap.parse_args()
 
