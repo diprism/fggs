@@ -15,7 +15,7 @@ class NodeLabel:
         return f"NodeLabel {self.name}"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class EdgeLabel:
     """An edge label.
 
@@ -27,16 +27,26 @@ class EdgeLabel:
     
     name: str
     node_labels: Iterable[NodeLabel]
-    is_nonterminal: bool = False
-    is_terminal: bool = False
+    is_terminal: bool
 
-    def __post_init__(self):
-        if not isinstance(self.node_labels, tuple):
-            object.__setattr__(self, 'node_labels', tuple(self.node_labels))
-        if self.is_terminal and self.is_nonterminal:
+    def __init__(self, name: str,
+                 node_labels: Iterable[NodeLabel],
+                 *,
+                 is_nonterminal: bool = False,
+                 is_terminal: bool = False):
+        object.__setattr__(self, 'name', name)
+        if not isinstance(node_labels, tuple):
+            node_labels = tuple(node_labels)
+        object.__setattr__(self, 'node_labels', node_labels)
+        if is_terminal and is_nonterminal:
             raise ValueError("An EdgeLabel can't be both terminal and nonterminal")
-        if not self.is_terminal and not self.is_nonterminal:
+        if not is_terminal and not is_nonterminal:
             raise ValueError("An EdgeLabel must be either terminal or nonterminal")
+        object.__setattr__(self, 'is_terminal', is_terminal)
+
+    @property
+    def is_nonterminal(self):
+        return not self.is_terminal
 
     def arity(self):
         return len(self.node_labels)
