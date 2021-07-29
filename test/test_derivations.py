@@ -14,7 +14,7 @@ class TestReplace(unittest.TestCase):
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
         
-        self.graph = FactorGraph()
+        self.graph = Graph()
         self.graph.add_node(self.node1)
         self.graph.add_node(self.node2)
         self.graph.add_edge(self.edge1)
@@ -30,7 +30,7 @@ class TestStartGraph(unittest.TestCase):
     def setUp(self):
         self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
 
-        self.fgg = FGG()
+        self.fgg = HRG()
         self.fgg.set_start_symbol(self.start)
 
     def test_start_graph(self):

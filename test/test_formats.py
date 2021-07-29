@@ -9,8 +9,8 @@ class TestJson(unittest.TestCase):
         for filename in ['hmm.json', 'example12p.json']:
             with open(os.path.join(os.path.dirname(__file__), filename)) as f:
                 j = json.load(f)
-            g = fggs.json_to_fgg(j)
-            j_check = fggs.fgg_to_json(g)
+            g = fggs.json_to_hrg(j)
+            j_check = fggs.hrg_to_json(g)
 
             self.maxDiff = 10000
             self.assertEqual(j.keys(), j_check.keys())
@@ -30,11 +30,11 @@ class TestJson(unittest.TestCase):
             jcopy = copy.deepcopy(j)
             jcopy['rules'][0]['rhs']['edges'][0]['attachments'] = [100]
             with self.assertRaises(ValueError):
-                _ = fggs.json_to_fgg(jcopy)
+                _ = fggs.json_to_hrg(jcopy)
             jcopy = copy.deepcopy(j)
             jcopy['rules'][0]['rhs']['externals'] = [100]
             with self.assertRaises(ValueError):
-                _ = fggs.json_to_fgg(jcopy)
+                _ = fggs.json_to_hrg(jcopy)
 
 if __name__ == "__main__":
     unittest.main()

@@ -382,7 +382,7 @@ def factorize_rule(rule, method='min_fill'):
             i += 1
         
         # rhs
-        rhs = fggs.FactorGraph()
+        rhs = fggs.Graph()
         for v in bag:
             rhs.add_node(v)
         rhs.set_ext(ext)
@@ -399,7 +399,7 @@ def factorize_rule(rule, method='min_fill'):
                 child_lhs, child_ext = visit(n, bag)
                 rhs.add_edge(fggs.Edge(child_lhs, child_ext))
 
-        newrule = fggs.FGGRule(lhs, rhs)
+        newrule = fggs.Rule(lhs, rhs)
         newrules.append(newrule)
         return (lhs, ext)
     
@@ -408,10 +408,10 @@ def factorize_rule(rule, method='min_fill'):
     return newrules
 
 def factorize(g, method='min_fill'):
-    """Factorize a FGG's rules into smaller rules, hopefully with
+    """Factorize a HRG's rules into smaller rules, hopefully with
     lower maximum treewidth.
     """
-    gnew = fggs.FGG()
+    gnew = fggs.HRG()
     for r in g.all_rules():
         for rnew in factorize_rule(r, method=method):
             gnew.add_rule(rnew)

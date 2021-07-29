@@ -1,4 +1,4 @@
-__all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'FactorGraph', 'FGGRule', 'FGG', 'FGGInterpretation']
+__all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'Rule', 'HRG', 'Interpretation', 'FactorGraph', 'FGG']
 
 import random, string
 from typing import Optional, Iterable, Tuple
@@ -19,7 +19,7 @@ class NodeLabel:
 class EdgeLabel:
     """An edge label.
 
-    name (str): The name of the edge label, which must be unique within an FGG.
+    name (str): The name of the edge label, which must be unique within an HRG.
     node_labels (sequence of NodeLabels): If an edge has this label, its attachment nodes must have labels node_labels.
     is_terminal (bool, optional): This label is a terminal symbol.
     is_nonterminal (bool, optional): This label is a nonterminal symbol.
@@ -122,7 +122,7 @@ class Edge:
         return string
 
 
-class FactorGraph:
+class Graph:
 
     def __init__(self):
         self._nodes    = set()
@@ -154,13 +154,13 @@ class FactorGraph:
     
     def add_node(self, node: Node):
         if node.id in self._node_ids:
-            raise ValueError(f"Can't have two nodes with same ID {node.id} in same FactorGraph.")
+            raise ValueError(f"Can't have two nodes with same ID {node.id} in same Graph.")
         self._nodes.add(node)
         self._node_ids.add(node.id)
 
     def remove_node(self, node: Node):
         if node not in self._nodes:
-            raise ValueError(f'Node {node} cannot be removed because it does not belong to this FactorGraph')
+            raise ValueError(f'Node {node} cannot be removed because it does not belong to this Graph')
         for edge in self._edges:
             if node in edge.nodes:
                 raise ValueError(f'Node {node} cannot be removed because it is an attachment node of Edge {edge}')
@@ -169,7 +169,7 @@ class FactorGraph:
 
     def add_edge(self, edge: Edge):
         if edge.id in self._edge_ids:
-            raise ValueError(f"Can't have two edges with same ID {edge.id} in same FactorGraph.")
+            raise ValueError(f"Can't have two edges with same ID {edge.id} in same Graph.")
         for node in edge.nodes:
             if node not in self._nodes:
                 self._nodes.add(node)
@@ -178,7 +178,7 @@ class FactorGraph:
 
     def remove_edge(self, edge: Edge):
         if edge not in self._edges:
-            raise ValueError(f'FactorGraph does not contain Edge {edge}')
+            raise ValueError(f'Graph does not contain Edge {edge}')
         self._edges.remove(edge)
         self._edge_ids.remove(edge.id)
 
@@ -189,8 +189,8 @@ class FactorGraph:
         self._ext = tuple(nodes)
     
     def copy(self):
-        """Returns a copy of this FactorGraph."""
-        copy = FactorGraph()
+        """Returns a copy of this Graph."""
+        copy = Graph()
         copy._nodes = set(self._nodes)
         copy._node_ids = set(self._node_ids)
         copy._edges = set(self._edges)
@@ -199,10 +199,10 @@ class FactorGraph:
         return copy
 
     def __eq__(self, other):
-        """Tests if two FactorGraphs are equal, including their Node and Edge ids.
+        """Tests if two Graphs are equal, including their Node and Edge ids.
 
         Runs in O(|V|+|E|) time because the ids are required to be equal."""
-        return (isinstance(other, FactorGraph) and
+        return (isinstance(other, Graph) and
                 self._nodes == other._nodes and
                 self._edges == other._edges and
                 self._ext == other._ext)
@@ -226,13 +226,13 @@ class FactorGraph:
         return string
 
 
-class FGGRule:
+class Rule:
 
-    def __init__(self, lhs: EdgeLabel, rhs: FactorGraph):
+    def __init__(self, lhs: EdgeLabel, rhs: Graph):
         if lhs.is_terminal:
-            raise Exception(f"Can't make FGG rule with terminal left-hand side.")
+            raise Exception(f"Can't make HRG rule with terminal left-hand side.")
         if (lhs.type() != rhs.type()):
-            raise Exception(f"Can't make FGG rule: left-hand side of type ({','.join(l.name for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name for l in rhs.type())}).")
+            raise Exception(f"Can't make HRG rule: left-hand side of type ({','.join(l.name for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name for l in rhs.type())}).")
         self._lhs = lhs
         self._rhs = rhs
 
@@ -243,11 +243,11 @@ class FGGRule:
         return self._rhs
     
     def copy(self):
-        """Returns a copy of this FGGRule, whose right-hand side is a copy of the original's."""
-        return FGGRule(self.lhs(), self.rhs().copy())
+        """Returns a copy of this Rule, whose right-hand side is a copy of the original's."""
+        return Rule(self.lhs(), self.rhs().copy())
 
     def __eq__(self, other):
-        return (isinstance(other, FGGRule) and
+        return (isinstance(other, Rule) and
                 self._lhs == other._lhs and
                 self._rhs == other._rhs)
     def __ne__(self, other):
@@ -257,12 +257,12 @@ class FGGRule:
         return self.to_string(0)
     def to_string(self, indent):
         string = "\t"*indent
-        string += f"FGGRule with left-hand side {self._lhs.name} and right-hand side as follows:\n"
+        string += f"Rule with left-hand side {self._lhs.name} and right-hand side as follows:\n"
         string += self._rhs.to_string(indent+1)
         return string
 
 
-class FGG:
+class HRG:
     
     def __init__(self):
         self._node_labels  = dict()    # map from names to NodeLabels
@@ -343,7 +343,7 @@ class FGG:
     def start_symbol(self):
         return self._start
 
-    def add_rule(self, rule: FGGRule):
+    def add_rule(self, rule: Rule):
         lhs = rule.lhs()
         rhs = rule.rhs()
         
@@ -365,8 +365,8 @@ class FGG:
         return list(self._rules[lhs])
     
     def copy(self):
-        """Returns a copy of this FGG, whose rules are all copies of the original's."""
-        copy = FGG()
+        """Returns a copy of this HRG, whose rules are all copies of the original's."""
+        copy = HRG()
         copy._node_labels = self._node_labels.copy()
         copy._nonterminals = self._nonterminals.copy()
         copy._terminals = self._terminals.copy()
@@ -381,7 +381,7 @@ class FGG:
         self.rules(X) and other.rules(X) have the same rules but in a
         different order, then self and other are *not* considered
         equal."""
-        return (isinstance(other, FGG) and
+        return (isinstance(other, HRG) and
                 self._rules == other._rules and
                 self._start == other._start and
                 self._node_labels == other._node_labels and
@@ -408,13 +408,13 @@ class FGG:
         return string
 
     
-class FGGInterpretation:
+class Interpretation:
     def __init__(self):
         self.domains = {}
         self.factors = {}
 
     def can_interpret(self, g):
-        """Test whether this FGGInterpretation is compatible with FGG g."""
+        """Test whether this Interpretation is compatible with HRG g."""
         if set(self.domains.keys()) != set(g.node_labels()):
             return False
         if set(self.factors.keys()) != set(g.terminals()):
@@ -426,3 +426,14 @@ class FGGInterpretation:
         return True
 
     
+class FactorGraph:    
+    def __init__(self, graph: Graph, interp: Interpretation):
+        self.graph = graph
+        self.interp = interp
+
+        
+class FGG:
+    def __init__(self, grammar: HRG, interp: Interpretation):
+        self.grammar = grammar
+        self.interp = interp
+        

@@ -5,7 +5,7 @@ from fggs import fggs
 
 
 def check_namespace_collisions(fgg1, fgg2):
-    """Checks whether two FGGs have any conflicting NodeLabels or EdgeLabels."""
+    """Checks whether two HRGs have any conflicting NodeLabels or EdgeLabels."""
     # check for conflicting NodeLabels
     node_collisions = []
     for nl1 in fgg1.node_labels():
@@ -23,7 +23,7 @@ def check_namespace_collisions(fgg1, fgg2):
     return (node_collisions, edge_collisions)
 
 def conjoinable(rule1, rule2):
-    """Test whether two FGG rules are conjoinable."""
+    """Test whether two HRG rules are conjoinable."""
     
     # Must have same Nodes (in terms of Node id) with same NodeLabels
     if rule1.rhs().nodes() != rule2.rhs().nodes():
@@ -44,7 +44,7 @@ def conjoinable(rule1, rule2):
     return True
 
 def conjoin_rules(rule1, rule2):
-    """Conjoin two FGG rules.
+    """Conjoin two HRG rules.
 
     Assumes rules are conjoinable.
     Does not check for conjoinability."""
@@ -52,7 +52,7 @@ def conjoin_rules(rule1, rule2):
     new_lhs = fggs.EdgeLabel(name=f"<{rule1.lhs().name},{rule2.lhs().name}>",
                              is_nonterminal=True,
                              node_labels=rule1.lhs().type())
-    new_rhs = fggs.FactorGraph()
+    new_rhs = fggs.Graph()
     # add nodes
     for node in rule1.rhs().nodes():
         new_rhs.add_node(node)
@@ -79,17 +79,17 @@ def conjoin_rules(rule1, rule2):
     ts2 = rule2.rhs().terminals()
     for edge in ts1 + ts2:
         new_rhs.add_edge(edge)
-    return fggs.FGGRule(lhs=new_lhs, rhs=new_rhs)
+    return fggs.Rule(lhs=new_lhs, rhs=new_rhs)
 
 def conjoin_fggs(fgg1, fgg2):
-    """Conjoin two FGGS."""
+    """Conjoin two HRGS."""
     # first check for namespace collisions, and warn the user
     (n_col, e_col) = check_namespace_collisions(fgg1, fgg2)
     for (nl1, nl2) in n_col:
         warnings.warn(f"Warning during conjunction: fgg1 and fgg2 each have a different NodeLabel called {nl1.name}")
     for (el1, el2) in e_col:
         warnings.warn(f"Warning during conjunction: fgg1 and fgg2 each have a different EdgeLabel called {el1.name}")
-    new_fgg = fggs.FGG()
+    new_fgg = fggs.HRG()
     # add rules
     for rule1 in fgg1.all_rules():
         for rule2 in fgg2.all_rules():

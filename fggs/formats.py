@@ -1,13 +1,13 @@
-__all__ = ['json_to_fgg', 'fgg_to_json', 'json_to_fggi', 'fggi_to_json', 'factorgraph_to_dot', 'factorgraph_to_tikz', 'fgg_to_tikz']
+__all__ = ['json_to_hrg', 'hrg_to_json', 'json_to_interp', 'interp_to_json', 'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
 
 from fggs.fggs import *
 from fggs import domains, factors
 
 ### JSON
 
-def json_to_fgg(j):
-    """Convert an object loaded by json.load to an FGG."""
-    g = FGG()
+def json_to_hrg(j):
+    """Convert an object loaded by json.load to an HRG."""
+    g = HRG()
     
     for name, d in j['terminals'].items():
         t = tuple(NodeLabel(l) for l in d['type'])
@@ -21,7 +21,7 @@ def json_to_fgg(j):
 
     for r in j['rules']:
         lhs = g.get_nonterminal(r['lhs'])
-        rhs = FactorGraph()
+        rhs = Graph()
         nodes = []
         for node in r['rhs']['nodes']:
             v = Node(NodeLabel(node['label']), id=node.get('id', None))
@@ -42,12 +42,12 @@ def json_to_fgg(j):
             except IndexError:
                 raise ValueError(f'invalid external node number {vi} (out of {len(nodes)})')
         rhs.set_ext(ext)
-        g.add_rule(FGGRule(lhs, rhs))
+        g.add_rule(Rule(lhs, rhs))
         
     return g
 
-def fgg_to_json(g):
-    """Convert an FGG to an object writable by json.dump()."""
+def hrg_to_json(g):
+    """Convert an HRG to an object writable by json.dump()."""
     j = {}
 
     j['terminals'] = {}
@@ -86,14 +86,14 @@ def fgg_to_json(g):
         
     return j
 
-def json_to_fggi(j):
-    """Convert an object loaded by json.load to an FGGInterpretation."""
-    fggi = FGGInterpretation()
+def json_to_interp(j):
+    """Convert an object loaded by json.load to an Interpretation."""
+    interp = Interpretation()
 
     for name, d in j['domains'].items():
         nl = NodeLabel(name)
         if d['class'] == 'finite':
-            fggi.domains[nl] = domains.FiniteDomain(d['values'])
+            interp.domains[nl] = domains.FiniteDomain(d['values'])
         else:
             raise ValueError(f'invalid domain class: {d["type"]}')
 
@@ -101,20 +101,20 @@ def json_to_fggi(j):
         nls = [NodeLabel(nl) for nl in d['type']]
         el = EdgeLabel(name, nls, is_terminal=True)
         if d['function'] == 'categorical':
-            size = [fggi.domains[nl].size() for nl in nls]
+            size = [interp.domains[nl].size() for nl in nls]
             weights = d['weights']
-            fggi.factors[el] = factors.CategoricalFactor([fggi.domains[nl] for nl in nls], weights)
+            interp.factors[el] = factors.CategoricalFactor([interp.domains[nl] for nl in nls], weights)
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
         
-    return fggi
+    return interp
 
-def fggi_to_json(g):
-    """Convert an FGGInterpretation to an object writable by json.dump()."""
+def interp_to_json(interp):
+    """Convert an Interpretation to an object writable by json.dump()."""
     j = {}
 
     j['domains'] = {}
-    for nl, dom in fggi.domains.items():
+    for nl, dom in interp.domains.items():
         if isinstance(dom, domains.FiniteDomain):
             j['domains'][nl.name] = {
                 'class' : 'finite',
@@ -124,7 +124,7 @@ def fggi_to_json(g):
             raise NotImplementedError(f'unsupported domain type {type(j.domain)}')
 
     j['factors'] = {}
-    for el, fac in fggi.factors.items():
+    for el, fac in interp.factors.items():
         if isinstance(fac, factors.CategoricalFactor):
             j['factors'][el.name] = {
                 'function': 'categorical',
@@ -147,8 +147,8 @@ def _get_format(factor_formats, x, i):
     else:
         return ('', fmt)
     
-def factorgraph_to_dot(g: FactorGraph, factor_formats=None, lhs=None):
-    """Convert a FactorGraph to a pydot.Dot.
+def graph_to_dot(g: Graph, factor_formats=None, lhs=None):
+    """Convert a Graph to a pydot.Dot.
 
     factor_formats is an optional dict that provides additional
     information about factors (EdgeLabels). If f is an EdgeLabel, then
@@ -232,8 +232,8 @@ def factorgraph_to_dot(g: FactorGraph, factor_formats=None, lhs=None):
         
     return dot
 
-def factorgraph_to_tikz(g: FactorGraph, factor_formats=None, lhs=None):
-    """Convert a FactorGraph to LaTeX/TikZ code.
+def graph_to_tikz(g: Graph, factor_formats=None, lhs=None):
+    """Convert a Graph to LaTeX/TikZ code.
 
     The resulting code makes use of several TikZ styles. Some suggested
     definitions for these styles are:
@@ -248,7 +248,7 @@ def factorgraph_to_tikz(g: FactorGraph, factor_formats=None, lhs=None):
     import pydot
     
     # Convert to DOT just to get layout information
-    dot = factorgraph_to_dot(g, factor_formats, lhs)
+    dot = graph_to_dot(g, factor_formats, lhs)
     dot = pydot.graph_from_dot_data(dot.create_dot().decode('utf8'))[0]
 
     positions = {}
@@ -293,8 +293,8 @@ def factorgraph_to_tikz(g: FactorGraph, factor_formats=None, lhs=None):
     res.append(r'\end{tikzpicture}')
     return '\n'.join(res)
 
-def fgg_to_tikz(g, factor_formats=None):
-    """Convert an FGG to LaTeX/TikZ code.
+def hrg_to_tikz(g, factor_formats=None):
+    """Convert an HRG to LaTeX/TikZ code.
 
     The resulting code makes use of several TikZ styles. Some suggested
     definitions for these styles are:
@@ -310,11 +310,11 @@ def fgg_to_tikz(g, factor_formats=None):
     res.append(r'\begin{align*}')
     for r in g.all_rules():
         # Build a little factor graph for the lhs
-        lhs = FactorGraph()
+        lhs = Graph()
         lhs.add_edge(Edge(r.lhs(), [Node(x) for x in r.lhs().type()]))
         
-        res.append(factorgraph_to_tikz(lhs, factor_formats, r.lhs()) +
+        res.append(graph_to_tikz(lhs, factor_formats, r.lhs()) +
                    ' &\longrightarrow ' +
-                   factorgraph_to_tikz(r.rhs(), factor_formats, r.lhs()) + r'\\')
+                   graph_to_tikz(r.rhs(), factor_formats, r.lhs()) + r'\\')
     res.append(r'\end{align*}')
     return '\n'.join(res)

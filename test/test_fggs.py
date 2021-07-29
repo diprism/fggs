@@ -117,7 +117,7 @@ class TestEdge(unittest.TestCase):
             bad_edge = self.Edge(self.el2, (self.node2, self.node2))
     
         
-class TestFactorGraph(unittest.TestCase):
+class TestGraph(unittest.TestCase):
 
     def setUp(self):
         self.nl1   = NodeLabel("nl1")
@@ -130,7 +130,7 @@ class TestFactorGraph(unittest.TestCase):
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
         
-        self.graph = FactorGraph()
+        self.graph = Graph()
         self.graph.add_node(self.node1)
         self.graph.add_node(self.node2)
         self.graph.add_edge(self.edge1)
@@ -144,10 +144,10 @@ class TestFactorGraph(unittest.TestCase):
         self.assertTrue(self.node2 in nodes)
 
     def test_add_node_duplicate(self):
-        # Can't add a Node already in a FactorGraph
+        # Can't add a Node already in a Graph
         with self.assertRaises(ValueError):
             self.graph.add_node(self.node1)
-        # nor a copy of a Node already in a FactorGraph
+        # nor a copy of a Node already in a Graph
         new_node = Node(self.nl1, id=self.node1.id)
         with self.assertRaises(ValueError):
             self.graph.add_node(new_node)
@@ -159,10 +159,10 @@ class TestFactorGraph(unittest.TestCase):
         self.assertTrue(self.edge2 in edges)
 
     def test_add_edge_duplicate(self):
-        # Can't add an Edge already in a FactorGraph
+        # Can't add an Edge already in a Graph
         with self.assertRaises(ValueError):
             self.graph.add_edge(self.edge1)
-        # nor a copy of an Edge already in a FactorGraph
+        # nor a copy of an Edge already in a Graph
         new_edge = Edge(self.el1, (self.node1, self.node2), id=self.edge1.id)
         with self.assertRaises(ValueError):
             self.graph.add_edge(new_edge)
@@ -224,7 +224,7 @@ class TestFactorGraph(unittest.TestCase):
     def test_equal(self):
         self.assertEqual(self.graph, self.graph)
         
-        copy = FactorGraph()
+        copy = Graph()
         copy.add_node(self.node1)
         copy.add_node(self.node2)
         copy.add_edge(self.edge1)
@@ -233,7 +233,7 @@ class TestFactorGraph(unittest.TestCase):
 
         self.assertEqual(self.graph, copy)
 
-class TestFGGRule(unittest.TestCase):
+class TestRule(unittest.TestCase):
 
     def setUp(self):
         nl = NodeLabel("nl1")
@@ -245,16 +245,16 @@ class TestFGGRule(unittest.TestCase):
         nonterminal_mismatch = EdgeLabel("nonterminal1", (nl,), is_nonterminal=True)
         nonterminal_match = EdgeLabel("nonterminal2", (nl, nl), is_nonterminal=True)
         
-        graph = FactorGraph()
+        graph = Graph()
         graph.add_node(node1)
         graph.add_node(node2)
         graph.set_ext((node1, node2))
         
         with self.assertRaises(Exception):
-            rule = FGGRule(terminal, graph)
+            rule = Rule(terminal, graph)
         with self.assertRaises(Exception):
-            rule = FGGRule(nonterminal_mismatch, graph)
-        self.rule = FGGRule(nonterminal_match, graph)
+            rule = Rule(nonterminal_mismatch, graph)
+        self.rule = Rule(nonterminal_match, graph)
 
     def test_copy_equal(self):
         rule = self.rule
@@ -262,7 +262,7 @@ class TestFGGRule(unittest.TestCase):
         self.assertNotEqual(id(rule), id(copy))
         self.assertEqual(rule, copy)
         
-class TestFGG(unittest.TestCase):
+class TestHRG(unittest.TestCase):
 
     def setUp(self):
         self.nl1   = NodeLabel("nl1")
@@ -275,7 +275,7 @@ class TestFGG(unittest.TestCase):
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
         
-        self.graph = FactorGraph()
+        self.graph = Graph()
         self.graph.add_node(self.node1)
         self.graph.add_node(self.node2)
         self.graph.add_edge(self.edge1)
@@ -283,15 +283,15 @@ class TestFGG(unittest.TestCase):
         self.graph.set_ext(tuple())
         
         self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
-        self.rule = FGGRule(self.start, self.graph)
+        self.rule = Rule(self.start, self.graph)
         
         self.node3 = Node(self.nl2)
-        self.graph2 = FactorGraph()
+        self.graph2 = Graph()
         self.graph2.add_node(self.node3)
         self.graph2.set_ext((self.node3,))
-        self.rule2 = FGGRule(self.el2, self.graph2)
+        self.rule2 = Rule(self.el2, self.graph2)
 
-        self.fgg = FGG()
+        self.fgg = HRG()
         self.fgg.add_node_label(self.nl1)
         self.fgg.add_node_label(self.nl2)
         self.fgg.add_terminal(self.el1)
@@ -381,12 +381,12 @@ class TestFGG(unittest.TestCase):
         new_node1 = Node(new_nl)
         new_node2 = Node(new_nl)
         new_edge  = Edge(new_t, (new_node1,))
-        new_graph = FactorGraph()
+        new_graph = Graph()
         new_graph.add_node(new_node1)
         new_graph.add_node(new_node2)
         new_graph.add_edge(new_edge)
         new_graph.set_ext((new_node1, new_node2))
-        new_rule  = FGGRule(new_nt, new_graph)
+        new_rule  = Rule(new_nt, new_graph)
         
         self.fgg.add_rule(new_rule)
         
@@ -401,7 +401,7 @@ class TestFGG(unittest.TestCase):
         self.assertEqual(fgg, copy)
 
 
-class TestFGGInterpretation(unittest.TestCase):
+class TestInterpretation(unittest.TestCase):
 
     def setUp(self):
         self.dom1 = FiniteDomain(['foo', 'bar', 'baz'])
@@ -426,7 +426,7 @@ class TestFGGInterpretation(unittest.TestCase):
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
         
-        self.graph = FactorGraph()
+        self.graph = Graph()
         self.graph.add_node(self.node1)
         self.graph.add_node(self.node2)
         self.graph.add_edge(self.edge1)
@@ -434,15 +434,15 @@ class TestFGGInterpretation(unittest.TestCase):
         self.graph.set_ext(tuple())
         
         self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
-        self.rule = FGGRule(self.start, self.graph)
+        self.rule = Rule(self.start, self.graph)
         
         self.node3 = Node(self.nl2)
-        self.graph2 = FactorGraph()
+        self.graph2 = Graph()
         self.graph2.add_node(self.node3)
         self.graph2.set_ext((self.node3,))
-        self.rule2 = FGGRule(self.el2, self.graph2)
+        self.rule2 = Rule(self.el2, self.graph2)
 
-        self.fgg = FGG()
+        self.fgg = HRG()
         self.fgg.add_node_label(self.nl1)
         self.fgg.add_node_label(self.nl2)
         self.fgg.add_terminal(self.el1)
@@ -453,7 +453,7 @@ class TestFGGInterpretation(unittest.TestCase):
         self.fgg.add_rule(self.rule2)
 
     def test_can_interpret(self):
-        interp = FGGInterpretation()
+        interp = Interpretation()
         interp.domains[self.nl1] = self.dom1
         interp.domains[self.nl2] = self.dom2
         interp.factors[self.el1] = self.fac1
