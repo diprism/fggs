@@ -2,6 +2,8 @@ __all__ = ['conjoin_fggs']
 
 from fggs import fggs
 
+def name_pair(nt1, nt2):
+    return f'<{nt1.name!r},{nt2.name!r}>'
 
 def check_namespace_collisions(fgg1, fgg2):
     """Checks whether two FGGs have any conflicting NodeLabels or EdgeLabels."""
@@ -48,7 +50,7 @@ def conjoin_rules(rule1, rule2):
     Assumes rules are conjoinable.
     Does not check for conjoinability."""
     
-    new_lhs = fggs.EdgeLabel(name=f"<{rule1.lhs().name},{rule2.lhs().name}>",
+    new_lhs = fggs.EdgeLabel(name=name_pair(rule1.lhs(), rule2.lhs()),
                              is_terminal=False,
                              node_labels=rule1.lhs().type())
     new_rhs = fggs.FactorGraph()
@@ -64,7 +66,7 @@ def conjoin_rules(rule1, rule2):
                   key=lambda edge: edge.id)
     new_labels = dict()
     for (edge1,edge2) in zip(nts1,nts2):
-        name = f"<{edge1.label.name},{edge2.label.name}>"
+        name = name_pair(edge1.label, edge2.label)
         if name in new_labels:
             label = new_labels[name]
         else:
@@ -97,7 +99,7 @@ def conjoin_fggs(fgg1, fgg2):
                 new_fgg.add_rule(conjoin_rules(rule1, rule2))
     # set the start symbol
     # (may not actually be used in any rules)
-    start_name = f"<{fgg1.start_symbol().name},{fgg2.start_symbol().name}>"
+    start_name = name_pair(fgg1.start_symbol(), fgg2.start_symbol())
     if new_fgg.has_edge_label(start_name):
         start_label = new_fgg.get_edge_label(start_name)
     else:
