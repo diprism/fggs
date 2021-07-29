@@ -93,7 +93,7 @@ def json_to_interp(j):
     for name, d in j['domains'].items():
         nl = NodeLabel(name)
         if d['class'] == 'finite':
-            interp.domains[nl] = domains.FiniteDomain(d['values'])
+            interp.add_domain(nl, domains.FiniteDomain(d['values']))
         else:
             raise ValueError(f'invalid domain class: {d["type"]}')
 
@@ -103,7 +103,7 @@ def json_to_interp(j):
         if d['function'] == 'categorical':
             size = [interp.domains[nl].size() for nl in nls]
             weights = d['weights']
-            interp.factors[el] = factors.CategoricalFactor([interp.domains[nl] for nl in nls], weights)
+            interp.add_factor(el, factors.CategoricalFactor([interp.domains[nl] for nl in nls], weights))
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
         

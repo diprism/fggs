@@ -413,18 +413,32 @@ class Interpretation:
         self.domains = {}
         self.factors = {}
 
-    def can_interpret(self, g):
+    def can_interpret(self, g: HRG):
         """Test whether this Interpretation is compatible with HRG g."""
-        if set(self.domains.keys()) != set(g.node_labels()):
-            return False
-        if set(self.factors.keys()) != set(g.terminals()):
-            return False
-        
-        for el in g.terminals():
-            if list(self.factors[el].domains()) != [self.domains[nl] for nl in el.node_labels]:
-                return False
-        return True
+        return (set(self.domains.keys()).issuperset(set(g.node_labels())) and
+                set(self.factors.keys()).issuperset(set(g.terminals())))
+    
+    def add_domain(self, nl: NodeLabel, dom: Domain):
+        """Add mapping from NodeLabel nl to Domain dom."""
+        if nl in self.domains:
+            raise ValueError(f"NodeLabel {nl} is already mapped")
+        self.domains[nl] = dom
 
+    def add_factor(self, el: EdgeLabel, fac: Factor):
+        if el.is_nonterminal:
+            raise ValueError(f"Nonterminals cannot be mapped to Factors")
+        if el in self.factors:
+            raise ValueError(f"EdgeLabel {el} is already mapped")
+        doms = list(fac.domains())
+        if len(doms) != len(el.node_labels):
+            raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (wrong arity)')
+        for nl, dom in zip(el.node_labels, doms):
+            if nl not in self.domains:
+                raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} not mapped)')
+            elif dom != self.domains[nl]:
+                raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} != Domain {self.domains[nl]})')
+        self.factors[el] = fac
+        
     
 class FactorGraph:    
     def __init__(self, graph: Graph, interp: Interpretation):

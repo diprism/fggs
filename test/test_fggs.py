@@ -411,10 +411,11 @@ class TestInterpretation(unittest.TestCase):
                                       [[1, 2, 3, 4],
                                        [5, 6, 7, 8],
                                        [1, 2, 3, 4]])
-        self.fac2 = CategoricalFactor([self.dom1, self.dom1],
-                                      [[1, 2, 3],
-                                       [5, 6, 7],
-                                       [1, 2, 3]])
+        self.fac2 = CategoricalFactor([self.dom2], [0, 0, 0, 0])
+        self.fac1_wrong = CategoricalFactor([self.dom1, self.dom1],
+                                            [[1, 2, 3],
+                                             [5, 6, 7],
+                                             [1, 2, 3]])
         
         self.nl1   = NodeLabel("nl1")
         self.nl2   = NodeLabel("nl2")
@@ -452,25 +453,20 @@ class TestInterpretation(unittest.TestCase):
         self.fgg.add_rule(self.rule)
         self.fgg.add_rule(self.rule2)
 
-    def test_can_interpret(self):
+    def test_interpretation(self):
         interp = Interpretation()
-        interp.domains[self.nl1] = self.dom1
-        interp.domains[self.nl2] = self.dom2
-        interp.factors[self.el1] = self.fac1
+        interp.add_domain(self.nl1, self.dom1)
+        with self.assertRaises(ValueError):
+            interp.add_domain(self.nl1, self.dom1)
+        self.assertFalse(interp.can_interpret(self.fgg))
+        interp.add_domain(self.nl2, self.dom2)
+        self.assertFalse(interp.can_interpret(self.fgg))
+        interp.add_factor(self.el1, self.fac1)
+        with self.assertRaises(ValueError):
+            interp.add_factor(self.el1, self.fac1)
+        with self.assertRaises(ValueError):
+            interp.add_factor(self.el2, self.fac2)
         self.assertTrue(interp.can_interpret(self.fgg))
-        
-        del interp.domains[self.nl2]
-        self.assertFalse(interp.can_interpret(self.fgg))
-        
-        interp.domains[self.nl2] = self.dom1
-        self.assertFalse(interp.can_interpret(self.fgg))
-        
-        interp.domains[self.nl2] = self.dom2
-        del interp.factors[self.el1]
-        self.assertFalse(interp.can_interpret(self.fgg))
-        
-        interp.factors[self.el1] = self.fac2
-        self.assertFalse(interp.can_interpret(self.fgg))
         
 if __name__ == "__main__":
     unittest.main()
