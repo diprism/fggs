@@ -233,7 +233,7 @@ class TestGraph(unittest.TestCase):
 
         self.assertEqual(self.graph, copy)
 
-class TestRule(unittest.TestCase):
+class TestHRGRule(unittest.TestCase):
 
     def setUp(self):
         nl = NodeLabel("nl1")
@@ -251,10 +251,10 @@ class TestRule(unittest.TestCase):
         graph.set_ext((node1, node2))
         
         with self.assertRaises(Exception):
-            rule = Rule(terminal, graph)
+            rule = HRGRule(terminal, graph)
         with self.assertRaises(Exception):
-            rule = Rule(nonterminal_mismatch, graph)
-        self.rule = Rule(nonterminal_match, graph)
+            rule = HRGRule(nonterminal_mismatch, graph)
+        self.rule = HRGRule(nonterminal_match, graph)
 
     def test_copy_equal(self):
         rule = self.rule
@@ -283,13 +283,13 @@ class TestHRG(unittest.TestCase):
         self.graph.set_ext(tuple())
         
         self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
-        self.rule = Rule(self.start, self.graph)
+        self.rule = HRGRule(self.start, self.graph)
         
         self.node3 = Node(self.nl2)
         self.graph2 = Graph()
         self.graph2.add_node(self.node3)
         self.graph2.set_ext((self.node3,))
-        self.rule2 = Rule(self.el2, self.graph2)
+        self.rule2 = HRGRule(self.el2, self.graph2)
 
         self.fgg = HRG()
         self.fgg.add_node_label(self.nl1)
@@ -386,7 +386,7 @@ class TestHRG(unittest.TestCase):
         new_graph.add_node(new_node2)
         new_graph.add_edge(new_edge)
         new_graph.set_ext((new_node1, new_node2))
-        new_rule  = Rule(new_nt, new_graph)
+        new_rule  = HRGRule(new_nt, new_graph)
         
         self.fgg.add_rule(new_rule)
         
@@ -435,13 +435,13 @@ class TestInterpretation(unittest.TestCase):
         self.graph.set_ext(tuple())
         
         self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
-        self.rule = Rule(self.start, self.graph)
+        self.rule = HRGRule(self.start, self.graph)
         
         self.node3 = Node(self.nl2)
         self.graph2 = Graph()
         self.graph2.add_node(self.node3)
         self.graph2.set_ext((self.node3,))
-        self.rule2 = Rule(self.el2, self.graph2)
+        self.rule2 = HRGRule(self.el2, self.graph2)
 
         self.fgg = HRG()
         self.fgg.add_node_label(self.nl1)

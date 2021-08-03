@@ -1,4 +1,4 @@
-__all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'Rule', 'HRG', 'Interpretation', 'FactorGraph', 'FGG']
+__all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 'Interpretation', 'FactorGraph', 'FGG']
 
 import random, string
 from typing import Optional, Iterable, Tuple
@@ -226,7 +226,7 @@ class Graph:
         return string
 
 
-class Rule:
+class HRGRule:
 
     def __init__(self, lhs: EdgeLabel, rhs: Graph):
         if lhs.is_terminal:
@@ -243,11 +243,11 @@ class Rule:
         return self._rhs
     
     def copy(self):
-        """Returns a copy of this Rule, whose right-hand side is a copy of the original's."""
-        return Rule(self.lhs(), self.rhs().copy())
+        """Returns a copy of this HRGRule, whose right-hand side is a copy of the original's."""
+        return HRGRule(self.lhs(), self.rhs().copy())
 
     def __eq__(self, other):
-        return (isinstance(other, Rule) and
+        return (isinstance(other, HRGRule) and
                 self._lhs == other._lhs and
                 self._rhs == other._rhs)
     def __ne__(self, other):
@@ -257,7 +257,7 @@ class Rule:
         return self.to_string(0)
     def to_string(self, indent):
         string = "\t"*indent
-        string += f"Rule with left-hand side {self._lhs.name} and right-hand side as follows:\n"
+        string += f"HRGRule with left-hand side {self._lhs.name} and right-hand side as follows:\n"
         string += self._rhs.to_string(indent+1)
         return string
 
@@ -343,7 +343,7 @@ class HRG:
     def start_symbol(self):
         return self._start
 
-    def add_rule(self, rule: Rule):
+    def add_rule(self, rule: HRGRule):
         lhs = rule.lhs()
         rhs = rule.rhs()
         

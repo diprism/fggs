@@ -79,7 +79,7 @@ def conjoin_rules(rule1, rule2):
     ts2 = rule2.rhs().terminals()
     for edge in ts1 + ts2:
         new_rhs.add_edge(edge)
-    return fggs.Rule(lhs=new_lhs, rhs=new_rhs)
+    return fggs.HRGRule(lhs=new_lhs, rhs=new_rhs)
 
 def conjoin_hrgs(hrg1, hrg2):
     """Conjoin two HRGS."""

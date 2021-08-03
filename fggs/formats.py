@@ -42,7 +42,7 @@ def json_to_hrg(j):
             except IndexError:
                 raise ValueError(f'invalid external node number {vi} (out of {len(nodes)})')
         rhs.set_ext(ext)
-        g.add_rule(Rule(lhs, rhs))
+        g.add_rule(HRGRule(lhs, rhs))
         
     return g
 

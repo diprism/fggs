@@ -25,14 +25,14 @@ def replace_edges(graph: Graph, replacements: Dict[Edge, Graph]):
         if not edge.label.is_nonterminal:
             raise ValueError("Only a nonterminal-labeled edge can be replaced.")
 
-        if isinstance(repl, Rule):
+        if isinstance(repl, HRGRule):
             if edge.label != repl.lhs():
-                raise ValueError("An edge can only be replaced with a Rule with a matching left-hand side.")
+                raise ValueError("An edge can only be replaced with a HRGRule with a matching left-hand side.")
         elif isinstance(repl, Graph):
             if edge.label.type() != repl.type():
                 raise ValueError("A graph fragment can only replace a edge with the same type.")
         else:
-            raise TypeError("The replacement for an edge must be a Rule or a Graph.")
+            raise TypeError("The replacement for an edge must be a HRGRule or a Graph.")
 
 
     ret = Graph()
@@ -44,7 +44,7 @@ def replace_edges(graph: Graph, replacements: Dict[Edge, Graph]):
             ret.add_edge(e)
     for e in replacements:
         repl = replacements[e]
-        if isinstance(repl, Rule):
+        if isinstance(repl, HRGRule):
             repl = repl.rhs()
         rnodes = {}
         for ve, vr in zip(e.nodes, repl.ext()):

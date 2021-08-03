@@ -399,7 +399,7 @@ def factorize_rule(rule, method='min_fill'):
                 child_lhs, child_ext = visit(n, bag)
                 rhs.add_edge(fggs.Edge(child_lhs, child_ext))
 
-        newrule = fggs.Rule(lhs, rhs)
+        newrule = fggs.HRGRule(lhs, rhs)
         newrules.append(newrule)
         return (lhs, ext)
     
