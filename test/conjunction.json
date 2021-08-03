@@ -47,27 +47,27 @@
         }
     },
     "nonterminals": {
-        "<'S','S'>": { "type" : [] },
-        "<'X','X'>": { "type" : ["T"] },
-        "<'X','Y'>": { "type" : ["T"] }
+        "<S,S>": { "type" : [] },
+        "<X,X>": { "type" : ["T"] },
+        "<X,Y>": { "type" : ["T"] }
     },
-    "start": "<'S','S'>",
+    "start": "<S,S>",
     "rules": [
         {
-            "lhs": "<'S','S'>",
+            "lhs": "<S,S>",
             "rhs": {
                 "nodes": [
                     { "id": "v0", "label": "T" }
                 ],
                 "edges": [
                     { "id": "e0", "attachments": [0], "label": "is_bos" },
-                    { "id": "e1", "attachments": [0], "label": "<'X','X'>" }
+                    { "id": "e1", "attachments": [0], "label": "<X,X>" }
                 ],
                 "externals": []
             }
         },
         {
-            "lhs": "<'X','X'>",
+            "lhs": "<X,X>",
             "rhs": {
                 "nodes": [
                     { "id": "v0", "label": "T" },
@@ -77,13 +77,13 @@
                 "edges": [
                     { "id": "e0", "attachments": [0, 1], "label": "transition" },
                     { "id": "e1", "attachments": [1, 2], "label": "emission" },
-                    { "id": "e2", "attachments": [1], "label": "<'X','X'>" }
+                    { "id": "e2", "attachments": [1], "label": "<X,X>" }
                 ],
                 "externals": [0]
             }
         },
         {
-            "lhs": "<'X','X'>",
+            "lhs": "<X,X>",
             "rhs": {
                 "nodes": [
                     { "id": "v0", "label": "T" },
@@ -93,14 +93,14 @@
                 "edges": [
                     { "id": "e0", "attachments": [0, 1], "label": "transition" },
                     { "id": "e1", "attachments": [1, 2], "label": "emission" },
-                    { "id": "e2", "attachments": [1], "label": "<'X','Y'>" },
+                    { "id": "e2", "attachments": [1], "label": "<X,Y>" },
                     { "id": "e3", "attachments": [1], "label": "is_vbd" }
                 ],
                 "externals": [0]
             }
         },
         {
-            "lhs": "<'X','Y'>",
+            "lhs": "<X,Y>",
             "rhs": {
                 "nodes": [
                     { "id": "v0", "label": "T" },

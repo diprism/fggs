@@ -32,7 +32,7 @@ class TestConjunction(unittest.TestCase):
             if "Y" in [nt.label.name for nt in rule.rhs().nonterminals()]:
                 self.xrule2 = rule
         
-        xrules3 = self.conjunction.rules(self.conjunction.get_nonterminal("<'X','X'>"))
+        xrules3 = self.conjunction.rules(self.conjunction.get_nonterminal("<X,X>"))
         for rule in xrules3:
             if "Y" in [nt.label.name for nt in rule.rhs().nonterminals()]:
                 self.xrule3 = rule

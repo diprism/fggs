@@ -2,10 +2,23 @@ __all__ = ['conjoin_fggs']
 
 from fggs import fggs
 
-def name_pair(nt1, nt2):
-    return fggs.EdgeLabel(name=f'<{nt1.name!r},{nt2.name!r}>',
-                          is_terminal=False,
-                          node_labels=nt1.type())
+def nonterminal_pairs(fgg1, fgg2):
+    nt_map = {}
+    new_nts = set()
+    for el1 in fgg1.nonterminals():
+        for el2 in fgg2.nonterminals():
+            new_nt = fggs.EdgeLabel(name=f'<{el1.name},{el2.name}>',
+                                    is_terminal=False,
+                                    node_labels=el1.type())
+            i = 2
+            while new_nt in new_nts:
+                new_nt = fggs.EdgeLabel(name=f'<{el1.name},{el2.name}>_{i}',
+                                        is_terminal=False,
+                                        node_labels=el1.type())
+                i += 1
+            nt_map[el1,el2] = new_nt
+            new_nts.add(new_nt)
+    return nt_map
 
 def check_namespace_collisions(fgg1, fgg2):
     """Checks whether two FGGs have any conflicting NodeLabels or EdgeLabels."""
@@ -46,13 +59,13 @@ def conjoinable(rule1, rule2):
         return False
     return True
 
-def conjoin_rules(rule1, rule2):
+def conjoin_rules(rule1, rule2, nt_map):
     """Conjoin two FGG rules.
 
     Assumes rules are conjoinable.
     Does not check for conjoinability."""
     
-    new_lhs = name_pair(rule1.lhs(), rule2.lhs())
+    new_lhs = nt_map[rule1.lhs(), rule2.lhs()]
     new_rhs = fggs.FactorGraph()
     # add nodes
     for node in rule1.rhs().nodes():
@@ -65,7 +78,7 @@ def conjoin_rules(rule1, rule2):
     nts2 = sorted([edge for edge in rule2.rhs().nonterminals()],
                   key=lambda edge: edge.id)
     for (edge1,edge2) in zip(nts1,nts2):
-        new_rhs.add_edge(fggs.Edge(label=name_pair(edge1.label, edge2.label),
+        new_rhs.add_edge(fggs.Edge(label=nt_map[edge1.label, edge2.label],
                                    nodes=edge1.nodes,
                                    id=edge1.id))
     # add terminal edges
@@ -84,13 +97,14 @@ def conjoin_fggs(fgg1, fgg2):
     for (el1, el2) in e_col:
         if el1.is_terminal and el2.is_terminal:
             raise ValueError(f"Cannot conjoin fgg1 and fgg2 because they each have a different terminal EdgeLabel called {el1.name}")
+    nt_map = nonterminal_pairs(fgg1, fgg2)
     new_fgg = fggs.FGG()
     # add rules
     for rule1 in fgg1.all_rules():
         for rule2 in fgg2.all_rules():
             if conjoinable(rule1, rule2):
-                new_fgg.add_rule(conjoin_rules(rule1, rule2))
+                new_fgg.add_rule(conjoin_rules(rule1, rule2, nt_map))
     # set the start symbol
     # (may not actually be used in any rules)
-    new_fgg.set_start_symbol(name_pair(fgg1.start_symbol(), fgg2.start_symbol()))
+    new_fgg.set_start_symbol(nt_map[fgg1.start_symbol(), fgg2.start_symbol()])
     return new_fgg
