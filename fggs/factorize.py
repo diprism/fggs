@@ -417,16 +417,3 @@ def factorize(g, method='min_fill'):
             gnew.add_rule(rnew)
     gnew.set_start_symbol(g.start_symbol())
     return gnew
-
-if __name__ == "__main__":
-    import json
-    import sys
-    import formats
-
-    if len(sys.argv) != 3:
-        print('usage: factorize.py <infile> <outfile>', file=sys.stderr)
-        exit(1)
-
-    g = formats.json_to_fgg(json.load(open(sys.argv[1])))
-    g = factorize(g)
-    json.dump(formats.fgg_to_json(g), open(sys.argv[2], 'w'), indent=2)

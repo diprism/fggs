@@ -434,7 +434,7 @@ class Interpretation:
             raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (wrong arity)')
         for nl, dom in zip(el.node_labels, doms):
             if nl not in self.domains:
-                raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} not mapped)')
+                raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (NodeLabel {dom} not mapped)')
             elif dom != self.domains[nl]:
                 raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} != Domain {self.domains[nl]})')
         self.factors[el] = fac

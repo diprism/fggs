@@ -3,7 +3,7 @@ import json
 import os
 import warnings
 import fggs
-from fggs.conjunction import check_namespace_collisions, conjoinable, conjoin_rules, conjoin_fggs
+from fggs.conjunction import check_namespace_collisions, conjoinable, conjoin_rules, conjoin_hrgs
 
 
 class TestConjunction(unittest.TestCase):
@@ -63,7 +63,7 @@ class TestConjunction(unittest.TestCase):
         self.assertEqual(len(e), 1)
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            conjoin_fggs(self.hmm, self.conjunct)
+            conjoin_hrgs(self.hmm, self.conjunct)
             self.assertEqual(len(w), 1)
 
     def test_conjoinable(self):    
@@ -102,7 +102,7 @@ class TestConjunction(unittest.TestCase):
         self.restore()
 
     def test_conjunction(self):
-        conjunction_check = conjoin_fggs(self.hmm, self.conjunct)
+        conjunction_check = conjoin_hrgs(self.hmm, self.conjunct)
         conjunction_json_check = fggs.hrg_to_json(conjunction_check)
         self.maxDiff = 10000
         self.assertEqual(self.conjunction_json.keys(), conjunction_json_check.keys())
