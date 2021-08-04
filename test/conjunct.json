@@ -1,20 +1,6 @@
 {
-    "domains": {
-        "T": {
-            "class": "finite",
-            "values": ["DT", "NN", "VBD", "IN", "BOS", "EOS"]
-        },
-        "W": {
-            "class": "finite",
-            "values": ["the", "cat", "sat", "on", "mat"]
-        }
-    },
-    "factors": {
-        "is_vbd": {
-            "function": "categorical",
-            "type": ["T"],
-            "weights": [0, 0, 1, 0, 0, 0]
-        }
+    "terminals": {
+        "is_vbd": { "type": ["T"] }
     },
     "nonterminals": {
         "S": { "type" : [] },

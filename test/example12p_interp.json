@@ -1,0 +1,49 @@
+{
+    "domains": {
+        "Bool": {
+            "class": "finite",
+            "values": ["false", "true"]
+        },
+        "Bool->Bool": {
+            "class": "finite",
+            "values": ["false->false", "false->true", "true->false", "true->true"]
+        },
+        "Unit": {
+            "class": "finite",
+            "values": ["unit"]
+        }
+    },
+    "factors": {
+        "v=(v1,v2)": {
+            "function": "categorical",
+            "type": ["Bool", "Bool", "Bool->Bool"],
+            "weights": [[[1, 0, 0, 0], [0, 1, 0, 0]],
+                        [[0, 0, 1, 0], [0, 0, 0, 1]]]
+        },
+        "v=true": {
+            "function": "categorical",
+            "type": ["Bool"],
+            "weights": [0, 1]
+        },
+        "v=false": {
+            "function": "categorical",
+            "type": ["Bool"],
+            "weights": [1, 0]
+        },
+        "=": {
+            "function": "categorical",
+            "type": ["Bool", "Bool"],
+            "weights": [[1, 0], [0, 1]]
+        },
+        "!=": {
+            "function": "categorical",
+            "type": ["Bool", "Bool"],
+            "weights": [[0, 1], [1, 0]]
+        },
+        "p": {
+            "function": "categorical",
+            "type": ["Bool"],
+            "weights": [0.2, 0.8]
+        }
+    }
+}

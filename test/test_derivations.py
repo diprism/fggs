@@ -4,19 +4,17 @@ from fggs import *
 
 class TestReplace(unittest.TestCase):
     def setUp(self):
-        self.dom   = FiniteDomain({1, 2, 3, 4, 5})
-        self.nl1   = NodeLabel("nl1", self.dom)
-        self.nl2   = NodeLabel("nl2", self.dom)
+        self.nl1   = NodeLabel("nl1")
+        self.nl2   = NodeLabel("nl2")
         self.node1 = Node(self.nl1)
         self.node2 = Node(self.nl2)
         
-        self.fac = ConstantFactor([self.dom]*2, 42)
-        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), self.fac)
-        self.el2   = EdgeLabel("el2", (self.nl2,))
+        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), is_terminal=True)
+        self.el2   = EdgeLabel("el2", (self.nl2,), is_nonterminal=True)
         self.edge1 = Edge(self.el1, (self.node1, self.node2))
         self.edge2 = Edge(self.el2, (self.node2,))
         
-        self.graph = FactorGraph()
+        self.graph = Graph()
         self.graph.add_node(self.node1)
         self.graph.add_node(self.node2)
         self.graph.add_edge(self.edge1)
@@ -30,9 +28,9 @@ class TestReplace(unittest.TestCase):
 
 class TestStartGraph(unittest.TestCase):        
     def setUp(self):
-        self.start = EdgeLabel("S", tuple())
+        self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
 
-        self.fgg = FGG()
+        self.fgg = HRG()
         self.fgg.set_start_symbol(self.start)
 
     def test_start_graph(self):

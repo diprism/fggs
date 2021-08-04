@@ -34,18 +34,19 @@ def broyden(F: Function, J: Tensor, psi_X0: Tensor, *, tol: float = 1e-8, maxite
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
 def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0) -> Tensor:
+    hrg, interp = fgg.grammar, fgg.interp
     n, nt_dict = 0, {}
-    for nt in fgg.nonterminals():
-        shape = tuple(node_label.domain.size() for node_label in nt.node_labels)
+    for nt in hrg.nonterminals():
+        shape = tuple(interp.domains[node_label].size() for node_label in nt.node_labels)
         k = n + (reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1)
         nt_dict[nt] = ((n, k), shape)
         n = k
     psi_X = torch.full((n,), fill_value=0.0)
     def F(psi_X0: Tensor) -> Tensor:
         psi_X1 = psi_X0.clone()
-        for nt in fgg.nonterminals():
+        for nt in hrg.nonterminals():
             tau_R = []
-            for rule in fgg.rules(nt):
+            for rule in hrg.rules(nt):
                 if len(rule.rhs().nodes()) > 52:
                     raise Exception('cannot assign an index to each node (maximum of 52 supported)')
                 Xi_R = {id: chr((ord('a') if i < 26 else ord('A')) + i % 26)
@@ -53,14 +54,14 @@ def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0
                 indexing, tensors = [], []
                 for edge in rule.rhs().edges():
                     indexing.append([Xi_R[node.id] for node in edge.nodes])
-                    if edge.label.is_nonterminal():
+                    if edge.label.is_nonterminal:
                         (n, k), shape = nt_dict[edge.label]
                         tensors.append(psi_X0[n:k].reshape(shape))
-                    elif isinstance(edge.label.factor, CategoricalFactor):
-                        weights = edge.label.factor._weights
+                    elif isinstance(interp.factors[edge.label], CategoricalFactor):
+                        weights = interp.factors[edge.label]._weights
                         tensors.append(torch.tensor(weights))
                     else:
-                        raise TypeError(f"Can't compute sum-product of FGG with factor {edge.label.factor}")
+                        raise TypeError(f"Can't compute sum-product of HRG with factor {interp.factors[edge.label]}")
                 equation = ','.join([''.join(indices) for indices in indexing]) + '->'
                 external = [Xi_R[node.id] for node in rule.rhs().ext()]
                 if external: equation += ''.join(external)
@@ -78,5 +79,5 @@ def sum_product(fgg: FGG, method: str = 'fixed-point', perturbation: float = 1.0
         J = -torch.eye(len(psi_X), len(psi_X)) * perturbation
         broyden(lambda psi_X: F(psi_X) - psi_X, J, psi_X)
     else: raise ValueError('unsupported method for computing sum-product')
-    (n, k), shape = nt_dict[fgg.start_symbol()]
+    (n, k), shape = nt_dict[hrg.start_symbol()]
     return psi_X[n:k].reshape(shape)
