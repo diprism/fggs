@@ -89,15 +89,15 @@ class TestFactorize(unittest.TestCase):
     def test_factorize(self):
         with open(os.path.join(os.path.dirname(__file__), 'hmm.json')) as f:
             j = json.load(f)
-        g = json_to_fgg(j)
+        g = json_to_hrg(j)
         for r in g.all_rules():
             frules = {fr.lhs():fr for fr in factorize_rule(r)}
             def visit(fr):
                 replacements = {}
                 for e in fr.rhs().edges():
-                    if e.label.is_nonterminal() and e.label not in g.nonterminals():
+                    if e.label.is_nonterminal and e.label not in g.nonterminals():
                         replacements[e] = visit(frules[e.label])
-                return FGGRule(fr.lhs(), replace_edges(fr.rhs(), replacements))
+                return HRGRule(fr.lhs(), replace_edges(fr.rhs(), replacements))
             rr = visit(frules[r.lhs()])
             self.assertEqual(r, rr)
             

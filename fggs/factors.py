@@ -3,6 +3,7 @@ __all__ = ['Factor', 'ConstantFactor', 'CategoricalFactor']
 from abc import ABC, abstractmethod
 from fggs import domains
 
+
 class Factor(ABC):
     """Abstract base class for factors."""
     def __init__(self, doms):
@@ -24,6 +25,7 @@ class Factor(ABC):
     def __ne__(self, other):
         return not self.__eq__(other)
 
+    
 class ConstantFactor(Factor):
     def __init__(self, doms, weight):
         super().__init__(doms)
@@ -40,6 +42,7 @@ class ConstantFactor(Factor):
                    self.domains() == other.domains() and\
                    self._weight == other._weight
 
+        
 class CategoricalFactor(Factor):
     def __init__(self, doms, weights):
         """A factor that can define an arbitrary function on finite domains.

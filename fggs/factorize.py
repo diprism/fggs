@@ -377,12 +377,12 @@ def factorize_rule(rule, method='min_fill'):
         else:
             ext = list(bag & parent)
             lhs = fggs.EdgeLabel(f'{id(rule)}_{i}',
-                                 is_terminal=False,
+                                 is_nonterminal=True,
                                  node_labels=tuple([v.label for v in ext]))
             i += 1
         
         # rhs
-        rhs = fggs.FactorGraph()
+        rhs = fggs.Graph()
         for v in bag:
             rhs.add_node(v)
         rhs.set_ext(ext)
@@ -399,7 +399,7 @@ def factorize_rule(rule, method='min_fill'):
                 child_lhs, child_ext = visit(n, bag)
                 rhs.add_edge(fggs.Edge(child_lhs, child_ext))
 
-        newrule = fggs.FGGRule(lhs, rhs)
+        newrule = fggs.HRGRule(lhs, rhs)
         newrules.append(newrule)
         return (lhs, ext)
     
@@ -408,25 +408,12 @@ def factorize_rule(rule, method='min_fill'):
     return newrules
 
 def factorize(g, method='min_fill'):
-    """Factorize a FGG's rules into smaller rules, hopefully with
+    """Factorize a HRG's rules into smaller rules, hopefully with
     lower maximum treewidth.
     """
-    gnew = fggs.FGG()
+    gnew = fggs.HRG()
     for r in g.all_rules():
         for rnew in factorize_rule(r, method=method):
             gnew.add_rule(rnew)
     gnew.set_start_symbol(g.start_symbol())
     return gnew
-
-if __name__ == "__main__":
-    import json
-    import sys
-    import formats
-
-    if len(sys.argv) != 3:
-        print('usage: factorize.py <infile> <outfile>', file=sys.stderr)
-        exit(1)
-
-    g = formats.json_to_fgg(json.load(open(sys.argv[1])))
-    g = factorize(g)
-    json.dump(formats.fgg_to_json(g), open(sys.argv[2], 'w'), indent=2)

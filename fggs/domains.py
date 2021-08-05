@@ -16,6 +16,7 @@ class Domain(ABC):
     def __ne__(self, other):
         return not self.__eq__(other)
 
+    
 class FiniteDomain(Domain):
     """A domain for finite sets (like vocabularies).
 

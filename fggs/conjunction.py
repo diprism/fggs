@@ -1,45 +1,45 @@
-__all__ = ['conjoin_fggs']
+__all__ = ['conjoin_hrgs']
 
 from fggs import fggs
 
-def nonterminal_pairs(fgg1, fgg2):
+def nonterminal_pairs(hrg1, hrg2):
     nt_map = {}
     new_nts = set()
-    for el1 in fgg1.nonterminals():
-        for el2 in fgg2.nonterminals():
+    for el1 in hrg1.nonterminals():
+        for el2 in hrg2.nonterminals():
             new_nt = fggs.EdgeLabel(name=f'<{el1.name},{el2.name}>',
-                                    is_terminal=False,
+                                    is_nonterminal=True,
                                     node_labels=el1.type())
             i = 2
             while new_nt in new_nts:
                 new_nt = fggs.EdgeLabel(name=f'<{el1.name},{el2.name}>_{i}',
-                                        is_terminal=False,
+                                        is_nonterminal=True,
                                         node_labels=el1.type())
                 i += 1
             nt_map[el1,el2] = new_nt
             new_nts.add(new_nt)
     return nt_map
 
-def check_namespace_collisions(fgg1, fgg2):
-    """Checks whether two FGGs have any conflicting NodeLabels or EdgeLabels."""
+def check_namespace_collisions(hrg1, hrg2):
+    """Checks whether two HRGs have any conflicting NodeLabels or EdgeLabels."""
     # check for conflicting NodeLabels
     node_collisions = []
-    for nl1 in fgg1.node_labels():
-        if fgg2.has_node_label(nl1.name):
-            nl2 = fgg2.get_node_label(nl1.name)
+    for nl1 in hrg1.node_labels():
+        if hrg2.has_node_label(nl1.name):
+            nl2 = hrg2.get_node_label(nl1.name)
             if nl1 != nl2:
                 node_collisions.append((nl1, nl2))
     # check for conflicting EdgeLabels
     edge_collisions = []
-    for el1 in fgg1.edge_labels():
-        if fgg2.has_edge_label(el1.name):
-            el2 = fgg2.get_edge_label(el1.name)
+    for el1 in hrg1.edge_labels():
+        if hrg2.has_edge_label(el1.name):
+            el2 = hrg2.get_edge_label(el1.name)
             if el1 != el2:
                 edge_collisions.append((el1, el2))
     return (node_collisions, edge_collisions)
 
 def conjoinable(rule1, rule2):
-    """Test whether two FGG rules are conjoinable."""
+    """Test whether two HRG rules are conjoinable."""
     
     # Must have same Nodes (in terms of Node id) with same NodeLabels
     if rule1.rhs().nodes() != rule2.rhs().nodes():
@@ -60,13 +60,13 @@ def conjoinable(rule1, rule2):
     return True
 
 def conjoin_rules(rule1, rule2, nt_map):
-    """Conjoin two FGG rules.
+    """Conjoin two HRG rules.
 
     Assumes rules are conjoinable.
     Does not check for conjoinability."""
     
     new_lhs = nt_map[rule1.lhs(), rule2.lhs()]
-    new_rhs = fggs.FactorGraph()
+    new_rhs = fggs.Graph()
     # add nodes
     for node in rule1.rhs().nodes():
         new_rhs.add_node(node)
@@ -86,25 +86,25 @@ def conjoin_rules(rule1, rule2, nt_map):
     ts2 = rule2.rhs().terminals()
     for edge in ts1 + ts2:
         new_rhs.add_edge(edge)
-    return fggs.FGGRule(lhs=new_lhs, rhs=new_rhs)
+    return fggs.HRGRule(lhs=new_lhs, rhs=new_rhs)
 
-def conjoin_fggs(fgg1, fgg2):
-    """Conjoin two FGGS."""
+def conjoin_hrgs(hrg1, hrg2):
+    """Conjoin two HRGS."""
     # first check for namespace collisions, and warn the user
-    (n_col, e_col) = check_namespace_collisions(fgg1, fgg2)
+    (n_col, e_col) = check_namespace_collisions(hrg1, hrg2)
     for (nl1, nl2) in n_col:
-        raise ValueError(f"Cannot conjoin fgg1 and fgg2 because they each have a different NodeLabel called {nl1.name}")
+        raise ValueError(f"Cannot conjoin hrg1 and hrg2 because they each have a different NodeLabel called {nl1.name}")
     for (el1, el2) in e_col:
         if el1.is_terminal and el2.is_terminal:
-            raise ValueError(f"Cannot conjoin fgg1 and fgg2 because they each have a different terminal EdgeLabel called {el1.name}")
-    nt_map = nonterminal_pairs(fgg1, fgg2)
-    new_fgg = fggs.FGG()
+            raise ValueError(f"Cannot conjoin hrg1 and hrg2 because they each have a different terminal EdgeLabel called {el1.name}")
+    nt_map = nonterminal_pairs(hrg1, hrg2)
+    new_hrg = fggs.HRG()
     # add rules
-    for rule1 in fgg1.all_rules():
-        for rule2 in fgg2.all_rules():
+    for rule1 in hrg1.all_rules():
+        for rule2 in hrg2.all_rules():
             if conjoinable(rule1, rule2):
-                new_fgg.add_rule(conjoin_rules(rule1, rule2, nt_map))
+                new_hrg.add_rule(conjoin_rules(rule1, rule2, nt_map))
     # set the start symbol
     # (may not actually be used in any rules)
-    new_fgg.set_start_symbol(nt_map[fgg1.start_symbol(), fgg2.start_symbol()])
-    return new_fgg
+    new_hrg.set_start_symbol(nt_map[hrg1.start_symbol(), hrg2.start_symbol()])
+    return new_hrg
