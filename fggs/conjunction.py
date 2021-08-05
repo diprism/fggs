@@ -3,34 +3,42 @@ __all__ = ['conjoin_hrgs']
 from fggs import fggs
 
 def nonterminal_pairs(hrg1, hrg2):
+    """Generate new nonterminal symbols for all possible pairs of nonterminals from hrg1 and hrg2.
+    Returns a dict mapping from pairs of nonterminals to new nonterminals.
+
+    Checks for two types of collision:
+    - Between two pairs of nonterminals, e.g., "X" + "Y,Z" and "X,Y" + "Z" both become "<X,Y,Z>"
+    - Between nonterminals and terminals, e.g., terminal "<X,Y>" collides with the pairing of nonterminals "X" and "Y"
+    """
+
     nt_map = {}
-    new_nts = set()
-    terminal_names = set([t.name for t in hrg1.terminals()]) | set([t.name for t in hrg2.terminals()])
+    names = set([t.name for t in hrg1.terminals()]) | set([t.name for t in hrg2.terminals()])
     for el1 in hrg1.nonterminals():
         for el2 in hrg2.nonterminals():
             new_nt = fggs.EdgeLabel(name=f'<{el1.name},{el2.name}>',
                                     is_nonterminal=True,
                                     node_labels=el1.type())
             i = 2
-            while new_nt in new_nts or new_nt.name in terminal_names:
+            while new_nt.name in names:
                 new_nt = fggs.EdgeLabel(name=f'<{el1.name},{el2.name}>_{i}',
                                         is_nonterminal=True,
                                         node_labels=el1.type())
                 i += 1
             nt_map[el1,el2] = new_nt
-            new_nts.add(new_nt)
+            names.add(new_nt.name)
     return nt_map
 
 def check_namespace_collisions(hrg1, hrg2):
     """Checks whether two HRGs have any conflicting NodeLabels or EdgeLabels."""
-    # check for conflicting NodeLabels
+    # Check for conflicting NodeLabels
+    # (Currently, it's actually not possible for NodeLabels to conflict, but in the future, it might be.)
     node_collisions = []
     for nl1 in hrg1.node_labels():
         if hrg2.has_node_label(nl1.name):
             nl2 = hrg2.get_node_label(nl1.name)
             if nl1 != nl2:
                 node_collisions.append((nl1, nl2))
-    # check for conflicting EdgeLabels
+    # Check for conflicting EdgeLabels
     edge_collisions = []
     for el1 in hrg1.edge_labels():
         if hrg2.has_edge_label(el1.name):
@@ -91,7 +99,6 @@ def conjoin_rules(rule1, rule2, nt_map):
 
 def conjoin_hrgs(hrg1, hrg2):
     """Conjoin two HRGS."""
-    # first check for namespace collisions, and warn the user
     (n_col, e_col) = check_namespace_collisions(hrg1, hrg2)
     for (nl1, nl2) in n_col:
         raise ValueError(f"Cannot conjoin hrg1 and hrg2 because they each have a different NodeLabel called {nl1.name}")
