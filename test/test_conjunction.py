@@ -70,8 +70,9 @@ class TestConjunction(unittest.TestCase):
         hrg2.add_nonterminal(fggs.EdgeLabel(name="Y,Z", is_nonterminal=True, node_labels=()))
         hrg1.add_nonterminal(fggs.EdgeLabel(name="X,Y", is_nonterminal=True, node_labels=()))
         hrg2.add_nonterminal(fggs.EdgeLabel(name="Z", is_nonterminal=True, node_labels=()))
+        hrg1.add_terminal(fggs.EdgeLabel(name="<X,Z>", is_terminal=True, node_labels=()))
         nt_map = nonterminal_pairs(hrg1, hrg2)
-        self.assertEqual(sorted(nt.name for nt in nt_map.values()), ["<X,Y,Y,Z>", "<X,Y,Z>", "<X,Y,Z>_2", "<X,Z>"])
+        self.assertEqual(sorted(nt.name for nt in nt_map.values()), ["<X,Y,Y,Z>", "<X,Y,Z>", "<X,Y,Z>_2", "<X,Z>_2"])
 
     def test_conjoinable(self):    
         self.assertTrue(conjoinable(self.xrule1, self.xrule2))        

@@ -5,13 +5,14 @@ from fggs import fggs
 def nonterminal_pairs(hrg1, hrg2):
     nt_map = {}
     new_nts = set()
+    terminal_names = set([t.name for t in hrg1.terminals()]) | set([t.name for t in hrg2.terminals()])
     for el1 in hrg1.nonterminals():
         for el2 in hrg2.nonterminals():
             new_nt = fggs.EdgeLabel(name=f'<{el1.name},{el2.name}>',
                                     is_nonterminal=True,
                                     node_labels=el1.type())
             i = 2
-            while new_nt in new_nts:
+            while new_nt in new_nts or new_nt.name in terminal_names:
                 new_nt = fggs.EdgeLabel(name=f'<{el1.name},{el2.name}>_{i}',
                                         is_nonterminal=True,
                                         node_labels=el1.type())
