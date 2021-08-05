@@ -1,9 +1,8 @@
 import unittest
 import json
 import os
-import warnings
 import fggs
-from fggs.conjunction import check_namespace_collisions, conjoinable, conjoin_rules, conjoin_hrgs
+from fggs.conjunction import check_namespace_collisions, nonterminal_pairs, conjoinable, conjoin_rules, conjoin_hrgs
 
 
 class TestConjunction(unittest.TestCase):
@@ -51,20 +50,29 @@ class TestConjunction(unittest.TestCase):
     def test_check_namespace_collisions(self):
         nl = fggs.NodeLabel("nl")
         el1 = fggs.EdgeLabel("collide_el", [nl], is_terminal=True)
-        el2 = fggs.EdgeLabel("collide_el", [nl], is_nonterminal=True)
+        el2 = fggs.EdgeLabel("collide_el", [nl,nl], is_terminal=True)
         el3 = fggs.EdgeLabel("don't_collide", [nl], is_nonterminal=True)
         self.hmm.add_node_label(nl)
         self.conjunct.add_node_label(nl)
         self.hmm.add_terminal(el1)
-        self.conjunct.add_nonterminal(el2)
+        self.conjunct.add_terminal(el2)
         self.conjunct.add_nonterminal(el3)
         (n, e) = check_namespace_collisions(self.hmm, self.conjunct)
         self.assertEqual(len(n), 0)
         self.assertEqual(len(e), 1)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with self.assertRaises(ValueError):
             conjoin_hrgs(self.hmm, self.conjunct)
-            self.assertEqual(len(w), 1)
+
+    def test_nonterminal_pairs(self):
+        hrg1 = fggs.HRG()
+        hrg2 = fggs.HRG()
+        hrg1.add_nonterminal(fggs.EdgeLabel(name="X", is_nonterminal=True, node_labels=()))
+        hrg2.add_nonterminal(fggs.EdgeLabel(name="Y,Z", is_nonterminal=True, node_labels=()))
+        hrg1.add_nonterminal(fggs.EdgeLabel(name="X,Y", is_nonterminal=True, node_labels=()))
+        hrg2.add_nonterminal(fggs.EdgeLabel(name="Z", is_nonterminal=True, node_labels=()))
+        hrg1.add_terminal(fggs.EdgeLabel(name="<X,Z>", is_terminal=True, node_labels=()))
+        nt_map = nonterminal_pairs(hrg1, hrg2)
+        self.assertEqual(sorted(nt.name for nt in nt_map.values()), ["<X,Y,Y,Z>", "<X,Y,Z>", "<X,Y,Z>_2", "<X,Z>_2"])
 
     def test_conjoinable(self):    
         self.assertTrue(conjoinable(self.xrule1, self.xrule2))        
