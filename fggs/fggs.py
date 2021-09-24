@@ -1,4 +1,4 @@
-__all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'FactorGraph', 'FGGRule', 'FGG']
+__all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 'Interpretation', 'FactorGraph', 'FGG']
 
 import random, string
 from typing import Optional, Iterable, Tuple
@@ -10,71 +10,43 @@ from fggs.factors import Factor
 @dataclass(frozen=True)
 class NodeLabel:
     name: str
-    domain: Domain = field(compare=True,hash=False)
     
     def __str__(self):
-        return f"NodeLabel {self.name} with Domain {self.domain}"
+        return f"NodeLabel {self.name}"
 
 
-@dataclass(frozen=True,init=False)
+@dataclass(frozen=True, init=False)
 class EdgeLabel:
     """An edge label.
 
-    name (str): The name of the edge label, which must be unique within an FGG.
+    name (str): The name of the edge label, which must be unique within an HRG.
     node_labels (sequence of NodeLabels): If an edge has this label, its attachment nodes must have labels node_labels.
-    fac (Factor, optional): The factor function associated with this label.
     is_terminal (bool, optional): This label is a terminal symbol.
     is_nonterminal (bool, optional): This label is a nonterminal symbol.
-
-    If fac is given, the label must be terminal; otherwise, it must be
-    nonterminal. Therefore, is_terminal and is_nonterminal are
-    optional because they can be inferred from fac. But one can pass
-    them explicitly for greater clarity.
     """
     
     name: str
-    node_labels: Tuple[NodeLabel]
-    factor: Optional[Factor] = field(default=None,compare=True,hash=False)
+    node_labels: Iterable[NodeLabel]
+    is_terminal: bool
 
-    def __init__(self,
-                 name: str,
+    def __init__(self, name: str,
                  node_labels: Iterable[NodeLabel],
-                 factor: Optional[Factor] = None,
                  *,
-                 is_terminal: Optional[bool] = None,
-                 is_nonterminal: Optional[bool] = None):
-        
+                 is_nonterminal: bool = False,
+                 is_terminal: bool = False):
         object.__setattr__(self, 'name', name)
-        object.__setattr__(self, 'node_labels', tuple(node_labels))
-        object.__setattr__(self, 'factor', factor)
-        
-        # is_terminal and is_nonterminal can be inferred from factor
-        # if they are not provided by the user
-        if is_terminal is None:
-            is_terminal = self.factor is not None
-        if is_nonterminal is None:
-            is_nonterminal = self.factor is None
-        
-        # error check
+        if not isinstance(node_labels, tuple):
+            node_labels = tuple(node_labels)
+        object.__setattr__(self, 'node_labels', node_labels)
         if is_terminal and is_nonterminal:
             raise ValueError("An EdgeLabel can't be both terminal and nonterminal")
         if not is_terminal and not is_nonterminal:
             raise ValueError("An EdgeLabel must be either terminal or nonterminal")
+        object.__setattr__(self, 'is_terminal', is_terminal)
 
-        if is_terminal:
-            if self.factor is None:
-                raise ValueError(f"Terminal edge label {self.name} is missing a factor.")
-            elif self.factor.domains() != tuple([nl.domain for nl in self.type()]):
-                raise ValueError(f"Factor function has the wrong type for edge label {self.name}.")
-        if not is_terminal:
-            if self.factor is not None:
-                raise ValueError(f"Nonterminal edge label {self.name} should not have a factor.")
-
-    def is_terminal(self):
-        return self.factor is not None
-    
+    @property
     def is_nonterminal(self):
-        return self.factor is None
+        return not self.is_terminal
 
     def arity(self):
         return len(self.node_labels)
@@ -86,8 +58,8 @@ class EdgeLabel:
         return self.to_string(0)
     def to_string(self, indent):
         string = "\t"*indent
-        if self.is_terminal():
-            string += f"Terminal EdgeLabel {self.name} with arity {self.arity()} and Factor {self.factor}"
+        if self.is_terminal:
+            string += f"Terminal EdgeLabel {self.name} with arity {self.arity()}"
         else:
             string += f"Nonterminal EdgeLabel {self.name} with arity {self.arity()}"
         if self.arity() != 0:
@@ -101,7 +73,8 @@ def _generate_id():
     letters = string.ascii_letters
     new_id = ''.join([random.choice(letters) for i in range(20)])
     return new_id
-    
+
+
 @dataclass(frozen=True)
 class Node:
     
@@ -149,8 +122,7 @@ class Edge:
         return string
 
 
-
-class FactorGraph:
+class Graph:
 
     def __init__(self):
         self._nodes    = set()
@@ -166,10 +138,10 @@ class FactorGraph:
         return list(self._edges)
     
     def terminals(self):
-        return [edge for edge in self._edges if edge.label.is_terminal()]
+        return [edge for edge in self._edges if edge.label.is_terminal]
 
     def nonterminals(self):
-        return [edge for edge in self._edges if edge.label.is_nonterminal()]
+        return [edge for edge in self._edges if edge.label.is_nonterminal]
 
     def ext(self):
         return self._ext
@@ -182,13 +154,13 @@ class FactorGraph:
     
     def add_node(self, node: Node):
         if node.id in self._node_ids:
-            raise ValueError(f"Can't have two nodes with same ID {node.id} in same FactorGraph.")
+            raise ValueError(f"Can't have two nodes with same ID {node.id} in same Graph.")
         self._nodes.add(node)
         self._node_ids.add(node.id)
 
     def remove_node(self, node: Node):
         if node not in self._nodes:
-            raise ValueError(f'Node {node} cannot be removed because it does not belong to this FactorGraph')
+            raise ValueError(f'Node {node} cannot be removed because it does not belong to this Graph')
         for edge in self._edges:
             if node in edge.nodes:
                 raise ValueError(f'Node {node} cannot be removed because it is an attachment node of Edge {edge}')
@@ -197,7 +169,7 @@ class FactorGraph:
 
     def add_edge(self, edge: Edge):
         if edge.id in self._edge_ids:
-            raise ValueError(f"Can't have two edges with same ID {edge.id} in same FactorGraph.")
+            raise ValueError(f"Can't have two edges with same ID {edge.id} in same Graph.")
         for node in edge.nodes:
             if node not in self._nodes:
                 self._nodes.add(node)
@@ -206,7 +178,7 @@ class FactorGraph:
 
     def remove_edge(self, edge: Edge):
         if edge not in self._edges:
-            raise ValueError(f'FactorGraph does not contain Edge {edge}')
+            raise ValueError(f'Graph does not contain Edge {edge}')
         self._edges.remove(edge)
         self._edge_ids.remove(edge.id)
 
@@ -217,8 +189,8 @@ class FactorGraph:
         self._ext = tuple(nodes)
     
     def copy(self):
-        """Returns a copy of this FactorGraph."""
-        copy = FactorGraph()
+        """Returns a copy of this Graph."""
+        copy = Graph()
         copy._nodes = set(self._nodes)
         copy._node_ids = set(self._node_ids)
         copy._edges = set(self._edges)
@@ -227,10 +199,10 @@ class FactorGraph:
         return copy
 
     def __eq__(self, other):
-        """Tests if two FactorGraphs are equal, including their Node and Edge ids.
+        """Tests if two Graphs are equal, including their Node and Edge ids.
 
         Runs in O(|V|+|E|) time because the ids are required to be equal."""
-        return (isinstance(other, FactorGraph) and
+        return (isinstance(other, Graph) and
                 self._nodes == other._nodes and
                 self._edges == other._edges and
                 self._ext == other._ext)
@@ -254,14 +226,13 @@ class FactorGraph:
         return string
 
 
+class HRGRule:
 
-class FGGRule:
-
-    def __init__(self, lhs: EdgeLabel, rhs: FactorGraph):
-        if lhs.is_terminal():
-            raise Exception(f"Can't make FGG rule with terminal left-hand side.")
+    def __init__(self, lhs: EdgeLabel, rhs: Graph):
+        if lhs.is_terminal:
+            raise Exception(f"Can't make HRG rule with terminal left-hand side.")
         if (lhs.type() != rhs.type()):
-            raise Exception(f"Can't make FGG rule: left-hand side of type ({','.join(l.name for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name for l in rhs.type())}).")
+            raise Exception(f"Can't make HRG rule: left-hand side of type ({','.join(l.name for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name for l in rhs.type())}).")
         self._lhs = lhs
         self._rhs = rhs
 
@@ -272,11 +243,11 @@ class FGGRule:
         return self._rhs
     
     def copy(self):
-        """Returns a copy of this FGGRule, whose right-hand side is a copy of the original's."""
-        return FGGRule(self.lhs(), self.rhs().copy())
+        """Returns a copy of this HRGRule, whose right-hand side is a copy of the original's."""
+        return HRGRule(self.lhs(), self.rhs().copy())
 
     def __eq__(self, other):
-        return (isinstance(other, FGGRule) and
+        return (isinstance(other, HRGRule) and
                 self._lhs == other._lhs and
                 self._rhs == other._rhs)
     def __ne__(self, other):
@@ -286,13 +257,12 @@ class FGGRule:
         return self.to_string(0)
     def to_string(self, indent):
         string = "\t"*indent
-        string += f"FGGRule with left-hand side {self._lhs.name} and right-hand side as follows:\n"
+        string += f"HRGRule with left-hand side {self._lhs.name} and right-hand side as follows:\n"
         string += self._rhs.to_string(indent+1)
         return string
 
 
-
-class FGG:
+class HRG:
     
     def __init__(self):
         self._node_labels  = dict()    # map from names to NodeLabels
@@ -302,11 +272,10 @@ class FGG:
         self._rules        = dict()    # one list of rules for each nonterminal edge label
 
     def add_node_label(self, label: NodeLabel):
-        name = label.name
-        if name in self._node_labels:
-            if self._node_labels[name] != label:
-                raise Exception(f"There is already a node label with name {name}.")
         self._node_labels[label.name] = label
+
+    def has_node_label(self, name):
+        return name in self._node_labels
 
     def get_node_label(self, name):
         return self._node_labels[name]
@@ -315,7 +284,7 @@ class FGG:
         return [self._node_labels[name] for name in self._node_labels]
 
     def add_nonterminal(self, label: EdgeLabel):
-        if label.is_terminal():
+        if label.is_terminal:
             raise Exception(f"Can't add terminal edge label {label.name} as a nonterminal.")
             
         name = label.name
@@ -334,7 +303,7 @@ class FGG:
         return [self._nonterminals[name] for name in self._nonterminals]
     
     def add_terminal(self, label: EdgeLabel):
-        if not label.is_terminal():
+        if not label.is_terminal:
             raise Exception(f"Can't add nonterminal edge label {label.name} as a terminal.")
         
         name = label.name
@@ -363,7 +332,10 @@ class FGG:
             return self._terminals[name]
         else:
             raise KeyError(f'no such edge label {name}')
-    
+
+    def edge_labels(self):
+        return self.nonterminals() + self.terminals()
+
     def set_start_symbol(self, start: EdgeLabel):
         self.add_nonterminal(start)
         self._start = start
@@ -371,7 +343,7 @@ class FGG:
     def start_symbol(self):
         return self._start
 
-    def add_rule(self, rule: FGGRule):
+    def add_rule(self, rule: HRGRule):
         lhs = rule.lhs()
         rhs = rule.rhs()
         
@@ -379,7 +351,7 @@ class FGG:
         for node in rhs.nodes():
             self.add_node_label(node.label)
         for edge in rhs.edges():
-            if edge.label.is_terminal():
+            if edge.label.is_terminal:
                 self.add_terminal(edge.label)
             else:
                 self.add_nonterminal(edge.label)
@@ -393,8 +365,8 @@ class FGG:
         return list(self._rules.get(lhs, []))
     
     def copy(self):
-        """Returns a copy of this FGG, whose rules are all copies of the original's."""
-        copy = FGG()
+        """Returns a copy of this HRG, whose rules are all copies of the original's."""
+        copy = HRG()
         copy._node_labels = self._node_labels.copy()
         copy._nonterminals = self._nonterminals.copy()
         copy._terminals = self._terminals.copy()
@@ -409,7 +381,7 @@ class FGG:
         self.rules(X) and other.rules(X) have the same rules but in a
         different order, then self and other are *not* considered
         equal."""
-        return (isinstance(other, FGG) and
+        return (isinstance(other, HRG) and
                 self._rules == other._rules and
                 self._start == other._start and
                 self._node_labels == other._node_labels and
@@ -434,3 +406,48 @@ class FGG:
             for rule in self._rules[nonterminal]:
                 string += f"\n{rule.to_string(2)}"
         return string
+
+    
+class Interpretation:
+    def __init__(self):
+        self.domains = {}
+        self.factors = {}
+
+    def can_interpret(self, g: HRG):
+        """Test whether this Interpretation is compatible with HRG g."""
+        return (set(self.domains.keys()).issuperset(set(g.node_labels())) and
+                set(self.factors.keys()).issuperset(set(g.terminals())))
+    
+    def add_domain(self, nl: NodeLabel, dom: Domain):
+        """Add mapping from NodeLabel nl to Domain dom."""
+        if nl in self.domains:
+            raise ValueError(f"NodeLabel {nl} is already mapped")
+        self.domains[nl] = dom
+
+    def add_factor(self, el: EdgeLabel, fac: Factor):
+        if el.is_nonterminal:
+            raise ValueError(f"Nonterminals cannot be mapped to Factors")
+        if el in self.factors:
+            raise ValueError(f"EdgeLabel {el} is already mapped")
+        doms = list(fac.domains())
+        if len(doms) != len(el.node_labels):
+            raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (wrong arity)')
+        for nl, dom in zip(el.node_labels, doms):
+            if nl not in self.domains:
+                raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (NodeLabel {nl} not mapped)')
+            elif dom != self.domains[nl]:
+                raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} != Domain {self.domains[nl]})')
+        self.factors[el] = fac
+        
+    
+class FactorGraph:    
+    def __init__(self, graph: Graph, interp: Interpretation):
+        self.graph = graph
+        self.interp = interp
+
+        
+class FGG:
+    def __init__(self, grammar: HRG, interp: Interpretation):
+        self.grammar = grammar
+        self.interp = interp
+        

@@ -15,7 +15,8 @@ class SumProduct():
     """ Compute the Sum-Product of a Factor Graph Grammar (FGG) """
 
     def __init__(self, fgg: FGG):
-        self.fgg = fgg
+        self.hrg = fgg.grammar
+        self.interp = fgg.interp
         self.nt_dict = {}
 
     @staticmethod
@@ -79,9 +80,9 @@ class SumProduct():
 
     def _F(self, psi_X0: Tensor) -> Tensor:
         psi_X1 = psi_X0.clone()
-        for nt in self.fgg.nonterminals():
+        for nt in self.hrg.nonterminals():
             tau_R = []
-            for rule in self.fgg.rules(nt):
+            for rule in self.hrg.rules(nt):
                 if len(rule.rhs().nodes()) > 52:
                     raise Exception('cannot assign an index to each node (maximum of 52 supported)')
                 if len(rule.rhs().edges()) == 0:
@@ -93,14 +94,14 @@ class SumProduct():
                 indexing, tensors = [], []
                 for edge in rule.rhs().edges():
                     indexing.append([Xi_R[node.id] for node in edge.nodes])
-                    if edge.label.is_nonterminal():
+                    if edge.label.is_nonterminal:
                         (n, k), shape = self.nt_dict[edge.label]
                         tensors.append(psi_X0[n:k].reshape(shape))
-                    elif isinstance(edge.label.factor, CategoricalFactor):
-                        weights = edge.label.factor._weights
+                    elif isinstance(self.interp.factors[edge.label], CategoricalFactor):
+                        weights = self.interp.factors[edge.label]._weights
                         tensors.append(torch.tensor(weights))
                     else:
-                        raise TypeError(f'cannot compute sum-product of FGG with factor {edge.label.factor}')
+                        raise TypeError(f'cannot compute sum-product of FGG with factor {self.interp.factors[edge.label]}')
                 equation = ','.join([''.join(indices) for indices in indexing]) + '->'
                 external = [Xi_R[node.id] for node in rule.rhs().ext()]
                 if external: equation += ''.join(external)
@@ -112,17 +113,17 @@ class SumProduct():
     def _J(self, psi_X0: Tensor) -> Tensor:
         JF = torch.full(2 * list(psi_X0.shape), fill_value=0.0)
         p, q = [0, 0], [0, 0]
-        for nt_num in self.fgg.nonterminals():
+        for nt_num in self.hrg.nonterminals():
             p[0] = p[1]
             a, b = self.nt_dict[nt_num][0]
             p[1] += b - a
             q_ = q[:]
-            for nt_den in self.fgg.nonterminals():
+            for nt_den in self.hrg.nonterminals():
                 q[0] = q[1]
                 a, b = self.nt_dict[nt_den][0]
                 q[1] += b - a
                 tau_R = []
-                for rule in self.fgg.rules(nt_num):
+                for rule in self.hrg.rules(nt_num):
                     if len(rule.rhs().nodes()) > 52:
                         raise Exception('cannot assign an index to each node (maximum of 52 supported)')
                     Xi_R = {id: chr((ord('a') if i < 26 else ord('A')) + i % 26)
@@ -130,15 +131,15 @@ class SumProduct():
                     nt_loc, tensors, indexing = [], [], []
                     for i, edge in enumerate(rule.rhs().edges()):
                         indexing.append([Xi_R[node.id] for node in edge.nodes])
-                        if edge.label.is_nonterminal():
+                        if edge.label.is_nonterminal:
                             (n, k), shape = self.nt_dict[edge.label]
                             tensors.append(psi_X0[n:k].reshape(shape))
                             nt_loc.append((i, edge.label.name))
-                        elif isinstance(edge.label.factor, CategoricalFactor):
-                            weights = edge.label.factor._weights
+                        elif isinstance(self.interp.factors[edge.label], CategoricalFactor):
+                            weights = self.interp.factors[edge.label]._weights
                             tensors.append(torch.tensor(weights))
                         else:
-                            raise TypeError(f'cannot compute sum-product of FGG with factor {edge.label.factor}')
+                            raise TypeError(f'cannot compute sum-product of FGG with factor {self.interp.factors[edge.label]}')
                     external = [Xi_R[node.id] for node in rule.rhs().ext()]
                     terms = []
                     for i, nt_name in nt_loc:
@@ -163,8 +164,8 @@ class SumProduct():
 
     def __call__(self, *, method: str = 'fixed-point', tol: float = 1e-6, kmax: int = 1000) -> Tensor:
         n, nt_dict = 0, {}
-        for nt in self.fgg.nonterminals():
-            shape = tuple(node_label.domain.size() for node_label in nt.node_labels)
+        for nt in self.hrg.nonterminals():
+            shape = tuple(self.interp.domains[node_label].size() for node_label in nt.node_labels)
             k = n + (reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1)
             nt_dict[nt] = ((n, k), shape)
             n = k
@@ -191,5 +192,5 @@ class SumProduct():
                 # broyden(lambda psi_X: F(psi_X) - psi_X, invJ, psi_X, tol=tol*(10**k), kmax=kmax)
                 # k += 1
         else: raise ValueError('unsupported method for computing sum-product')
-        (n, k), shape = nt_dict[self.fgg.start_symbol()]
+        (n, k), shape = nt_dict[self.hrg.start_symbol()]
         return psi_X[n:k].reshape(shape)

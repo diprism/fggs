@@ -1,17 +1,7 @@
 {
-    "domains": {
-    },
-    "factors": {
-        "fac1": {
-            "function": "categorical",
-            "type": [],
-            "weights": 0.8
-        },
-        "fac2": {
-            "function": "categorical",
-            "type": [],
-            "weights": 0.2
-        }
+    "terminals": {
+        "fac1": { "type": [] },
+        "fac2": { "type": [] }
     },
     "nonterminals": {
         "S": { "type" : [] }

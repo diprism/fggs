@@ -1,20 +1,20 @@
 from fggs.sum_product import SumProduct
-from fggs import json_to_fgg
+from fggs import FGG, json_to_hrg, json_to_interp
 import unittest, warnings, random, json
 
 class TestSumProduct(unittest.TestCase):
 
     def setUp(self):
         warnings.filterwarnings('ignore', message='.*maximum iteration.*')
-        file = open('test/hmm.json')
-        self.fgg_1 = json_to_fgg(json.load(file))
-        file.close()
-        file = open('test/example12p.json')
-        self.fgg_2 = json_to_fgg(json.load(file))
-        file.close()
-        file = open('test/simplefgg.json')
-        self.fgg_3 = json_to_fgg(json.load(file))
-        file.close()
+        def load(filename):
+            with open(filename) as f:
+                return json.load(f)
+        self.fgg_1 = FGG(json_to_hrg(load('test/hmm.json')),
+                         json_to_interp(load('test/hmm_interp.json')))
+        self.fgg_2 = FGG(json_to_hrg(load('test/example12p.json')),
+                         json_to_interp(load('test/example12p_interp.json')))
+        self.fgg_3 = FGG(json_to_hrg(load('test/simplefgg.json')),
+                         json_to_interp(load('test/simplefgg_interp.json')))
 
     def test_fixed_point_1(self):
         self.assertAlmostEqual(SumProduct(self.fgg_1)(method='fixed-point').item(), 1.0, places=2)
@@ -26,7 +26,7 @@ class TestSumProduct(unittest.TestCase):
             return ((3 - 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), ( 1 - 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p)) if p > 0.5 \
               else ((1 + 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), (-1 + 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p))
         for p in (random.uniform(0.01, 0.99) for _ in range(10)):
-            self.fgg_2.get_terminal('p').factor._weights = [1 - p, p]
+            self.fgg_2.interp.factors[self.fgg_2.grammar.get_terminal('p')]._weights = [1 - p, p]
             for A, B in zip(SumProduct(self.fgg_2)(method='fixed-point'), exact_value(p)):
                 self.assertAlmostEqual(A.item(), B, places=2)
 
@@ -40,7 +40,7 @@ class TestSumProduct(unittest.TestCase):
             return ((3 - 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), ( 1 - 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p)) if p > 0.5 \
               else ((1 + 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), (-1 + 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p))
         for p in (random.uniform(0.01, 0.99) for _ in range(10)):
-            self.fgg_2.get_terminal('p').factor._weights = [1 - p, p]
+            self.fgg_2.interp.factors[self.fgg_2.grammar.get_terminal('p')]._weights = [1 - p, p]
             for A, B in zip(SumProduct(self.fgg_2)(method='broyden'), exact_value(p)):
                 self.assertAlmostEqual(A.item(), B, places=2)
 
