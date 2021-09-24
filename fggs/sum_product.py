@@ -4,7 +4,7 @@ from fggs.fggs import FGG
 from fggs.factors import CategoricalFactor
 from typing import Callable
 from functools import reduce
-import warnings, random, torch
+import warnings, torch
 
 def _formatwarning(message, category, filename=None, lineno=None, file=None, line=None):
     return '%s:%s: %s: %s' % (filename, lineno, category.__name__, message)
@@ -32,19 +32,40 @@ def newton(F: Function, J: Function, psi_X0: Tensor, *, tol: float, kmax: int) -
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
 def broyden(F: Function, invJ: Tensor, psi_X0: Tensor, *, tol: float, kmax: int) -> None:
-    psi_X1 = torch.full(psi_X0.shape, fill_value=0.0)
-    k, F_X0 = 0, F(psi_X0)
-    while any(torch.abs(F_X0) > tol) and k <= kmax:
-        psi_X1[...] = psi_X0 + torch.matmul(-invJ, F_X0)
+    k, psi_X1 = 0, torch.full(psi_X0.shape, fill_value=0.0)
+    F_X0 = F(psi_X0)
+    while torch.norm(F_X0) > tol and k <= kmax:
+        dX = torch.matmul(-invJ, F_X0)
+        psi_X1[...] = psi_X0 + dX
         F_X1 = F(psi_X1)
-        dx, df = psi_X1 - psi_X0, F_X1 - F_X0
-        # v = torch.matmul(torch.transpose(-invJ, 0, 1), dx)
-        u = (dx - torch.matmul(invJ, df))/torch.dot(df, df)
-        invJ += torch.outer(u, df)
+        dX, dF = psi_X1 - psi_X0, F_X1 - F_X0
+        u = (dX - torch.matmul(invJ, dF))/torch.dot(dF, dF)
+        invJ += torch.outer(u, dF)
         psi_X0[...], F_X0 = psi_X1, F_X1
         k += 1
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
+
+# https://core.ac.uk/download/pdf/9821323.pdf (Computing Partition Functions of PCFGs)
+# def broyden(F: Function, x: Tensor, *, tol: float = 1e-6, maxit: int = 1000, nmax: int = 20) -> None:
+#     Fx = F(x); s = [Fx]
+#     n, itc = -1, 0
+#     while itc < maxit:
+#         n, itc = n + 1, itc + 1
+#         x += s[n]
+#         Fx = F(x)
+#         if torch.norm(Fx) <= tol:
+#             break
+#         if n < nmax:
+#             z = Fx
+#             if n > 0:
+#                 for i in range(n):
+#                     z += s[i + 1] * torch.dot(s[i], z)/torch.dot(s[i], s[i])
+#             s.append(z/(1 - torch.dot(s[n], z)/torch.dot(s[n], s[n])))
+#         elif n == nmax:
+#             n, s = -1, [s[n]]
+#     if itc >= maxit:
+#         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
 def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kmax: int = 1000) -> Tensor:
     n, nt_dict = 0, {}
@@ -147,11 +168,15 @@ def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kma
         # Source: Numerical Recipes in C: the Art of Scientific Computing
         invJ = -torch.eye(len(psi_X), len(psi_X))
         broyden(lambda psi_X: F(psi_X) - psi_X, invJ, psi_X, tol=tol, kmax=kmax)
+        # k = 1
         while any(torch.isnan(psi_X)):
-            perturbation = round(random.uniform(0.51, 1.99), 1)
+            # perturbation = round(random.uniform(0.51, 1.99), 1)
             psi_X = torch.full((n,), fill_value=0.0)
-            invJ = -torch.eye(len(psi_X), len(psi_X)) * perturbation
+            # invJ = -torch.eye(len(psi_X), len(psi_X)) * perturbation
+            invJ = -torch.eye(len(psi_X), len(psi_X))
             broyden(lambda psi_X: F(psi_X) - psi_X, invJ, psi_X, tol=tol, kmax=kmax)
+            # broyden(lambda psi_X: F(psi_X) - psi_X, invJ, psi_X, tol=tol*(10**k), kmax=kmax)
+            # k += 1
     else: raise ValueError('unsupported method for computing sum-product')
     (n, k), shape = nt_dict[fgg.start_symbol()]
     return psi_X[n:k].reshape(shape)
