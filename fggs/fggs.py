@@ -390,7 +390,7 @@ class FGG:
         return [rule for nt_name in self._rules for rule in self._rules[nt_name]]
     
     def rules(self, lhs):
-        return list(self._rules[lhs])
+        return list(self._rules.get(lhs, []))
     
     def copy(self):
         """Returns a copy of this FGG, whose rules are all copies of the original's."""

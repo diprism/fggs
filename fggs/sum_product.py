@@ -60,6 +60,10 @@ def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kma
             for rule in fgg.rules(nt):
                 if len(rule.rhs().nodes()) > 52:
                     raise Exception('cannot assign an index to each node (maximum of 52 supported)')
+                if len(rule.rhs().edges()) == 0:
+                    _, shape = nt_dict[nt]
+                    tau_R.append(torch.ones(shape))
+                    continue
                 Xi_R = {id: chr((ord('a') if i < 26 else ord('A')) + i % 26)
                     for i, id in enumerate(rule.rhs()._node_ids)}
                 indexing, tensors = [], []
@@ -78,7 +82,7 @@ def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kma
                 if external: equation += ''.join(external)
                 tau_R.append(torch.einsum(equation, *tensors))
             (n, k), _ = nt_dict[nt]
-            psi_X1[n:k] = sum(tau_R).flatten()
+            psi_X1[n:k] = sum(tau_R).flatten() if len(tau_R) > 0 else torch.zeros(k-n)
         return psi_X1
     psi_X = torch.full((n,), fill_value=0.0)
     if method == 'fixed-point':
