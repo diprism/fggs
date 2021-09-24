@@ -12,6 +12,9 @@ class TestSumProduct(unittest.TestCase):
         file = open('test/example12p.json')
         self.fgg_2 = json_to_fgg(json.load(file))
         file.close()
+        file = open('test/simplefgg.json')
+        self.fgg_3 = json_to_fgg(json.load(file))
+        file.close()
 
     def test_fixed_point_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='fixed-point').item(), 1.0, places=2)
@@ -40,6 +43,9 @@ class TestSumProduct(unittest.TestCase):
             self.fgg_2.get_terminal('p').factor._weights = [1 - p, p]
             for A, B in zip(sum_product(self.fgg_2, method='broyden'), exact_value(p)):
                 self.assertAlmostEqual(A.item(), B, places=2)
+
+    def test_newton_3(self):
+        self.assertAlmostEqual(sum_product(self.fgg_3, method='newton').item(), 0.25, places=2)
 
 if __name__ == '__main__':
     unittest.main()

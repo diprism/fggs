@@ -1,0 +1,44 @@
+{
+    "domains": {
+    },
+    "factors": {
+        "fac1": {
+            "function": "categorical",
+            "type": [],
+            "weights": 0.8
+        },
+        "fac2": {
+            "function": "categorical",
+            "type": [],
+            "weights": 0.2
+        }
+    },
+    "nonterminals": {
+        "S": { "type" : [] }
+    },
+    "start": "S",
+    "rules": [
+        {
+            "lhs": "S",
+            "rhs": {
+                "nodes": [],
+                "edges": [
+                    { "id": "e0", "attachments": [], "label": "fac1" },
+                    { "id": "e1", "attachments": [], "label": "S" },
+                    { "id": "e2", "attachments": [], "label": "S" }
+                ],
+                "externals": []
+            }
+        },
+        {
+            "lhs": "S",
+            "rhs": {
+                "nodes": [],
+                "edges": [
+                    { "id": "e0", "attachments": [], "label": "fac2" }
+                ],
+                "externals": []
+            }
+        }
+    ]
+}
