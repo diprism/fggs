@@ -1,4 +1,4 @@
-__all__ = ['SumProduct']
+__all__ = ['sum_product']
 
 from fggs.fggs import FGG
 from fggs.factors import CategoricalFactor
@@ -194,3 +194,6 @@ class SumProduct():
         else: raise ValueError('unsupported method for computing sum-product')
         (n, k), shape = nt_dict[self.hrg.start_symbol()]
         return psi_X[n:k].reshape(shape)
+
+def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kmax: int = 1000) -> Tensor:
+    return SumProduct(fgg)(method=method, tol=tol, kmax=kmax)
