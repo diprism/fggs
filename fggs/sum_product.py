@@ -6,12 +6,12 @@ from typing import Callable, Dict
 from functools import reduce
 import warnings, torch
 
-def _formatwarning(message, category, filename=None, lineno=None, file=None, line=None):
+def Formatwarning(message, category, filename=None, lineno=None, file=None, line=None):
     return '%s:%s: %s: %s' % (filename, lineno, category.__name__, message)
-warnings.formatwarning = _formatwarning
+warnings.formatwarning = Formatwarning
 Tensor = torch.Tensor; Function = Callable[[Tensor], Tensor]
 
-def _fixed_point(F: Function, psi_X0: Tensor, *, tol: float, kmax: int) -> None:
+def fixed_point(F: Function, psi_X0: Tensor, *, tol: float, kmax: int) -> None:
     k, psi_X1 = 0, F(psi_X0)
     while any(torch.abs(psi_X1 - psi_X0) > tol) and k <= kmax:
         psi_X0[...], psi_X1[...] = psi_X1, F(psi_X1)
@@ -19,7 +19,7 @@ def _fixed_point(F: Function, psi_X0: Tensor, *, tol: float, kmax: int) -> None:
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
-def _newton(F: Function, J: Function, psi_X0: Tensor, *, tol: float, kmax: int) -> None:
+def newton(F: Function, J: Function, psi_X0: Tensor, *, tol: float, kmax: int) -> None:
     k, psi_X1 = 0, torch.full(psi_X0.shape, fill_value=0.0)
     F_X0 = F(psi_X0)
     while torch.norm(F_X0) > tol and k <= kmax:
@@ -31,7 +31,7 @@ def _newton(F: Function, J: Function, psi_X0: Tensor, *, tol: float, kmax: int) 
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
-def _broyden(F: Function, invJ: Tensor, psi_X0: Tensor, *, tol: float, kmax: int) -> None:
+def broyden(F: Function, invJ: Tensor, psi_X0: Tensor, *, tol: float, kmax: int) -> None:
     k, psi_X1 = 0, torch.full(psi_X0.shape, fill_value=0.0)
     F_X0 = F(psi_X0)
     while torch.norm(F_X0) > tol and k <= kmax:
@@ -47,7 +47,7 @@ def _broyden(F: Function, invJ: Tensor, psi_X0: Tensor, *, tol: float, kmax: int
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
 # https://core.ac.uk/download/pdf/9821323.pdf (Computing Partition Functions of PCFGs)
-# def _broyden(F: Function, x: Tensor, *, tol: float = 1e-6, maxit: int = 1000, nmax: int = 20) -> None:
+# def broyden(F: Function, x: Tensor, *, tol: float = 1e-6, maxit: int = 1000, nmax: int = 20) -> None:
 #     Fx = F(x); s = [Fx]
 #     n, itc = -1, 0
 #     while itc < maxit:
@@ -67,7 +67,7 @@ def _broyden(F: Function, invJ: Tensor, psi_X0: Tensor, *, tol: float, kmax: int
 #     if itc >= maxit:
 #         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
-def _F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
+def F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
     hrg, interp = fgg.grammar, fgg.interp
     psi_X1 = psi_X0.clone()
     for nt in hrg.nonterminals():
@@ -100,7 +100,7 @@ def _F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
         psi_X1[n:k] = sum(tau_R).flatten() if len(tau_R) > 0 else torch.zeros(k - n)
     return psi_X1
 
-def _J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
+def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
     hrg, interp = fgg.grammar, fgg.interp
     JF = torch.full(2 * list(psi_X0.shape), fill_value=0.0)
     p, q = [0, 0], [0, 0]
@@ -163,23 +163,23 @@ def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kma
         n = k
     psi_X = torch.full((n,), fill_value=0.0)
     if method == 'fixed-point':
-        _fixed_point(lambda psi_X: _F(fgg, nt_dict, psi_X), psi_X, tol=tol, kmax=kmax)
+        fixed_point(lambda psi_X: F(fgg, nt_dict, psi_X), psi_X, tol=tol, kmax=kmax)
     elif method == 'newton':
-        _newton(lambda psi_X: _F(fgg, nt_dict, psi_X) - psi_X, lambda psi_X: _J(fgg, nt_dict, psi_X), psi_X, tol=tol, kmax=kmax)
+        newton(lambda psi_X: F(fgg, nt_dict, psi_X) - psi_X, lambda psi_X: J(fgg, nt_dict, psi_X), psi_X, tol=tol, kmax=kmax)
     elif method == 'broyden':
         # Broyden's method may fail to converge without a sufficient
         # initial approximation of the Jacobian. If the method doesn't
         # converge within N iteration(s), perturb the initial approximation.
         # Source: Numerical Recipes in C: the Art of Scientific Computing
         invJ = -torch.eye(len(psi_X), len(psi_X))
-        _broyden(lambda psi_X: _F(fgg, nt_dict, psi_X) - psi_X, invJ, psi_X, tol=tol, kmax=kmax)
+        broyden(lambda psi_X: F(fgg, nt_dict, psi_X) - psi_X, invJ, psi_X, tol=tol, kmax=kmax)
         # k = 1
         while any(torch.isnan(psi_X)):
             # perturbation = round(random.uniform(0.51, 1.99), 1)
             psi_X = torch.full((n,), fill_value=0.0)
             # invJ = -torch.eye(len(psi_X), len(psi_X)) * perturbation
             invJ = -torch.eye(len(psi_X), len(psi_X))
-            _broyden(lambda psi_X: _F(fgg, nt_dict, psi_X) - psi_X, invJ, psi_X, tol=tol, kmax=kmax)
+            broyden(lambda psi_X: F(fgg, nt_dict, psi_X) - psi_X, invJ, psi_X, tol=tol, kmax=kmax)
             # broyden(lambda psi_X: F(psi_X) - psi_X, invJ, psi_X, tol=tol*(10**k), kmax=kmax)
             # k += 1
     else: raise ValueError('unsupported method for computing sum-product')
