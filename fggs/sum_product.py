@@ -6,9 +6,9 @@ from typing import Callable, Dict
 from functools import reduce
 import warnings, torch
 
-def Formatwarning(message, category, filename=None, lineno=None, file=None, line=None):
+def _formatwarning(message, category, filename=None, lineno=None, file=None, line=None):
     return '%s:%s: %s: %s' % (filename, lineno, category.__name__, message)
-warnings.formatwarning = Formatwarning
+warnings.formatwarning = _formatwarning
 Tensor = torch.Tensor; Function = Callable[[Tensor], Tensor]
 
 def fixed_point(F: Function, psi_X0: Tensor, *, tol: float, kmax: int) -> None:
