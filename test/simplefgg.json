@@ -1,0 +1,34 @@
+{
+    "terminals": {
+        "fac1": { "type": [] },
+        "fac2": { "type": [] }
+    },
+    "nonterminals": {
+        "S": { "type" : [] }
+    },
+    "start": "S",
+    "rules": [
+        {
+            "lhs": "S",
+            "rhs": {
+                "nodes": [],
+                "edges": [
+                    { "id": "e0", "attachments": [], "label": "fac1" },
+                    { "id": "e1", "attachments": [], "label": "S" },
+                    { "id": "e2", "attachments": [], "label": "S" }
+                ],
+                "externals": []
+            }
+        },
+        {
+            "lhs": "S",
+            "rhs": {
+                "nodes": [],
+                "edges": [
+                    { "id": "e0", "attachments": [], "label": "fac2" }
+                ],
+                "externals": []
+            }
+        }
+    ]
+}
