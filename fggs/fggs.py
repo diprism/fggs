@@ -125,11 +125,12 @@ class Edge:
 class Graph:
 
     def __init__(self):
-        self._nodes    = set()
-        self._node_ids = set()
-        self._edges    = set()
-        self._edge_ids = set()
-        self._ext      = tuple()
+        self._nodes       = set()
+        self._node_ids    = set()
+        self._edges       = set()
+        self._edge_ids    = set()
+        self._edge_labels = dict()    # map from names to EdgeLabels
+        self._ext         = tuple()
     
     def nodes(self):
         return list(self._nodes)
@@ -137,11 +138,11 @@ class Graph:
     def edges(self):
         return list(self._edges)
     
-    def terminals(self):
-        return [edge for edge in self._edges if edge.label.is_terminal]
-
     def nonterminals(self):
-        return [edge for edge in self._edges if edge.label.is_nonterminal]
+        return [el for el in self._edge_labels.values() if el.is_nonterminal]
+    
+    def terminals(self):
+        return [el for el in self._edge_labels.values() if el.is_terminal]
 
     def ext(self):
         return self._ext
@@ -170,11 +171,14 @@ class Graph:
     def add_edge(self, edge: Edge):
         if edge.id in self._edge_ids:
             raise ValueError(f"Can't have two edges with same ID {edge.id} in same Graph.")
+        if edge.label.name in self._edge_labels and edge.label != self._edge_labels[edge.label.name]:
+            raise ValueError(f"Can't have two edge labels iwth same name {edge.label.name} in same Graph.")
         for node in edge.nodes:
             if node not in self._nodes:
                 self._nodes.add(node)
         self._edges.add(edge)
         self._edge_ids.add(edge.id)
+        self._edge_labels[edge.label.name] = edge.label
 
     def remove_edge(self, edge: Edge):
         if edge not in self._edges:
@@ -288,41 +292,20 @@ class HRG:
             raise Exception(f"There is already an edge label called {name}.")
         self._edge_labels[name] = label
 
-    def add_terminal(self, t: EdgeLabel):
-        warnings.warn("Use HRG.add_edge_label instead.", DeprecationWarning)
-        if not t.is_terminal: raise ValueError('t should be a terminal')
-        self.add_edge_label(t)
-    def add_nonterminal(self, nt: EdgeLabel):
-        warnings.warn("Use HRG.add_edge_label instead.", DeprecationWarning)
-        if not nt.is_nonterminal: raise ValueError('nt should be a nonterminal')
-        self.add_edge_label(nt)
-    def get_terminal(self, name):
-        warnings.warn("Use HRG.get_edge_label instead.", DeprecationWarning)
-        return self.get_edge_label(name)
-    def get_nonterminal(self, name):
-        warnings.warn("Use HRG.get_edge_label instead.", DeprecationWarning)
-        return self.get_edge_label(name)
-    
+    def has_edge_label(self, name):
+        return name in self._edge_labels
+
     def get_edge_label(self, name):
-        return self._edge_label[name]
+        return self._edge_labels[name]
+
+    def edge_labels(self):
+        return self._edge_labels.values()
 
     def nonterminals(self):
         return [el for el in self._edge_labels.values() if el.is_nonterminal]
     
     def terminals(self):
         return [el for el in self._edge_labels.values() if el.is_terminal]
-
-    def has_edge_label(self, name):
-        return name in self._edge_labels
-
-    def get_edge_label(self, name):
-        try:
-            return self._edge_labels[name]
-        except KeyError:
-            raise KeyError(f'no such edge label {name}')
-
-    def edge_labels(self):
-        return self._edge_labels.values()
 
     def set_start_symbol(self, start: EdgeLabel):
         if not start.is_nonterminal:

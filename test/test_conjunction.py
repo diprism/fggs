@@ -29,12 +29,12 @@ class TestConjunction(unittest.TestCase):
         
         xrules2 = self.conjunct.rules(self.conjunct.get_edge_label("X"))
         for rule in xrules2:
-            if "Y" in [nt.label.name for nt in rule.rhs().nonterminals()]:
+            if "Y" in [nt.name for nt in rule.rhs().nonterminals()]:
                 self.xrule2 = rule
         
         xrules3 = self.conjunction.rules(self.conjunction.get_edge_label("<X,X>"))
         for rule in xrules3:
-            if "Y" in [nt.label.name for nt in rule.rhs().nonterminals()]:
+            if "Y" in [nt.name for nt in rule.rhs().nonterminals()]:
                 self.xrule3 = rule
         
         # get all the nodes for easy access

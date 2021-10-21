@@ -166,6 +166,10 @@ class TestGraph(unittest.TestCase):
         new_edge = Edge(self.el1, (self.node1, self.node2), id=self.edge1.id)
         with self.assertRaises(ValueError):
             self.graph.add_edge(new_edge)
+        # nor an Edge with a conflicting label
+        new_edge = Edge(EdgeLabel("el1", (), is_terminal=True), ())
+        with self.assertRaises(ValueError):
+            self.graph.add_edge(new_edge)
     
     def test_set_ext(self):
         ext = self.graph.ext()
@@ -186,8 +190,8 @@ class TestGraph(unittest.TestCase):
         self.assertEqual(self.graph.type(), (self.nl2,))
 
     def test_terminals_and_nonterminals(self):
-        self.assertEqual(self.graph.terminals(), [self.edge1])
-        self.assertEqual(self.graph.nonterminals(), [self.edge2])
+        self.assertEqual(self.graph.terminals(), [self.edge1.label])
+        self.assertEqual(self.graph.nonterminals(), [self.edge2.label])
 
     def test_remove_node(self):
         with self.assertRaises(ValueError):
