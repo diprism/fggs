@@ -22,17 +22,17 @@ class TestConjunction(unittest.TestCase):
         self.conjunction = fggs.json_to_hrg(self.conjunction_json)
         
         # extract specific rules for testing conjunction
-        xrules1 = self.hmm.rules(self.hmm.get_nonterminal("X"))
+        xrules1 = self.hmm.rules(self.hmm.get_edge_label("X"))
         for rule in xrules1:
             if len(rule.rhs().nodes()) == 3:
                 self.xrule1 = rule
         
-        xrules2 = self.conjunct.rules(self.conjunct.get_nonterminal("X"))
+        xrules2 = self.conjunct.rules(self.conjunct.get_edge_label("X"))
         for rule in xrules2:
             if "Y" in [nt.label.name for nt in rule.rhs().nonterminals()]:
                 self.xrule2 = rule
         
-        xrules3 = self.conjunction.rules(self.conjunction.get_nonterminal("<X,X>"))
+        xrules3 = self.conjunction.rules(self.conjunction.get_edge_label("<X,X>"))
         for rule in xrules3:
             if "Y" in [nt.label.name for nt in rule.rhs().nonterminals()]:
                 self.xrule3 = rule
@@ -54,9 +54,9 @@ class TestConjunction(unittest.TestCase):
         el3 = fggs.EdgeLabel("don't_collide", [nl], is_nonterminal=True)
         self.hmm.add_node_label(nl)
         self.conjunct.add_node_label(nl)
-        self.hmm.add_terminal(el1)
-        self.conjunct.add_terminal(el2)
-        self.conjunct.add_nonterminal(el3)
+        self.hmm.add_edge_label(el1)
+        self.conjunct.add_edge_label(el2)
+        self.conjunct.add_edge_label(el3)
         (n, e) = check_namespace_collisions(self.hmm, self.conjunct)
         self.assertEqual(len(n), 0)
         self.assertEqual(len(e), 1)
@@ -66,11 +66,11 @@ class TestConjunction(unittest.TestCase):
     def test_nonterminal_pairs(self):
         hrg1 = fggs.HRG()
         hrg2 = fggs.HRG()
-        hrg1.add_nonterminal(fggs.EdgeLabel(name="X", is_nonterminal=True, node_labels=()))
-        hrg2.add_nonterminal(fggs.EdgeLabel(name="Y,Z", is_nonterminal=True, node_labels=()))
-        hrg1.add_nonterminal(fggs.EdgeLabel(name="X,Y", is_nonterminal=True, node_labels=()))
-        hrg2.add_nonterminal(fggs.EdgeLabel(name="Z", is_nonterminal=True, node_labels=()))
-        hrg1.add_terminal(fggs.EdgeLabel(name="<X,Z>", is_terminal=True, node_labels=()))
+        hrg1.add_edge_label(fggs.EdgeLabel(name="X", is_nonterminal=True, node_labels=()))
+        hrg2.add_edge_label(fggs.EdgeLabel(name="Y,Z", is_nonterminal=True, node_labels=()))
+        hrg1.add_edge_label(fggs.EdgeLabel(name="X,Y", is_nonterminal=True, node_labels=()))
+        hrg2.add_edge_label(fggs.EdgeLabel(name="Z", is_nonterminal=True, node_labels=()))
+        hrg1.add_edge_label(fggs.EdgeLabel(name="<X,Z>", is_terminal=True, node_labels=()))
         nt_map = nonterminal_pairs(hrg1, hrg2)
         self.assertEqual(sorted(nt.name for nt in nt_map.values()), ["<X,Y,Y,Z>", "<X,Y,Z>", "<X,Y,Z>_2", "<X,Z>_2"])
 
