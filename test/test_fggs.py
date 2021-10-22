@@ -166,6 +166,10 @@ class TestGraph(unittest.TestCase):
         new_edge = Edge(self.el1, (self.node1, self.node2), id=self.edge1.id)
         with self.assertRaises(ValueError):
             self.graph.add_edge(new_edge)
+        # nor an Edge with a conflicting label
+        new_edge = Edge(EdgeLabel("el1", (), is_terminal=True), ())
+        with self.assertRaises(ValueError):
+            self.graph.add_edge(new_edge)
     
     def test_set_ext(self):
         ext = self.graph.ext()
@@ -186,8 +190,8 @@ class TestGraph(unittest.TestCase):
         self.assertEqual(self.graph.type(), (self.nl2,))
 
     def test_terminals_and_nonterminals(self):
-        self.assertEqual(self.graph.terminals(), [self.edge1])
-        self.assertEqual(self.graph.nonterminals(), [self.edge2])
+        self.assertEqual(self.graph.terminals(), [self.edge1.label])
+        self.assertEqual(self.graph.nonterminals(), [self.edge2.label])
 
     def test_remove_node(self):
         with self.assertRaises(ValueError):
@@ -294,9 +298,9 @@ class TestHRG(unittest.TestCase):
         self.fgg = HRG()
         self.fgg.add_node_label(self.nl1)
         self.fgg.add_node_label(self.nl2)
-        self.fgg.add_terminal(self.el1)
-        self.fgg.add_nonterminal(self.el2)
-        self.fgg.add_nonterminal(self.start)
+        self.fgg.add_edge_label(self.el1)
+        self.fgg.add_edge_label(self.el2)
+        self.fgg.add_edge_label(self.start)
         self.fgg.set_start_symbol(self.start)
         self.fgg.add_rule(self.rule)
         self.fgg.add_rule(self.rule2)
@@ -313,52 +317,42 @@ class TestHRG(unittest.TestCase):
         self.fgg.add_node_label(nl3)
         self.assertEqual(len(self.fgg.node_labels()), 2)
     
-    def test_add_nonterminal(self):
+    def test_nonterminals(self):
         nonterminals = self.fgg.nonterminals()
         self.assertEqual(len(nonterminals), 2)
         self.assertTrue(self.start in nonterminals)
         self.assertTrue(self.el2 in nonterminals)
-    
-    def test_add_nonterminal_bad_input(self):
-        # try adding a terminal
-        with self.assertRaises(Exception):
-            self.fgg.add_nonterminal(self.el1)
         
-        # reusing a nonterminal name
-        nt = EdgeLabel("el2", (self.nl1, self.nl1), is_nonterminal=True)
-        with self.assertRaises(Exception):
-            self.fgg.add_nonterminal(nt)
-        
-        # a nonterminal with the same name as a terminal
-        nt = EdgeLabel("el1", (self.nl1, self.nl1), is_nonterminal=True)
-        with self.assertRaises(Exception):
-            self.fgg.add_nonterminal(nt)
-        
-        # it should allow you to add the same nt a second time
-        self.fgg.add_nonterminal(self.start)
-
-    def test_add_terminal(self):
+    def test_terminals(self):
         terminals = self.fgg.terminals()
         self.assertEqual(len(terminals), 1)
         self.assertTrue(self.el1 in terminals)
-        
-    def test_add_terminal_bad_input(self):
-        # try adding a nonterminal
+    
+    def test_add_edge_label_bad_input(self):
+        # conflicting edge label names
+        # nonterminal with nonterminal
+        nt = EdgeLabel("el2", (self.nl1, self.nl1), is_nonterminal=True)
         with self.assertRaises(Exception):
-            self.fgg.add_terminal(self.el2)
+            self.fgg.add_edge_label(nt)
         
-        # reusing a terminal name
+        # terminal with terminal
         t = EdgeLabel("el1", (self.nl1, self.nl1), is_terminal=True)
         with self.assertRaises(Exception):
-            self.fgg.add_terminal(t)
+            self.fgg.add_edge_label(t)
         
-        # a nonterminal with the same name as a terminal
+        # nonterminal with terminal
+        nt = EdgeLabel("el1", (self.nl1, self.nl1), is_nonterminal=True)
+        with self.assertRaises(Exception):
+            self.fgg.add_edge_label(nt)
+        
+        # terminal with nonterminal
         t = EdgeLabel("el2", (self.nl1, self.nl1), is_nonterminal=True)
         with self.assertRaises(Exception):
-            self.fgg.add_terminal(t)
-        
-        # it should allow you to add the same terminal a second time
-        self.fgg.add_terminal(self.el1)
+            self.fgg.add_edge_label(t)
+            
+        # it should allow you to add the same edge label a second time
+        self.fgg.add_edge_label(self.start)
+        self.fgg.add_edge_label(self.el1)
 
     def test_set_start_symbol(self):
         self.assertEqual(self.fgg.start_symbol(), self.start)
@@ -446,9 +440,9 @@ class TestInterpretation(unittest.TestCase):
         self.fgg = HRG()
         self.fgg.add_node_label(self.nl1)
         self.fgg.add_node_label(self.nl2)
-        self.fgg.add_terminal(self.el1)
-        self.fgg.add_nonterminal(self.el2)
-        self.fgg.add_nonterminal(self.start)
+        self.fgg.add_edge_label(self.el1)
+        self.fgg.add_edge_label(self.el2)
+        self.fgg.add_edge_label(self.start)
         self.fgg.set_start_symbol(self.start)
         self.fgg.add_rule(self.rule)
         self.fgg.add_rule(self.rule2)

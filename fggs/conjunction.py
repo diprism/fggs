@@ -56,9 +56,11 @@ def conjoinable(rule1, rule2):
     # Must have same nonterminal Edges (in terms of Edge id)
     # which can have different EdgeLabels, but must connect to same Nodes
     nts1 = set([(edge.id, tuple([node.id for node in edge.nodes]))
-                for edge in rule1.rhs().nonterminals()])
+                for edge in rule1.rhs().edges()
+                if edge.label.is_nonterminal])
     nts2 = set([(edge.id, tuple([node.id for node in edge.nodes]))
-                for edge in rule2.rhs().nonterminals()])
+                for edge in rule2.rhs().edges()
+                if edge.label.is_nonterminal])
     if nts1 != nts2:
         return False
     # Must have same external nodes
@@ -82,17 +84,17 @@ def conjoin_rules(rule1, rule2, nt_map):
     # set external nodes
     new_rhs.set_ext(rule1.rhs().ext())
     # add nonterminal edges
-    nts1 = sorted([edge for edge in rule1.rhs().nonterminals()],
+    nts1 = sorted([edge for edge in rule1.rhs().edges() if edge.label.is_nonterminal],
                   key=lambda edge: edge.id)
-    nts2 = sorted([edge for edge in rule2.rhs().nonterminals()],
+    nts2 = sorted([edge for edge in rule2.rhs().edges() if edge.label.is_nonterminal],
                   key=lambda edge: edge.id)
     for (edge1,edge2) in zip(nts1,nts2):
         new_rhs.add_edge(fggs.Edge(label=nt_map[edge1.label, edge2.label],
                                    nodes=edge1.nodes,
                                    id=edge1.id))
     # add terminal edges
-    ts1 = rule1.rhs().terminals()
-    ts2 = rule2.rhs().terminals()
+    ts1 = [e for e in rule1.rhs().edges() if e.label.is_terminal]
+    ts2 = [e for e in rule2.rhs().edges() if e.label.is_terminal]
     for edge in ts1 + ts2:
         new_rhs.add_edge(edge)
     return fggs.HRGRule(lhs=new_lhs, rhs=new_rhs)

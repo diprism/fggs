@@ -125,11 +125,12 @@ class Edge:
 class Graph:
 
     def __init__(self):
-        self._nodes    = set()
-        self._node_ids = set()
-        self._edges    = set()
-        self._edge_ids = set()
-        self._ext      = tuple()
+        self._nodes       = set()
+        self._node_ids    = set()
+        self._edges       = set()
+        self._edge_ids    = set()
+        self._edge_labels = dict()    # map from names to EdgeLabels
+        self._ext         = tuple()
     
     def nodes(self):
         return list(self._nodes)
@@ -137,11 +138,11 @@ class Graph:
     def edges(self):
         return list(self._edges)
     
-    def terminals(self):
-        return [edge for edge in self._edges if edge.label.is_terminal]
-
     def nonterminals(self):
-        return [edge for edge in self._edges if edge.label.is_nonterminal]
+        return [el for el in self._edge_labels.values() if el.is_nonterminal]
+    
+    def terminals(self):
+        return [el for el in self._edge_labels.values() if el.is_terminal]
 
     def ext(self):
         return self._ext
@@ -170,11 +171,14 @@ class Graph:
     def add_edge(self, edge: Edge):
         if edge.id in self._edge_ids:
             raise ValueError(f"Can't have two edges with same ID {edge.id} in same Graph.")
+        if edge.label.name in self._edge_labels and edge.label != self._edge_labels[edge.label.name]:
+            raise ValueError(f"Can't have two edge labels iwth same name {edge.label.name} in same Graph.")
         for node in edge.nodes:
             if node not in self._nodes:
                 self._nodes.add(node)
         self._edges.add(edge)
         self._edge_ids.add(edge.id)
+        self._edge_labels[edge.label.name] = edge.label
 
     def remove_edge(self, edge: Edge):
         if edge not in self._edges:
@@ -266,8 +270,7 @@ class HRG:
     
     def __init__(self):
         self._node_labels  = dict()    # map from names to NodeLabels
-        self._nonterminals = dict()    # map from names to EdgeLabels
-        self._terminals    = dict()    # map from names to EdgeLabels
+        self._edge_labels  = dict()    # map from names to EdgeLabels
         self._start        = None      # start symbol, an EdgeLabel which has arity 0
         self._rules        = dict()    # one list of rules for each nonterminal edge label
 
@@ -283,61 +286,31 @@ class HRG:
     def node_labels(self):
         return [self._node_labels[name] for name in self._node_labels]
 
-    def add_nonterminal(self, label: EdgeLabel):
-        if label.is_terminal:
-            raise Exception(f"Can't add terminal edge label {label.name} as a nonterminal.")
-            
+    def add_edge_label(self, label: EdgeLabel):
         name = label.name
-        if name in self._nonterminals:
-            if self._nonterminals[name] != label:
-                raise Exception(f"There is already a nonterminal called {name}.")
-        if name in self._terminals:
-            raise Exception(f"Cannot have both a terminal and nonterminal with name {name}.")
-
-        self._nonterminals[name] = label
-    
-    def get_nonterminal(self, name):
-        return self._nonterminals[name]
-
-    def nonterminals(self):
-        return [self._nonterminals[name] for name in self._nonterminals]
-    
-    def add_terminal(self, label: EdgeLabel):
-        if not label.is_terminal:
-            raise Exception(f"Can't add nonterminal edge label {label.name} as a terminal.")
-        
-        name = label.name
-        if name in self._terminals:
-            if self._terminals[name] != label:
-                raise Exception(f"There is already a terminal called {name}.")
-        if name in self._nonterminals:
-            raise Exception(f"Cannot have both a terminal and nonterminal with name {name}.")
-        
-        self._terminals[name] = label
-
-    def get_terminal(self, name):
-        return self._terminals[name]
-
-    def terminals(self):
-        return [self._terminals[name] for name in self._terminals]
+        if name in self._edge_labels and self._edge_labels[name] != label:
+            raise Exception(f"There is already an edge label called {name}.")
+        self._edge_labels[name] = label
 
     def has_edge_label(self, name):
-        return name in self._nonterminals or\
-               name in self._terminals
+        return name in self._edge_labels
 
     def get_edge_label(self, name):
-        if name in self._nonterminals:
-            return self._nonterminals[name]
-        elif name in self._terminals:
-            return self._terminals[name]
-        else:
-            raise KeyError(f'no such edge label {name}')
+        return self._edge_labels[name]
 
     def edge_labels(self):
-        return self.nonterminals() + self.terminals()
+        return self._edge_labels.values()
+
+    def nonterminals(self):
+        return [el for el in self._edge_labels.values() if el.is_nonterminal]
+    
+    def terminals(self):
+        return [el for el in self._edge_labels.values() if el.is_terminal]
 
     def set_start_symbol(self, start: EdgeLabel):
-        self.add_nonterminal(start)
+        if not start.is_nonterminal:
+            raise ValueError('Start symbol must be a nonterminal')
+        self.add_edge_label(start)
         self._start = start
 
     def start_symbol(self):
@@ -347,14 +320,11 @@ class HRG:
         lhs = rule.lhs()
         rhs = rule.rhs()
         
-        self.add_nonterminal(lhs)
+        self.add_edge_label(lhs)
         for node in rhs.nodes():
             self.add_node_label(node.label)
         for edge in rhs.edges():
-            if edge.label.is_terminal:
-                self.add_terminal(edge.label)
-            else:
-                self.add_nonterminal(edge.label)
+            self.add_edge_label(edge.label)
         
         self._rules.setdefault(lhs, []).append(rule)
 
@@ -368,8 +338,7 @@ class HRG:
         """Returns a copy of this HRG, whose rules are all copies of the original's."""
         copy = HRG()
         copy._node_labels = self._node_labels.copy()
-        copy._nonterminals = self._nonterminals.copy()
-        copy._terminals = self._terminals.copy()
+        copy._edge_labels = self._edge_labels.copy()
         copy._start = self._start
         copy._rules = {}
         for lhs in self._rules:
@@ -385,8 +354,7 @@ class HRG:
                 self._rules == other._rules and
                 self._start == other._start and
                 self._node_labels == other._node_labels and
-                self._nonterminals == other._nonterminals and
-                self._terminals == other._terminals)
+                self._edge_labels == other._edge_labels)
     def __ne__(self, other):
         return not self.__eq__(other)
 
@@ -396,10 +364,8 @@ class HRG:
         for label_name in self._node_labels:
             string += f"\n\t\t{self._node_labels[label_name]}"
         string += "\n\tEdge labels:"
-        for label_name in self._nonterminals:
-            string += f"\n{self._nonterminals[label_name].to_string(2)}"
-        for label_name in self._terminals:
-            string += f"\n{self._terminals[label_name].to_string(2)}"
+        for label_name in self._edge_labels:
+            string += f"\n{self._edge_labels[label_name].to_string(2)}"
         string += f"\n\tStart symbol {self._start.name}"
         string += f"\n\tProductions:"
         for nonterminal in self._rules:

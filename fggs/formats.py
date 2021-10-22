@@ -11,16 +11,16 @@ def json_to_hrg(j):
     
     for name, d in j['terminals'].items():
         t = tuple(NodeLabel(l) for l in d['type'])
-        g.add_terminal(EdgeLabel(name, t, is_terminal=True))
+        g.add_edge_label(EdgeLabel(name, t, is_terminal=True))
 
     for nt, d in j['nonterminals'].items():
         t = tuple(NodeLabel(l) for l in d['type'])
-        g.add_nonterminal(EdgeLabel(nt, t, is_nonterminal=True))
+        g.add_edge_label(EdgeLabel(nt, t, is_nonterminal=True))
         
-    g.set_start_symbol(g.get_nonterminal(j['start']))
+    g.set_start_symbol(g.get_edge_label(j['start']))
 
     for r in j['rules']:
-        lhs = g.get_nonterminal(r['lhs'])
+        lhs = g.get_edge_label(r['lhs'])
         rhs = Graph()
         nodes = []
         for node in r['rhs']['nodes']:
