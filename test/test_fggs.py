@@ -329,19 +329,23 @@ class TestHRG(unittest.TestCase):
         self.assertTrue(self.el1 in terminals)
     
     def test_add_edge_label_bad_input(self):
-        # conflicting edge label name
+        # conflicting edge label names
+        # nonterminal with nonterminal
         nt = EdgeLabel("el2", (self.nl1, self.nl1), is_nonterminal=True)
         with self.assertRaises(Exception):
             self.fgg.add_edge_label(nt)
         
+        # terminal with terminal
         t = EdgeLabel("el1", (self.nl1, self.nl1), is_terminal=True)
         with self.assertRaises(Exception):
             self.fgg.add_edge_label(t)
         
+        # nonterminal with terminal
         nt = EdgeLabel("el1", (self.nl1, self.nl1), is_nonterminal=True)
         with self.assertRaises(Exception):
             self.fgg.add_edge_label(nt)
         
+        # terminal with nonterminal
         t = EdgeLabel("el2", (self.nl1, self.nl1), is_nonterminal=True)
         with self.assertRaises(Exception):
             self.fgg.add_edge_label(t)

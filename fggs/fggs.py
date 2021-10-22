@@ -1,6 +1,6 @@
 __all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 'Interpretation', 'FactorGraph', 'FGG']
 
-import random, string, warnings
+import random, string
 from typing import Optional, Iterable, Tuple
 from dataclasses import dataclass, field
 from fggs.domains import Domain
@@ -324,10 +324,7 @@ class HRG:
         for node in rhs.nodes():
             self.add_node_label(node.label)
         for edge in rhs.edges():
-            if edge.label.is_terminal:
-                self.add_edge_label(edge.label)
-            else:
-                self.add_edge_label(edge.label)
+            self.add_edge_label(edge.label)
         
         self._rules.setdefault(lhs, []).append(rule)
 
