@@ -1,32 +1,4 @@
 {
-    "domains": {
-        "dom": {
-            "class": "finite",
-            "values": ["good", "unreachable", "unproductive"]
-        }
-    },
-    "factors": {
-        "start": {
-            "function": "categorical",
-            "type": ["dom"],
-            "weights": [3, 0, 5]
-        },
-        "fac0": {
-            "function": "categorical",
-            "type": ["dom"],
-            "weights": [1, 7, 0]
-        },
-        "fac1": {
-            "function": "categorical",
-            "type": ["dom"],
-            "weights": [0.5, 11, 1]
-        },
-        "fac2": {
-            "function": "categorical",
-            "type": ["dom"],
-            "weights": [0, 0, 1]
-        }
-    },
     "nonterminals": {
         "A": { "type": ["dom"] },
         "B": { "type": ["dom"] },
@@ -34,6 +6,20 @@
         "Unreachable": { "type": ["dom"] },
         "Unproductive1": { "type": ["dom"] },
         "Unproductive2": { "type": ["dom"] }
+    },
+    "terminals": {
+        "start": {
+            "type": ["dom"]
+        },
+        "fac0": {
+            "type": ["dom"]
+        },
+        "fac1": {
+            "type": ["dom"]
+        },
+        "fac2": {
+            "type": ["dom"]
+        }
     },
     "start": "A",
     "rules": [
