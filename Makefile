@@ -1,9 +1,9 @@
 PYTHON=python3
 
-.PHONY: docs
+.PHONY: docs test
 
 test:
-	$(PYTHON) -m unittest discover tests
+	$(PYTHON) -m unittest
 
 docs:
 	sphinx-build -M html docs/source "$@"
