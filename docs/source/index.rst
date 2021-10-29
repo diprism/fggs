@@ -10,7 +10,26 @@ Welcome to fggs's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+.. automodule:: fggs.fggs
+   :members:
+      
+.. automodule:: fggs.domains
+   :members:
 
+.. automodule:: fggs.factors
+   :members:
+
+.. automodule:: fggs.derivations
+   :members:
+
+.. automodule:: fggs.formats
+   :members:
+
+.. automodule:: fggs.conjunction
+   :members:
+
+.. automodule:: fggs.sum_product
+   :members:
 
 Indices and tables
 ==================

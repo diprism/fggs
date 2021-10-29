@@ -9,6 +9,8 @@ from fggs.factors import Factor
 
 @dataclass(frozen=True)
 class NodeLabel:
+    """A node label."""
+    
     name: str
     
     def __str__(self):
@@ -68,7 +70,7 @@ class EdgeLabel:
                 string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name}"
         return string
 
-
+    
 def _generate_id():
     letters = string.ascii_letters
     new_id = ''.join([random.choice(letters) for i in range(20)])
@@ -77,6 +79,7 @@ def _generate_id():
 
 @dataclass(frozen=True)
 class Node:
+    """A node of a Graph."""
     
     label: NodeLabel
     id: str = None
@@ -91,6 +94,7 @@ class Node:
 
 @dataclass(frozen=True)
 class Edge:
+    """A hyperedge of a Graph."""
 
     label: EdgeLabel
     nodes: Iterable[NodeLabel]
@@ -123,6 +127,7 @@ class Edge:
 
 
 class Graph:
+    """A hypergraph."""
 
     def __init__(self):
         self._nodes       = set()
@@ -231,6 +236,7 @@ class Graph:
 
 
 class HRGRule:
+    """An HRG production."""
 
     def __init__(self, lhs: EdgeLabel, rhs: Graph):
         if lhs.is_terminal:
@@ -267,6 +273,7 @@ class HRGRule:
 
 
 class HRG:
+    """A hyperedge replacement graph grammar."""
     
     def __init__(self):
         self._node_labels  = dict()    # map from names to NodeLabels
@@ -375,6 +382,8 @@ class HRG:
 
     
 class Interpretation:
+    """An interpretation of an HRG."""
+    
     def __init__(self):
         self.domains = {}
         self.factors = {}
@@ -406,13 +415,17 @@ class Interpretation:
         self.factors[el] = fac
         
     
-class FactorGraph:    
+class FactorGraph:
+    """A factor graph."""
+    
     def __init__(self, graph: Graph, interp: Interpretation):
         self.graph = graph
         self.interp = interp
 
         
 class FGG:
+    """A factor graph grammar."""
+    
     def __init__(self, grammar: HRG, interp: Interpretation):
         self.grammar = grammar
         self.interp = interp
