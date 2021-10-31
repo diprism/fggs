@@ -233,17 +233,19 @@ def graph_to_dot(g: Graph, factor_formats=None, lhs=None):
     return dot
 
 def graph_to_tikz(g: Graph, factor_formats=None, lhs=None):
-    """Convert a Graph to LaTeX/TikZ code.
+    r"""Convert a Graph to LaTeX/TikZ code.
 
     The resulting code makes use of several TikZ styles. Some suggested
     definitions for these styles are:
 
-    \tikzset{
-      var/.style={draw,circle,fill=white,inner sep=1.5pt,minimum size=8pt},
-      ext/.style={var,fill=black,text=white},
-      fac/.style={draw,rectangle},
-      tent/.style={font={\tiny},auto}
-    }
+    .. code-block:: latex
+
+        \tikzset{
+          var/.style={draw,circle,fill=white,inner sep=1.5pt,minimum size=8pt},
+          ext/.style={var,fill=black,text=white},
+          fac/.style={draw,rectangle},
+          tent/.style={font={\tiny},auto}
+        }
     """
     import pydot
     
@@ -294,18 +296,20 @@ def graph_to_tikz(g: Graph, factor_formats=None, lhs=None):
     return '\n'.join(res)
 
 def hrg_to_tikz(g, factor_formats=None):
-    """Convert an HRG to LaTeX/TikZ code.
+    r"""Convert an HRG to LaTeX/TikZ code.
 
     The resulting code makes use of several TikZ styles. Some suggested
     definitions for these styles are:
 
-    \tikzset{
-      var/.style={draw,circle,fill=white,inner sep=1.5pt,minimum size=8pt},
-      ext/.style={var,fill=black,text=white},
-      fac/.style={draw,rectangle},
-      tent/.style={font={\tiny},auto}
-    }
-    """
+    .. code-block:: latex
+
+        \tikzset{
+          var/.style={draw,circle,fill=white,inner sep=1.5pt,minimum size=8pt},
+          ext/.style={var,fill=black,text=white},
+          fac/.style={draw,rectangle},
+          tent/.style={font={\tiny},auto}
+        }
+        """
     res = []
     res.append(r'\begin{align*}')
     for r in g.all_rules():

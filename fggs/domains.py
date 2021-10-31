@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 # this somehow needs to be able to express continuous and discrete infinite domains
 # TODO: need some way to either sum over or integrate over?
 class Domain(ABC):
+    """Abstract base class for domains."""
     
     @abstractmethod
     def contains(self, value):

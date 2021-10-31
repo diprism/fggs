@@ -10,26 +10,63 @@ Welcome to fggs's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-.. automodule:: fggs.fggs
+Factor graph grammars
+---------------------
+
+.. autoclass:: fggs.FGG
    :members:
       
-.. automodule:: fggs.domains
+.. autoclass:: fggs.FactorGraph
+   :members:
+      
+.. autoclass:: fggs.HRG
+   :members:
+      
+.. autoclass:: fggs.HRGRule
    :members:
 
-.. automodule:: fggs.factors
+.. autoclass:: fggs.Node
+   :members:
+      
+.. autoclass:: fggs.NodeLabel
+   :members:
+      
+.. autoclass:: fggs.Edge
+   :members:
+      
+.. autoclass:: fggs.EdgeLabel
+   :members:
+   
+.. autoclass:: fggs.Domain
    :members:
 
-.. automodule:: fggs.derivations
+.. autoclass:: fggs.FiniteDomain
+   :members:
+
+.. autoclass:: fggs.Factor
+   :members:
+
+.. autoclass:: fggs.CategoricalFactor
    :members:
 
 .. automodule:: fggs.formats
    :members:
 
-.. automodule:: fggs.conjunction
-   :members:
+Operations on FGGs
+------------------
 
-.. automodule:: fggs.sum_product
-   :members:
+.. autofunction:: fggs.start_graph
+                  
+.. autofunction:: fggs.replace_edges
+                  
+.. autofunction:: fggs.conjoin_hrgs
+                  
+.. autofunction:: fggs.factorize
+
+Inference
+---------
+      
+.. autofunction:: fggs.sum_product
 
 Indices and tables
 ==================
