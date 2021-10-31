@@ -1,72 +1,22 @@
-.. fggs documentation master file, created by
-   sphinx-quickstart on Fri Oct 29 18:00:25 2021.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+fggs: Factor Graph Grammars in Python
+=====================================
 
-Welcome to fggs's documentation!
-================================
+Factor graph grammars (FGGs) are hyperedge replacement graph grammars for factor graphs. They generate sets of factor graphs and can describe a more general class of models than plate notation and many other formalisms can. Moreover, inference can be done on FGGs without enumerating all the generated factor graphs.
+
+This library implements FGGs in Python and is compatible with PyTorch.
+
+FGGs are described in the following paper:
+
+    David Chiang and Darcey Riley. `Factor graph grammars. <(https://arxiv.org/abs/2010.12048>`_ In Proc. NeurIPS. 2020.
+
+This code is written by David Chiang, Darcey Riley, and Kenneth Sible, at the University of Notre Dame.
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-Factor graph grammars
----------------------
+   reference.rst
 
-.. autoclass:: fggs.FGG
-   :members:
-      
-.. autoclass:: fggs.FactorGraph
-   :members:
-      
-.. autoclass:: fggs.HRG
-   :members:
-      
-.. autoclass:: fggs.HRGRule
-   :members:
-
-.. autoclass:: fggs.Node
-   :members:
-      
-.. autoclass:: fggs.NodeLabel
-   :members:
-      
-.. autoclass:: fggs.Edge
-   :members:
-      
-.. autoclass:: fggs.EdgeLabel
-   :members:
-   
-.. autoclass:: fggs.Domain
-   :members:
-
-.. autoclass:: fggs.FiniteDomain
-   :members:
-
-.. autoclass:: fggs.Factor
-   :members:
-
-.. autoclass:: fggs.CategoricalFactor
-   :members:
-
-.. automodule:: fggs.formats
-   :members:
-
-Operations on FGGs
-------------------
-
-.. autofunction:: fggs.start_graph
-                  
-.. autofunction:: fggs.replace_edges
-                  
-.. autofunction:: fggs.conjoin_hrgs
-                  
-.. autofunction:: fggs.factorize
-
-Inference
----------
-      
-.. autofunction:: fggs.sum_product
 
 Indices and tables
 ==================
