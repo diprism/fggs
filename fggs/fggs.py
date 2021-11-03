@@ -249,7 +249,7 @@ class Graph:
                 string += "\n" + edge.to_string(indent+1, False)
         return string
 
-
+@dataclass(frozen=True)
 class HRGRule:
     """An HRG production.
 
@@ -257,32 +257,18 @@ class HRGRule:
     - rhs: The right-hand side hypergraph fragment.
     """
 
-    def __init__(self, lhs: EdgeLabel, rhs: Graph):
-        if lhs.is_terminal:
-            raise Exception(f"Can't make HRG rule with terminal left-hand side.")
-        if (lhs.type() != rhs.type()):
-            raise Exception(f"Can't make HRG rule: left-hand side of type ({','.join(l.name for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name for l in rhs.type())}).")
-        self._lhs = lhs
-        self._rhs = rhs
+    lhs: EdgeLabel #: The left-hand side nonterminal.
+    rhs: Graph     #: The right-hand side hypergraph fragment.
 
-    def lhs(self):
-        """Return the left-hand side."""
-        return self._lhs
-    
-    def rhs(self):
-        """Return the right-hand side."""
-        return self._rhs
-    
+    def __post_init__(self):
+        if self.lhs.is_terminal:
+            raise Exception(f"Can't make HRG rule with terminal left-hand side.")
+        if (self.lhs.type() != self.rhs.type()):
+            raise Exception(f"Can't make HRG rule: left-hand side of type ({','.join(l.name for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name for l in rhs.type())}).")
+
     def copy(self):
         """Returns a copy of this HRGRule, whose right-hand side is a copy of the original's."""
-        return HRGRule(self.lhs(), self.rhs().copy())
-
-    def __eq__(self, other):
-        return (isinstance(other, HRGRule) and
-                self._lhs == other._lhs and
-                self._rhs == other._rhs)
-    def __ne__(self, other):
-        return not self.__eq__(self, other)
+        return HRGRule(self.lhs, self.rhs.copy())
 
     def __str__(self):
         return self.to_string(0)
@@ -351,8 +337,8 @@ class HRG:
 
     def add_rule(self, rule: HRGRule):
         """Add a new production to the HRG."""
-        lhs = rule.lhs()
-        rhs = rule.rhs()
+        lhs = rule.lhs
+        rhs = rule.rhs
         
         self.add_edge_label(lhs)
         for node in rhs.nodes():

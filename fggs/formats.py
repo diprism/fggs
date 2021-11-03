@@ -66,17 +66,17 @@ def hrg_to_json(g):
     
     j['rules'] = []
     for gr in g.all_rules():
-        nodes = sorted(gr.rhs().nodes(), key=lambda v: v.id)
+        nodes = sorted(gr.rhs.nodes(), key=lambda v: v.id)
         node_nums = {v:vi for vi, v in enumerate(nodes)}
         jr = {
-            'lhs': gr.lhs().name,
+            'lhs': gr.lhs.name,
             'rhs': {
                 'nodes': [{'id': v.id, 'label': v.label.name} for v in nodes],
                 'edges': [],
-                'externals': [node_nums[v] for v in gr.rhs().ext()],
+                'externals': [node_nums[v] for v in gr.rhs.ext()],
             },
         }
-        for e in sorted(gr.rhs().edges(), key=lambda e: e.id):
+        for e in sorted(gr.rhs.edges(), key=lambda e: e.id):
             jr['rhs']['edges'].append({
                 'id': e.id,
                 'attachments': [node_nums[v] for v in e.nodes],
@@ -315,10 +315,10 @@ def hrg_to_tikz(g, factor_formats=None):
     for r in g.all_rules():
         # Build a little factor graph for the lhs
         lhs = Graph()
-        lhs.add_edge(Edge(r.lhs(), [Node(x) for x in r.lhs().type()]))
+        lhs.add_edge(Edge(r.lhs(), [Node(x) for x in r.lhs.type()]))
         
-        res.append(graph_to_tikz(lhs, factor_formats, r.lhs()) +
+        res.append(graph_to_tikz(lhs, factor_formats, r.lhs) +
                    ' &\longrightarrow ' +
-                   graph_to_tikz(r.rhs(), factor_formats, r.lhs()) + r'\\')
+                   graph_to_tikz(r.rhs, factor_formats, r.lhs) + r'\\')
     res.append(r'\end{align*}')
     return '\n'.join(res)

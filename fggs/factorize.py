@@ -341,7 +341,7 @@ def factorize_rule(rule, method='min_fill'):
     """Factorize a rule into one or more smaller rules, hopefully with
     lower maximum treewidth.
     """
-    rhs = rule.rhs()
+    rhs = rule.rhs
     
     # Find tree decomposition of rhs
     g = {}
@@ -372,8 +372,8 @@ def factorize_rule(rule, method='min_fill'):
 
         # lhs and external nodes
         if parent is None:
-            ext = rule.rhs().ext()
-            lhs = rule.lhs()
+            ext = rule.rhs.ext()
+            lhs = rule.lhs
         else:
             ext = list(bag & parent)
             lhs = fggs.EdgeLabel(f'{id(rule)}_{i}',
@@ -388,7 +388,7 @@ def factorize_rule(rule, method='min_fill'):
         rhs.set_ext(ext)
 
         # terminal edges and existing nonterminal edges
-        for e in rule.rhs().edges():
+        for e in rule.rhs.edges():
             if (bag.issuperset(e.nodes) and
                 (parent is None or not parent.issuperset(e.nodes))):
                 rhs.add_edge(e)

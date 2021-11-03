@@ -51,21 +51,21 @@ def conjoinable(rule1, rule2):
     """Test whether two HRG rules are conjoinable."""
     
     # Must have same Nodes (in terms of Node id) with same NodeLabels
-    if rule1.rhs().nodes() != rule2.rhs().nodes():
+    if rule1.rhs.nodes() != rule2.rhs.nodes():
         return False
     # Must have same nonterminal Edges (in terms of Edge id)
     # which can have different EdgeLabels, but must connect to same Nodes
     nts1 = set([(edge.id, tuple([node.id for node in edge.nodes]))
-                for edge in rule1.rhs().edges()
+                for edge in rule1.rhs.edges()
                 if edge.label.is_nonterminal])
     nts2 = set([(edge.id, tuple([node.id for node in edge.nodes]))
-                for edge in rule2.rhs().edges()
+                for edge in rule2.rhs.edges()
                 if edge.label.is_nonterminal])
     if nts1 != nts2:
         return False
     # Must have same external nodes
-    ext1 = [node.id for node in rule1.rhs().ext()]
-    ext2 = [node.id for node in rule2.rhs().ext()]
+    ext1 = [node.id for node in rule1.rhs.ext()]
+    ext2 = [node.id for node in rule2.rhs.ext()]
     if ext1 != ext2:
         return False
     return True
@@ -76,25 +76,25 @@ def conjoin_rules(rule1, rule2, nt_map):
     Assumes rules are conjoinable.
     Does not check for conjoinability."""
     
-    new_lhs = nt_map[rule1.lhs(), rule2.lhs()]
+    new_lhs = nt_map[rule1.lhs, rule2.lhs]
     new_rhs = fggs.Graph()
     # add nodes
-    for node in rule1.rhs().nodes():
+    for node in rule1.rhs.nodes():
         new_rhs.add_node(node)
     # set external nodes
-    new_rhs.set_ext(rule1.rhs().ext())
+    new_rhs.set_ext(rule1.rhs.ext())
     # add nonterminal edges
-    nts1 = sorted([edge for edge in rule1.rhs().edges() if edge.label.is_nonterminal],
+    nts1 = sorted([edge for edge in rule1.rhs.edges() if edge.label.is_nonterminal],
                   key=lambda edge: edge.id)
-    nts2 = sorted([edge for edge in rule2.rhs().edges() if edge.label.is_nonterminal],
+    nts2 = sorted([edge for edge in rule2.rhs.edges() if edge.label.is_nonterminal],
                   key=lambda edge: edge.id)
     for (edge1,edge2) in zip(nts1,nts2):
         new_rhs.add_edge(fggs.Edge(label=nt_map[edge1.label, edge2.label],
                                    nodes=edge1.nodes,
                                    id=edge1.id))
     # add terminal edges
-    ts1 = [e for e in rule1.rhs().edges() if e.label.is_terminal]
-    ts2 = [e for e in rule2.rhs().edges() if e.label.is_terminal]
+    ts1 = [e for e in rule1.rhs.edges() if e.label.is_terminal]
+    ts2 = [e for e in rule2.rhs.edges() if e.label.is_terminal]
     for edge in ts1 + ts2:
         new_rhs.add_edge(edge)
     return fggs.HRGRule(lhs=new_lhs, rhs=new_rhs)
