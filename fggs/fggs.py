@@ -186,7 +186,7 @@ class Graph:
         self._node_ids.remove(node.id)
 
     def add_edge(self, edge: Edge):
-        """Adds a hyperedge to the hypergraph."""
+        """Adds a hyperedge to the hypergraph. If the attachment nodes are not already in the hypergraph, they are added."""
         if edge.id in self._edge_ids:
             raise ValueError(f"Can't have two edges with same ID {edge.id} in same Graph.")
         if edge.label.name in self._edge_labels and edge.label != self._edge_labels[edge.label.name]:
@@ -206,7 +206,7 @@ class Graph:
         self._edge_ids.remove(edge.id)
 
     def set_ext(self, nodes: Iterable[Node]):
-        """Sets the external nodes."""
+        """Sets the external nodes. If they are not already in the hypergraph, they are added."""
         for node in nodes:
             if node not in self._nodes:
                 self._nodes.add(node)
