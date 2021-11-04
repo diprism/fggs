@@ -285,7 +285,7 @@ class HRG:
     def __init__(self):
         self._node_labels  = dict()    # map from names to NodeLabels
         self._edge_labels  = dict()    # map from names to EdgeLabels
-        self._start        = None      # start symbol, an EdgeLabel which has arity 0
+        self._start        = None      # start symbol, a nonterminal EdgeLabel
         self._rules        = dict()    # one list of rules for each nonterminal edge label
 
     def add_node_label(self, label: NodeLabel):
@@ -324,16 +324,17 @@ class HRG:
         """Return a copy of the list of terminals used in this HRG."""
         return [el for el in self._edge_labels.values() if el.is_terminal]
 
-    def set_start_symbol(self, start: EdgeLabel):
-        """Set the start nonterminal symbol."""
+    @property
+    def start_symbol(self):
+        """The start nonterminal symbol."""
+        return self._start
+
+    @start_symbol.setter
+    def start_symbol(self, start: EdgeLabel):
         if not start.is_nonterminal:
             raise ValueError('Start symbol must be a nonterminal')
         self.add_edge_label(start)
         self._start = start
-
-    def start_symbol(self):
-        """Return the start nonterminal symbol."""
-        return self._start
 
     def add_rule(self, rule: HRGRule):
         """Add a new production to the HRG."""

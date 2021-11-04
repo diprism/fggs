@@ -301,7 +301,7 @@ class TestHRG(unittest.TestCase):
         self.fgg.add_edge_label(self.el1)
         self.fgg.add_edge_label(self.el2)
         self.fgg.add_edge_label(self.start)
-        self.fgg.set_start_symbol(self.start)
+        self.fgg.start_symbol = self.start
         self.fgg.add_rule(self.rule)
         self.fgg.add_rule(self.rule2)
 
@@ -355,7 +355,7 @@ class TestHRG(unittest.TestCase):
         self.fgg.add_edge_label(self.el1)
 
     def test_set_start_symbol(self):
-        self.assertEqual(self.fgg.start_symbol(), self.start)
+        self.assertEqual(self.fgg.start_symbol, self.start)
 
     def test_add_rule(self):
         all_rules = self.fgg.all_rules()
@@ -443,7 +443,7 @@ class TestInterpretation(unittest.TestCase):
         self.fgg.add_edge_label(self.el1)
         self.fgg.add_edge_label(self.el2)
         self.fgg.add_edge_label(self.start)
-        self.fgg.set_start_symbol(self.start)
+        self.fgg.start_symbol = self.start
         self.fgg.add_rule(self.rule)
         self.fgg.add_rule(self.rule2)
 

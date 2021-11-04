@@ -190,5 +190,5 @@ def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kma
             # broyden(lambda psi_X: F(psi_X) - psi_X, invJ, psi_X, tol=tol*(10**k), kmax=kmax)
             # k += 1
     else: raise ValueError('unsupported method for computing sum-product')
-    (n, k), shape = nt_dict[hrg.start_symbol()]
+    (n, k), shape = nt_dict[hrg.start_symbol]
     return psi_X[n:k].reshape(shape)

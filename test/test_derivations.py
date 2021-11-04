@@ -31,10 +31,10 @@ class TestStartGraph(unittest.TestCase):
         self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
 
         self.fgg = HRG()
-        self.fgg.set_start_symbol(self.start)
+        self.fgg.start_symbol = self.start
 
     def test_start_graph(self):
-        s = self.fgg.start_symbol()
+        s = self.fgg.start_symbol
         g = start_graph(self.fgg)
         self.assertEqual([e.label for e in g.edges()], [s])
         self.assertEqual(len(g.nodes()), len(s.type()))

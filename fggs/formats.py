@@ -17,7 +17,7 @@ def json_to_hrg(j):
         t = tuple(NodeLabel(l) for l in d['type'])
         g.add_edge_label(EdgeLabel(nt, t, is_nonterminal=True))
         
-    g.set_start_symbol(g.get_edge_label(j['start']))
+    g.start_symbol = g.get_edge_label(j['start'])
 
     for r in j['rules']:
         lhs = g.get_edge_label(r['lhs'])
@@ -62,7 +62,7 @@ def hrg_to_json(g):
             'type': [l.name for l in nt.type()],
         }
         
-    j['start'] = g.start_symbol().name
+    j['start'] = g.start_symbol.name
     
     j['rules'] = []
     for gr in g.all_rules():

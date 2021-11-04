@@ -116,5 +116,5 @@ def conjoin_hrgs(hrg1, hrg2):
                 new_hrg.add_rule(conjoin_rules(rule1, rule2, nt_map))
     # set the start symbol
     # (may not actually be used in any rules)
-    new_hrg.set_start_symbol(nt_map[hrg1.start_symbol(), hrg2.start_symbol()])
+    new_hrg.start_symbol = nt_map[hrg1.start_symbol, hrg2.start_symbol]
     return new_hrg
