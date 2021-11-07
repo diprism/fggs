@@ -274,8 +274,8 @@ class HRGRule:
         return self.to_string(0)
     def to_string(self, indent):
         string = "\t"*indent
-        string += f"HRGRule with left-hand side {self._lhs.name} and right-hand side as follows:\n"
-        string += self._rhs.to_string(indent+1)
+        string += f"HRGRule with left-hand side {self.lhs.name} and right-hand side as follows:\n"
+        string += self.rhs.to_string(indent+1)
         return string
 
 
