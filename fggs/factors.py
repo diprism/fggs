@@ -70,6 +70,8 @@ class CategoricalFactor(Factor):
         def to_float(weights):
             if isinstance(weights, list):
                 return list(map(to_float, weights))
+            elif isinstance(weights, int):
+                return float(weights)
             else:
                 return weights
 

@@ -34,7 +34,7 @@ def adjoint_hrg(g: HRG, top=None):
     for x in top:
         rhs = Graph()
         nodes = [Node(lab) for lab in x.node_labels]
-        rhs.set_ext(nodes)
+        rhs.ext = nodes
         rhs.add_edge(Edge(top[x], nodes))
         gbar.add_rule(HRGRule(bar[x], rhs))
 
@@ -43,8 +43,8 @@ def adjoint_hrg(g: HRG, top=None):
         for e in p.rhs.edges():
             rbar = p.rhs.copy()
             rbar.remove_edge(e)
-            rbar.add_edge(Edge(bar[p.lhs], rbar.ext()))
-            rbar.set_ext(e.nodes)
+            rbar.add_edge(Edge(bar[p.lhs], rbar.ext))
+            rbar.ext = e.nodes
             gbar.add_rule(HRGRule(bar[e.label], rbar))
             
     return gbar, bar

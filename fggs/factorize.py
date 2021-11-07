@@ -347,7 +347,7 @@ def factorize_rule(rule, method='min_fill'):
     g = {}
     for v in rhs.nodes():
         g[v] = set()
-    for nodes in [e.nodes for e in rhs.edges()] + [rhs.ext()]:
+    for nodes in [e.nodes for e in rhs.edges()] + [rhs.ext]:
         for u in nodes:
             for v in nodes:
                 if u != v:
@@ -356,7 +356,7 @@ def factorize_rule(rule, method='min_fill'):
     t = tree_decomposition(g, method=method)
 
     # The root bag is the one that contains all the externals
-    ext = set(rhs.ext())
+    ext = set(rhs.ext)
     for bag in t:
         if ext.issubset(bag):
             root = bag
@@ -372,7 +372,7 @@ def factorize_rule(rule, method='min_fill'):
 
         # lhs and external nodes
         if parent is None:
-            ext = rule.rhs.ext()
+            ext = rule.rhs.ext
             lhs = rule.lhs
         else:
             ext = list(bag & parent)
@@ -385,7 +385,7 @@ def factorize_rule(rule, method='min_fill'):
         rhs = fggs.Graph()
         for v in bag:
             rhs.add_node(v)
-        rhs.set_ext(ext)
+        rhs.ext = ext
 
         # terminal edges and existing nonterminal edges
         for e in rule.rhs.edges():

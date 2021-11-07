@@ -38,7 +38,7 @@ def replace_edges(graph: Graph, replacements: Dict[Edge, Graph]):
     ret = Graph()
     for v in graph.nodes():
         ret.add_node(v)
-    ret.set_ext(graph.ext())
+    ret.ext = graph.ext
     for e in graph.edges():
         if e not in replacements:
             ret.add_edge(e)
@@ -47,10 +47,10 @@ def replace_edges(graph: Graph, replacements: Dict[Edge, Graph]):
         if isinstance(repl, HRGRule):
             repl = repl.rhs
         rnodes = {}
-        for ve, vr in zip(e.nodes, repl.ext()):
+        for ve, vr in zip(e.nodes, repl.ext):
             rnodes[vr] = ve
         for v in repl.nodes():
-            if v not in rnodes: # i.e., if v not in repl.ext()
+            if v not in rnodes: # i.e., if v not in repl.ext
                 if v.id in ret._node_ids:
                     vcopy = Node(v.label) # generate fresh id
                 else:

@@ -92,7 +92,7 @@ def F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
                 else:
                     raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
             equation = ','.join([''.join(indices) for indices in indexing]) + '->'
-            external = [Xi_R[node.id] for node in rule.rhs.ext()]
+            external = [Xi_R[node.id] for node in rule.rhs.ext]
             if external: equation += ''.join(external)
             tau_R.append(torch.einsum(equation, *tensors))
         (n, k), _ = nt_dict[nt]
@@ -130,7 +130,7 @@ def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
                         tensors.append(torch.tensor(weights))
                     else:
                         raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
-                external = [Xi_R[node.id] for node in rule.rhs.ext()]
+                external = [Xi_R[node.id] for node in rule.rhs.ext]
                 x = [torch.tensor(0.)]
                 for i, nt_name in nt_loc:
                     if nt_den.name != nt_name:

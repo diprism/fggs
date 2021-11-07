@@ -105,7 +105,7 @@ class TestConjunction(unittest.TestCase):
         self.assertFalse(conjoinable(self.xrule1, self.xrule2))
         self.restore()
         # rules have different external nodes
-        self.xrule1.rhs.set_ext([self.nodes1["v1"]])
+        self.xrule1.rhs.ext = [self.nodes1["v1"]]
         self.assertFalse(conjoinable(self.xrule1, self.xrule2))
         self.restore()
 
