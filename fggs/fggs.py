@@ -156,8 +156,9 @@ class Graph:
         """Returns a copy of the list of terminals used in the hypergraph."""
         return [el for el in self._edge_labels.values() if el.is_terminal]
 
+    @property
     def ext(self):
-        """Returns the tuple of external nodes."""
+        """Tuple of external nodes."""
         return self._ext
     
     def arity(self):
@@ -205,7 +206,8 @@ class Graph:
         self._edges.remove(edge)
         self._edge_ids.remove(edge.id)
 
-    def set_ext(self, nodes: Iterable[Node]):
+    @ext.setter
+    def ext(self, nodes: Iterable[Node]):
         """Sets the external nodes. If they are not already in the hypergraph, they are added."""
         for node in nodes:
             if node not in self._nodes:

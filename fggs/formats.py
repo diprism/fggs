@@ -41,7 +41,7 @@ def json_to_hrg(j):
                 ext.append(nodes[vi])
             except IndexError:
                 raise ValueError(f'invalid external node number {vi} (out of {len(nodes)})')
-        rhs.set_ext(ext)
+        rhs.ext = ext
         g.add_rule(HRGRule(lhs, rhs))
         
     return g
@@ -73,7 +73,7 @@ def hrg_to_json(g):
             'rhs': {
                 'nodes': [{'id': v.id, 'label': v.label.name} for v in nodes],
                 'edges': [],
-                'externals': [node_nums[v] for v in gr.rhs.ext()],
+                'externals': [node_nums[v] for v in gr.rhs.ext],
             },
         }
         for e in sorted(gr.rhs.edges(), key=lambda e: e.id):
@@ -222,7 +222,7 @@ def graph_to_dot(g: Graph, factor_formats=None, lhs=None):
                                         label=format[1],
                                         constraint=False,
                 ))
-    for i, v in enumerate(g.ext()):
+    for i, v in enumerate(g.ext):
         [dv] = dot.get_node(f'v{v.id}')
         attrs = dv.get_attributes()
         attrs['ext'] = i+1
@@ -275,7 +275,7 @@ def graph_to_tikz(g: Graph, factor_formats=None, lhs=None):
     res = []
     res.append(rf'\begin{{tikzpicture}}[baseline={baseline}pt]')
 
-    ext = {v.id:i for i,v in enumerate(g.ext())}
+    ext = {v.id:i for i,v in enumerate(g.ext)}
     for v in g.nodes():
         if v.id in ext:
             style = f'ext,label={_get_format(factor_formats, lhs, ext[v.id])[1]}'

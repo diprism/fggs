@@ -19,7 +19,7 @@ class TestReplace(unittest.TestCase):
         self.graph.add_node(self.node2)
         self.graph.add_edge(self.edge1)
         self.graph.add_edge(self.edge2)
-        self.graph.set_ext((self.node2,))
+        self.graph.ext = [self.node2]
 
     def test_replace(self):
         g = replace_edges(self.graph, {self.edge2:self.graph})

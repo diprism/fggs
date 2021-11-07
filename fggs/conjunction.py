@@ -64,8 +64,8 @@ def conjoinable(rule1, rule2):
     if nts1 != nts2:
         return False
     # Must have same external nodes
-    ext1 = [node.id for node in rule1.rhs.ext()]
-    ext2 = [node.id for node in rule2.rhs.ext()]
+    ext1 = [node.id for node in rule1.rhs.ext]
+    ext2 = [node.id for node in rule2.rhs.ext]
     if ext1 != ext2:
         return False
     return True
@@ -82,7 +82,7 @@ def conjoin_rules(rule1, rule2, nt_map):
     for node in rule1.rhs.nodes():
         new_rhs.add_node(node)
     # set external nodes
-    new_rhs.set_ext(rule1.rhs.ext())
+    new_rhs.ext = rule1.rhs.ext
     # add nonterminal edges
     nts1 = sorted([edge for edge in rule1.rhs.edges() if edge.label.is_nonterminal],
                   key=lambda edge: edge.id)
