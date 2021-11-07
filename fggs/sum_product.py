@@ -20,7 +20,7 @@ def fixed_point(F: Function, psi_X0: Tensor, *, tol: float, kmax: int) -> None:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
 def newton(F: Function, J: Function, psi_X0: Tensor, *, tol: float, kmax: int) -> None:
-    k, psi_X1 = 0, torch.full(psi_X0.shape, fill_value=0.0)
+    k, psi_X1 = 0, torch.full(psi_X0.shape, fill_value=0.)
     F_X0 = F(psi_X0)
     while torch.norm(F_X0) > tol and k <= kmax:
         JF = J(psi_X0)
@@ -32,7 +32,7 @@ def newton(F: Function, J: Function, psi_X0: Tensor, *, tol: float, kmax: int) -
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
 def broyden(F: Function, invJ: Tensor, psi_X0: Tensor, *, tol: float, kmax: int) -> None:
-    k, psi_X1 = 0, torch.full(psi_X0.shape, fill_value=0.0)
+    k, psi_X1 = 0, torch.full(psi_X0.shape, fill_value=0.)
     F_X0 = F(psi_X0)
     while torch.norm(F_X0) > tol and k <= kmax:
         dX = torch.matmul(-invJ, F_X0)
@@ -73,14 +73,13 @@ def F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
     for nt in hrg.nonterminals():
         tau_R = []
         for rule in hrg.rules(nt):
-            if len(rule.rhs.nodes()) > 52:
-                raise Exception('cannot assign an index to each node (maximum of 52 supported)')
+            if len(rule.rhs.nodes()) > 26:
+                raise Exception('cannot assign an index to each node')
             if len(rule.rhs.edges()) == 0:
                 _, shape = nt_dict[nt]
                 tau_R.append(torch.ones(shape))
                 continue
-            Xi_R = {id: chr((ord('a') if i < 26 else ord('A')) + i % 26)
-                for i, id in enumerate(rule.rhs._node_ids)}
+            Xi_R = {id: chr(ord('a') + i) for i, id in enumerate(rule.rhs._node_ids)}
             indexing, tensors = [], []
             for edge in rule.rhs.edges():
                 indexing.append([Xi_R[node.id] for node in edge.nodes])
@@ -102,7 +101,7 @@ def F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
 
 def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
     hrg, interp = fgg.grammar, fgg.interp
-    JF = torch.full(2 * list(psi_X0.shape), fill_value=0.0)
+    JF = torch.full(2 * list(psi_X0.shape), fill_value=0.)
     p, q = [0, 0], [0, 0]
     for nt_num in hrg.nonterminals():
         p[0] = p[1]
@@ -113,10 +112,10 @@ def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
             q[0] = q[1]
             a, b = nt_dict[nt_den][0]
             q[1] += b - a
-            tau_R = []
+            tau_R = [torch.tensor(0.)]
             for rule in hrg.rules(nt_num):
-                if len(rule.rhs.nodes()) > 52:
-                    raise Exception('cannot assign an index to each node (maximum of 52 supported)')
+                if len(rule.rhs.nodes()) > 26:
+                    raise Exception('cannot assign an index to each node')
                 Xi_R = {id: chr((ord('a') if i < 26 else ord('A')) + i % 26)
                     for i, id in enumerate(rule.rhs._node_ids)}
                 nt_loc, tensors, indexing = [], [], []
@@ -132,24 +131,24 @@ def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
                     else:
                         raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
                 external = [Xi_R[node.id] for node in rule.rhs.ext()]
-                terms = []
+                x = [torch.tensor(0.)]
                 for i, nt_name in nt_loc:
-                    new_index = 'z' if indexing[i] else '' # TODO
                     if nt_den.name != nt_name:
                         continue
-                    equation = ','.join([''.join(indices) for indices in indexing[:i] + indexing[(i + 1):]]) + '->'
-                    if external: equation += ''.join(external)
-                    if new_index:
-                        equation = equation.replace(''.join(indexing[i]), new_index) + new_index
-                    terms.append(torch.einsum(equation, *(tensors[:i] + tensors[(i + 1):])))
-                tau_R.append(sum(terms))
-            JF[p[0]:p[1], q[0]:q[1]] = sum(tau_R)
-            size = JF[p[0]:p[1], q[0]:q[1]].size()
+                    new_index = next(chr(ord('a') + i) for i in range(26)) if indexing[i] else ''
+                    if len(tensors) > 1:
+                        equation = ','.join(''.join(indices) for j, indices in enumerate(indexing) if j != i) + '->'
+                        if external: equation += ''.join(external)
+                        if new_index:
+                            equation = equation.replace(''.join(indexing[i]), new_index) + new_index
+                        x.append(torch.einsum(equation, *(tensor for j, tensor in enumerate(tensors) if j != i)))
+                    else:
+                        x.append(torch.ones(tensors[i].size()))
+                tau_R.append(torch.stack(x).sum())
+            x = torch.stack(tau_R).sum()
             if nt_num.name == nt_den.name:
-                if size == (1, 1):
-                    JF[p[0]:p[1], q[0]:q[1]] -= 1
-                else:
-                    JF[p[0]:p[1], q[0]:q[1]] -= torch.eye(size)
+                x -= 1 if x.size() == torch.Size([]) else torch.eye(x.size())
+            JF[p[0]:p[1], q[0]:q[1]] = x
         q = q_[:]
     return JF
 
@@ -168,7 +167,7 @@ def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kma
         k = n + (reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1)
         nt_dict[nt] = ((n, k), shape)
         n = k
-    psi_X = torch.full((n,), fill_value=0.0)
+    psi_X = torch.full((n,), fill_value=0.)
     if method == 'fixed-point':
         fixed_point(lambda psi_X: F(fgg, nt_dict, psi_X), psi_X, tol=tol, kmax=kmax)
     elif method == 'newton':
@@ -183,7 +182,7 @@ def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kma
         # k = 1
         while any(torch.isnan(psi_X)):
             # perturbation = round(random.uniform(0.51, 1.99), 1)
-            psi_X = torch.full((n,), fill_value=0.0)
+            psi_X = torch.full((n,), fill_value=0.)
             # invJ = -torch.eye(len(psi_X), len(psi_X)) * perturbation
             invJ = -torch.eye(len(psi_X), len(psi_X))
             broyden(lambda psi_X: F(fgg, nt_dict, psi_X) - psi_X, invJ, psi_X, tol=tol, kmax=kmax)
