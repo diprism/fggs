@@ -27,6 +27,7 @@ class Factor(ABC):
 
     
 class ConstantFactor(Factor):
+    """A factor that always has the same weight."""
     def __init__(self, doms, weight):
         super().__init__(doms)
         self._weight = weight
@@ -47,8 +48,8 @@ class CategoricalFactor(Factor):
     def __init__(self, doms, weights):
         """A factor that can define an arbitrary function on finite domains.
 
-        doms (list of FiniteDomain): domains of arguments
-        weights (list (of lists)* of floats): weights"""
+        - doms (list of FiniteDomain): domains of arguments
+        - weights (list (of lists)* of floats): weights"""
         
         if not all(isinstance(d, domains.FiniteDomain) for d in doms):
             raise TypeError('CategoricalFactor can only be applied to FiniteDomains')

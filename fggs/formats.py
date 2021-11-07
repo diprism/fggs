@@ -11,16 +11,16 @@ def json_to_hrg(j):
     
     for name, d in j['terminals'].items():
         t = tuple(NodeLabel(l) for l in d['type'])
-        g.add_terminal(EdgeLabel(name, t, is_terminal=True))
+        g.add_edge_label(EdgeLabel(name, t, is_terminal=True))
 
     for nt, d in j['nonterminals'].items():
         t = tuple(NodeLabel(l) for l in d['type'])
-        g.add_nonterminal(EdgeLabel(nt, t, is_nonterminal=True))
+        g.add_edge_label(EdgeLabel(nt, t, is_nonterminal=True))
         
-    g.set_start_symbol(g.get_nonterminal(j['start']))
+    g.set_start_symbol(g.get_edge_label(j['start']))
 
     for r in j['rules']:
-        lhs = g.get_nonterminal(r['lhs'])
+        lhs = g.get_edge_label(r['lhs'])
         rhs = Graph()
         nodes = []
         for node in r['rhs']['nodes']:
@@ -233,17 +233,19 @@ def graph_to_dot(g: Graph, factor_formats=None, lhs=None):
     return dot
 
 def graph_to_tikz(g: Graph, factor_formats=None, lhs=None):
-    """Convert a Graph to LaTeX/TikZ code.
+    r"""Convert a Graph to LaTeX/TikZ code.
 
     The resulting code makes use of several TikZ styles. Some suggested
     definitions for these styles are:
 
-    \tikzset{
-      var/.style={draw,circle,fill=white,inner sep=1.5pt,minimum size=8pt},
-      ext/.style={var,fill=black,text=white},
-      fac/.style={draw,rectangle},
-      tent/.style={font={\tiny},auto}
-    }
+    .. code-block:: latex
+
+        \tikzset{
+          var/.style={draw,circle,fill=white,inner sep=1.5pt,minimum size=8pt},
+          ext/.style={var,fill=black,text=white},
+          fac/.style={draw,rectangle},
+          tent/.style={font={\tiny},auto}
+        }
     """
     import pydot
     
@@ -294,18 +296,20 @@ def graph_to_tikz(g: Graph, factor_formats=None, lhs=None):
     return '\n'.join(res)
 
 def hrg_to_tikz(g, factor_formats=None):
-    """Convert an HRG to LaTeX/TikZ code.
+    r"""Convert an HRG to LaTeX/TikZ code.
 
     The resulting code makes use of several TikZ styles. Some suggested
     definitions for these styles are:
 
-    \tikzset{
-      var/.style={draw,circle,fill=white,inner sep=1.5pt,minimum size=8pt},
-      ext/.style={var,fill=black,text=white},
-      fac/.style={draw,rectangle},
-      tent/.style={font={\tiny},auto}
-    }
-    """
+    .. code-block:: latex
+
+        \tikzset{
+          var/.style={draw,circle,fill=white,inner sep=1.5pt,minimum size=8pt},
+          ext/.style={var,fill=black,text=white},
+          fac/.style={draw,rectangle},
+          tent/.style={font={\tiny},auto}
+        }
+        """
     res = []
     res.append(r'\begin{align*}')
     for r in g.all_rules():

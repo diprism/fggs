@@ -153,6 +153,13 @@ def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
     return JF
 
 def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kmax: int = 1000) -> Tensor:
+    """Compute the sum-product of an FGG.
+
+    - fgg: The FGG to compute the sum-product of.
+    - method: What method to use ('fixed-point', 'newton', 'broyden').
+    - tol: Iterative algorithms terminate when the L∞ distance between consecutive iterates is below tol.
+    - kmax: Number of iterations after which iterative algorithms give up.
+    """
     hrg, interp = fgg.grammar, fgg.interp
     n, nt_dict = 0, {}
     for nt in hrg.nonterminals():

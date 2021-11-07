@@ -9,6 +9,8 @@ from fggs.factors import Factor
 
 @dataclass(frozen=True)
 class NodeLabel:
+    """A node label. This is currently just a thin wrapper around strings."""
+    
     name: str
     
     def __str__(self):
@@ -19,15 +21,15 @@ class NodeLabel:
 class EdgeLabel:
     """An edge label.
 
-    name (str): The name of the edge label, which must be unique within an HRG.
-    node_labels (sequence of NodeLabels): If an edge has this label, its attachment nodes must have labels node_labels.
-    is_terminal (bool, optional): This label is a terminal symbol.
-    is_nonterminal (bool, optional): This label is a nonterminal symbol.
+    - name (str): The name of the edge label, which must be unique within an HRG.
+    - node_labels (sequence of NodeLabels): If an edge has this label, its attachment nodes must have labels node_labels.
+    - is_terminal (bool, optional): This label is a terminal symbol.
+    - is_nonterminal (bool, optional): This label is a nonterminal symbol.
     """
     
     name: str
     node_labels: Iterable[NodeLabel]
-    is_terminal: bool
+    is_terminal: bool                #: Whether the edge label is a terminal symbol.
 
     def __init__(self, name: str,
                  node_labels: Iterable[NodeLabel],
@@ -46,12 +48,15 @@ class EdgeLabel:
 
     @property
     def is_nonterminal(self):
+        """Whether the edge label is a nonterminal symbol."""
         return not self.is_terminal
 
     def arity(self):
+        """The arity of the edge label (how many attachment nodes an edge with this label must have)."""
         return len(self.node_labels)
         
     def type(self):
+        """The tuple of node labels that the attachment nodes an edge with this label must have."""
         return self.node_labels
 
     def __str__(self):
@@ -68,7 +73,7 @@ class EdgeLabel:
                 string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name}"
         return string
 
-
+    
 def _generate_id():
     letters = string.ascii_letters
     new_id = ''.join([random.choice(letters) for i in range(20)])
@@ -77,9 +82,10 @@ def _generate_id():
 
 @dataclass(frozen=True)
 class Node:
+    """A node of a Graph."""
     
-    label: NodeLabel
-    id: str = None
+    label: NodeLabel #: The node's label
+    id: str = None   #: The node's id, which must be unique. If not supplied, a random one is chosen.
 
     def __post_init__(self):
         if self.id == None:
@@ -91,10 +97,11 @@ class Node:
 
 @dataclass(frozen=True)
 class Edge:
+    """A hyperedge of a Graph."""
 
-    label: EdgeLabel
-    nodes: Iterable[NodeLabel]
-    id: str = None
+    label: EdgeLabel           #: The edge's label
+    nodes: Iterable[NodeLabel] #: The edge's attachment nodes
+    id: str = None             #: The edge's id, which must be unique. If not supplied, a random one is chosen.
 
     def __post_init__(self):
         if self.id == None:
@@ -123,42 +130,53 @@ class Edge:
 
 
 class Graph:
+    """A hypergraph or hypergraph fragment (= hypergraph with external nodes)."""
 
     def __init__(self):
-        self._nodes    = set()
-        self._node_ids = set()
-        self._edges    = set()
-        self._edge_ids = set()
-        self._ext      = tuple()
+        self._nodes       = set()
+        self._node_ids    = set()
+        self._edges       = set()
+        self._edge_ids    = set()
+        self._edge_labels = dict()    # map from names to EdgeLabels
+        self._ext         = tuple()
     
     def nodes(self):
+        """Returns a copy of the list of nodes in the hypergraph."""
         return list(self._nodes)
     
     def edges(self):
+        """Returns a copy of the list of hyperedges in the hypergraph."""
         return list(self._edges)
     
-    def terminals(self):
-        return [edge for edge in self._edges if edge.label.is_terminal]
-
     def nonterminals(self):
-        return [edge for edge in self._edges if edge.label.is_nonterminal]
+        """Returns a copy of the list of nonterminals used in the hypergraph."""
+        return [el for el in self._edge_labels.values() if el.is_nonterminal]
+    
+    def terminals(self):
+        """Returns a copy of the list of terminals used in the hypergraph."""
+        return [el for el in self._edge_labels.values() if el.is_terminal]
 
     def ext(self):
+        """Returns the tuple of external nodes."""
         return self._ext
     
     def arity(self):
+        """Returns the number of external nodes."""
         return len(self._ext)
     
     def type(self):
+        """Returns the tuple of node labels of the external nodes."""
         return tuple([node.label for node in self._ext])
     
     def add_node(self, node: Node):
+        """Adds a node to the hypergraph."""
         if node.id in self._node_ids:
             raise ValueError(f"Can't have two nodes with same ID {node.id} in same Graph.")
         self._nodes.add(node)
         self._node_ids.add(node.id)
 
     def remove_node(self, node: Node):
+        """Removes a node from the hypergraph."""
         if node not in self._nodes:
             raise ValueError(f'Node {node} cannot be removed because it does not belong to this Graph')
         for edge in self._edges:
@@ -168,21 +186,27 @@ class Graph:
         self._node_ids.remove(node.id)
 
     def add_edge(self, edge: Edge):
+        """Adds a hyperedge to the hypergraph. If the attachment nodes are not already in the hypergraph, they are added."""
         if edge.id in self._edge_ids:
             raise ValueError(f"Can't have two edges with same ID {edge.id} in same Graph.")
+        if edge.label.name in self._edge_labels and edge.label != self._edge_labels[edge.label.name]:
+            raise ValueError(f"Can't have two edge labels with same name {edge.label.name} in same Graph.")
         for node in edge.nodes:
             if node not in self._nodes:
                 self._nodes.add(node)
         self._edges.add(edge)
         self._edge_ids.add(edge.id)
+        self._edge_labels[edge.label.name] = edge.label
 
     def remove_edge(self, edge: Edge):
+        """Removes a hyperedge from the hypergraph."""
         if edge not in self._edges:
             raise ValueError(f'Graph does not contain Edge {edge}')
         self._edges.remove(edge)
         self._edge_ids.remove(edge.id)
 
     def set_ext(self, nodes: Iterable[Node]):
+        """Sets the external nodes. If they are not already in the hypergraph, they are added."""
         for node in nodes:
             if node not in self._nodes:
                 self._nodes.add(node)
@@ -227,6 +251,11 @@ class Graph:
 
 
 class HRGRule:
+    """An HRG production.
+
+    - lhs: The left-hand side nonterminal symbol.
+    - rhs: The right-hand side hypergraph fragment.
+    """
 
     def __init__(self, lhs: EdgeLabel, rhs: Graph):
         if lhs.is_terminal:
@@ -237,9 +266,11 @@ class HRGRule:
         self._rhs = rhs
 
     def lhs(self):
+        """Return the left-hand side."""
         return self._lhs
     
     def rhs(self):
+        """Return the right-hand side."""
         return self._rhs
     
     def copy(self):
@@ -263,11 +294,11 @@ class HRGRule:
 
 
 class HRG:
+    """A hyperedge replacement graph grammar."""
     
     def __init__(self):
         self._node_labels  = dict()    # map from names to NodeLabels
-        self._nonterminals = dict()    # map from names to EdgeLabels
-        self._terminals    = dict()    # map from names to EdgeLabels
+        self._edge_labels  = dict()    # map from names to EdgeLabels
         self._start        = None      # start symbol, an EdgeLabel which has arity 0
         self._rules        = dict()    # one list of rules for each nonterminal edge label
 
@@ -283,93 +314,67 @@ class HRG:
     def node_labels(self):
         return [self._node_labels[name] for name in self._node_labels]
 
-    def add_nonterminal(self, label: EdgeLabel):
-        if label.is_terminal:
-            raise Exception(f"Can't add terminal edge label {label.name} as a nonterminal.")
-            
+    def add_edge_label(self, label: EdgeLabel):
         name = label.name
-        if name in self._nonterminals:
-            if self._nonterminals[name] != label:
-                raise Exception(f"There is already a nonterminal called {name}.")
-        if name in self._terminals:
-            raise Exception(f"Cannot have both a terminal and nonterminal with name {name}.")
-
-        self._nonterminals[name] = label
-    
-    def get_nonterminal(self, name):
-        return self._nonterminals[name]
-
-    def nonterminals(self):
-        return [self._nonterminals[name] for name in self._nonterminals]
-    
-    def add_terminal(self, label: EdgeLabel):
-        if not label.is_terminal:
-            raise Exception(f"Can't add nonterminal edge label {label.name} as a terminal.")
-        
-        name = label.name
-        if name in self._terminals:
-            if self._terminals[name] != label:
-                raise Exception(f"There is already a terminal called {name}.")
-        if name in self._nonterminals:
-            raise Exception(f"Cannot have both a terminal and nonterminal with name {name}.")
-        
-        self._terminals[name] = label
-
-    def get_terminal(self, name):
-        return self._terminals[name]
-
-    def terminals(self):
-        return [self._terminals[name] for name in self._terminals]
+        if name in self._edge_labels and self._edge_labels[name] != label:
+            raise Exception(f"There is already an edge label called {name}.")
+        self._edge_labels[name] = label
 
     def has_edge_label(self, name):
-        return name in self._nonterminals or\
-               name in self._terminals
+        return name in self._edge_labels
 
     def get_edge_label(self, name):
-        if name in self._nonterminals:
-            return self._nonterminals[name]
-        elif name in self._terminals:
-            return self._terminals[name]
-        else:
-            raise KeyError(f'no such edge label {name}')
+        return self._edge_labels[name]
 
     def edge_labels(self):
-        return self.nonterminals() + self.terminals()
+        """Return the edge labels used in this HRG."""
+        return self._edge_labels.values()
+
+    def nonterminals(self):
+        """Return a copy of the list of nonterminals used in this HRG."""
+        return [el for el in self._edge_labels.values() if el.is_nonterminal]
+    
+    def terminals(self):
+        """Return a copy of the list of terminals used in this HRG."""
+        return [el for el in self._edge_labels.values() if el.is_terminal]
 
     def set_start_symbol(self, start: EdgeLabel):
-        self.add_nonterminal(start)
+        """Set the start nonterminal symbol."""
+        if not start.is_nonterminal:
+            raise ValueError('Start symbol must be a nonterminal')
+        self.add_edge_label(start)
         self._start = start
 
     def start_symbol(self):
+        """Return the start nonterminal symbol."""
         return self._start
 
     def add_rule(self, rule: HRGRule):
+        """Add a new production to the HRG."""
         lhs = rule.lhs()
         rhs = rule.rhs()
         
-        self.add_nonterminal(lhs)
+        self.add_edge_label(lhs)
         for node in rhs.nodes():
             self.add_node_label(node.label)
         for edge in rhs.edges():
-            if edge.label.is_terminal:
-                self.add_terminal(edge.label)
-            else:
-                self.add_nonterminal(edge.label)
+            self.add_edge_label(edge.label)
         
         self._rules.setdefault(lhs, []).append(rule)
 
     def all_rules(self):
+        """Return a copy of the list of all rules."""
         return [rule for nt_name in self._rules for rule in self._rules[nt_name]]
     
     def rules(self, lhs):
+        """Return a copy of the list of all rules with left-hand side `lhs`."""
         return list(self._rules.get(lhs, []))
     
     def copy(self):
         """Returns a copy of this HRG, whose rules are all copies of the original's."""
         copy = HRG()
         copy._node_labels = self._node_labels.copy()
-        copy._nonterminals = self._nonterminals.copy()
-        copy._terminals = self._terminals.copy()
+        copy._edge_labels = self._edge_labels.copy()
         copy._start = self._start
         copy._rules = {}
         for lhs in self._rules:
@@ -385,8 +390,7 @@ class HRG:
                 self._rules == other._rules and
                 self._start == other._start and
                 self._node_labels == other._node_labels and
-                self._nonterminals == other._nonterminals and
-                self._terminals == other._terminals)
+                self._edge_labels == other._edge_labels)
     def __ne__(self, other):
         return not self.__eq__(other)
 
@@ -396,10 +400,8 @@ class HRG:
         for label_name in self._node_labels:
             string += f"\n\t\t{self._node_labels[label_name]}"
         string += "\n\tEdge labels:"
-        for label_name in self._nonterminals:
-            string += f"\n{self._nonterminals[label_name].to_string(2)}"
-        for label_name in self._terminals:
-            string += f"\n{self._terminals[label_name].to_string(2)}"
+        for label_name in self._edge_labels:
+            string += f"\n{self._edge_labels[label_name].to_string(2)}"
         string += f"\n\tStart symbol {self._start.name}"
         string += f"\n\tProductions:"
         for nonterminal in self._rules:
@@ -409,6 +411,8 @@ class HRG:
 
     
 class Interpretation:
+    """An interpretation of an HRG."""
+    
     def __init__(self):
         self.domains = {}
         self.factors = {}
@@ -425,6 +429,7 @@ class Interpretation:
         self.domains[nl] = dom
 
     def add_factor(self, el: EdgeLabel, fac: Factor):
+        """Add mapping from EdgeLabel el to Factor fac."""
         if el.is_nonterminal:
             raise ValueError(f"Nonterminals cannot be mapped to Factors")
         if el in self.factors:
@@ -440,13 +445,25 @@ class Interpretation:
         self.factors[el] = fac
         
     
-class FactorGraph:    
+class FactorGraph:
+    """A factor graph.
+
+    - graph: The graph structure.
+    - interp: Maps node and edge labels to domains and factors, respectively.
+    """
+    
     def __init__(self, graph: Graph, interp: Interpretation):
         self.graph = graph
         self.interp = interp
 
         
 class FGG:
+    """A factor graph grammar.
+
+    - grammar: The HRG that generates graph structures.
+    - interp: Maps node and edge labels to domains and factors, respectively.
+    """
+    
     def __init__(self, grammar: HRG, interp: Interpretation):
         self.grammar = grammar
         self.interp = interp
