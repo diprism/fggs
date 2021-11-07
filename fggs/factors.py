@@ -71,7 +71,7 @@ class CategoricalFactor(Factor):
             if isinstance(weights, list):
                 return list(map(to_float, weights))
             else:
-                return float(weights)
+                return weights
 
         check_size(weights, [d.size() for d in doms])
         self._weights = to_float(weights)
