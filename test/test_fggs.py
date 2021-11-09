@@ -209,6 +209,12 @@ class TestGraph(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.graph.remove_node(node3)
 
+        node4 = Node(self.nl1)
+        self.graph.add_node(node4)
+        self.graph.set_ext((node4,))
+        with self.assertRaises(ValueError):
+            self.graph.remove_node(node4) # because it's an external node
+
     def test_remove_edge(self):
         self.graph.remove_edge(self.edge1)
         edges = self.graph.edges()
