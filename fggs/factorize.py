@@ -341,13 +341,13 @@ def factorize_rule(rule, method='min_fill'):
     """Factorize a rule into one or more smaller rules, hopefully with
     lower maximum treewidth.
     """
-    rhs = rule.rhs()
+    rhs = rule.rhs
     
     # Find tree decomposition of rhs
     g = {}
     for v in rhs.nodes():
         g[v] = set()
-    for nodes in [e.nodes for e in rhs.edges()] + [rhs.ext()]:
+    for nodes in [e.nodes for e in rhs.edges()] + [rhs.ext]:
         for u in nodes:
             for v in nodes:
                 if u != v:
@@ -356,7 +356,7 @@ def factorize_rule(rule, method='min_fill'):
     t = tree_decomposition(g, method=method)
 
     # The root bag is the one that contains all the externals
-    ext = set(rhs.ext())
+    ext = set(rhs.ext)
     for bag in t:
         if ext.issubset(bag):
             root = bag
@@ -372,8 +372,8 @@ def factorize_rule(rule, method='min_fill'):
 
         # lhs and external nodes
         if parent is None:
-            ext = rule.rhs().ext()
-            lhs = rule.lhs()
+            ext = rule.rhs.ext
+            lhs = rule.lhs
         else:
             ext = list(bag & parent)
             lhs = fggs.EdgeLabel(f'{id(rule)}_{i}',
@@ -385,10 +385,10 @@ def factorize_rule(rule, method='min_fill'):
         rhs = fggs.Graph()
         for v in bag:
             rhs.add_node(v)
-        rhs.set_ext(ext)
+        rhs.ext = ext
 
         # terminal edges and existing nonterminal edges
-        for e in rule.rhs().edges():
+        for e in rule.rhs.edges():
             if (bag.issuperset(e.nodes) and
                 (parent is None or not parent.issuperset(e.nodes))):
                 rhs.add_edge(e)
@@ -411,9 +411,8 @@ def factorize(g, method='min_fill'):
     """Factorize a HRG's rules into smaller rules, hopefully with
     lower maximum treewidth.
     """
-    gnew = fggs.HRG()
+    gnew = fggs.HRG(g.start_symbol)
     for r in g.all_rules():
         for rnew in factorize_rule(r, method=method):
             gnew.add_rule(rnew)
-    gnew.set_start_symbol(g.start_symbol())
     return gnew

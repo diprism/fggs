@@ -156,8 +156,9 @@ class Graph:
         """Returns a copy of the list of terminals used in the hypergraph."""
         return [el for el in self._edge_labels.values() if el.is_terminal]
 
+    @property
     def ext(self):
-        """Returns the tuple of external nodes."""
+        """Tuple of external nodes."""
         return self._ext
     
     def arity(self):
@@ -182,7 +183,7 @@ class Graph:
         for edge in self._edges:
             if node in edge.nodes:
                 raise ValueError(f'Node {node} cannot be removed because it is an attachment node of Edge {edge}')
-        if node in self.ext():
+        if node in self.ext:
             raise ValueError(f'Node {node} cannot be removed because it is an external node of the Graph')
         self._nodes.remove(node)
         self._node_ids.remove(node.id)
@@ -207,7 +208,8 @@ class Graph:
         self._edges.remove(edge)
         self._edge_ids.remove(edge.id)
 
-    def set_ext(self, nodes: Iterable[Node]):
+    @ext.setter
+    def ext(self, nodes: Iterable[Node]):
         """Sets the external nodes. If they are not already in the hypergraph, they are added."""
         for node in nodes:
             if node not in self._nodes:
@@ -251,7 +253,7 @@ class Graph:
                 string += "\n" + edge.to_string(indent+1, False)
         return string
 
-
+@dataclass
 class HRGRule:
     """An HRG production.
 
@@ -259,50 +261,36 @@ class HRGRule:
     - rhs: The right-hand side hypergraph fragment.
     """
 
-    def __init__(self, lhs: EdgeLabel, rhs: Graph):
-        if lhs.is_terminal:
-            raise Exception(f"Can't make HRG rule with terminal left-hand side.")
-        if (lhs.type() != rhs.type()):
-            raise Exception(f"Can't make HRG rule: left-hand side of type ({','.join(l.name for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name for l in rhs.type())}).")
-        self._lhs = lhs
-        self._rhs = rhs
+    lhs: EdgeLabel #: The left-hand side nonterminal.
+    rhs: Graph     #: The right-hand side hypergraph fragment.
 
-    def lhs(self):
-        """Return the left-hand side."""
-        return self._lhs
-    
-    def rhs(self):
-        """Return the right-hand side."""
-        return self._rhs
-    
+    def __post_init__(self):
+        if self.lhs.is_terminal:
+            raise Exception(f"Can't make HRG rule with terminal left-hand side.")
+        if (self.lhs.type() != self.rhs.type()):
+            raise Exception(f"Can't make HRG rule: left-hand side of type ({','.join(l.name for l in lhs.type())}) not compatible with right-hand side of type ({','.join(l.name for l in rhs.type())}).")
+
     def copy(self):
         """Returns a copy of this HRGRule, whose right-hand side is a copy of the original's."""
-        return HRGRule(self.lhs(), self.rhs().copy())
-
-    def __eq__(self, other):
-        return (isinstance(other, HRGRule) and
-                self._lhs == other._lhs and
-                self._rhs == other._rhs)
-    def __ne__(self, other):
-        return not self.__eq__(self, other)
+        return HRGRule(self.lhs, self.rhs.copy())
 
     def __str__(self):
         return self.to_string(0)
     def to_string(self, indent):
         string = "\t"*indent
-        string += f"HRGRule with left-hand side {self._lhs.name} and right-hand side as follows:\n"
-        string += self._rhs.to_string(indent+1)
+        string += f"HRGRule with left-hand side {self.lhs.name} and right-hand side as follows:\n"
+        string += self.rhs.to_string(indent+1)
         return string
 
 
 class HRG:
     """A hyperedge replacement graph grammar."""
     
-    def __init__(self):
+    def __init__(self, start: EdgeLabel):
         self._node_labels  = dict()    # map from names to NodeLabels
         self._edge_labels  = dict()    # map from names to EdgeLabels
-        self._start        = None      # start symbol, an EdgeLabel which has arity 0
         self._rules        = dict()    # one list of rules for each nonterminal edge label
+        self.start_symbol  = start     # start symbol, a nonterminal EdgeLabel
 
     def add_node_label(self, label: NodeLabel):
         self._node_labels[label.name] = label
@@ -340,21 +328,22 @@ class HRG:
         """Return a copy of the list of terminals used in this HRG."""
         return [el for el in self._edge_labels.values() if el.is_terminal]
 
-    def set_start_symbol(self, start: EdgeLabel):
-        """Set the start nonterminal symbol."""
+    @property
+    def start_symbol(self):
+        """The start nonterminal symbol."""
+        return self._start
+
+    @start_symbol.setter
+    def start_symbol(self, start: EdgeLabel):
         if not start.is_nonterminal:
             raise ValueError('Start symbol must be a nonterminal')
         self.add_edge_label(start)
         self._start = start
 
-    def start_symbol(self):
-        """Return the start nonterminal symbol."""
-        return self._start
-
     def add_rule(self, rule: HRGRule):
         """Add a new production to the HRG."""
-        lhs = rule.lhs()
-        rhs = rule.rhs()
+        lhs = rule.lhs
+        rhs = rule.rhs
         
         self.add_edge_label(lhs)
         for node in rhs.nodes():
@@ -374,10 +363,9 @@ class HRG:
     
     def copy(self):
         """Returns a copy of this HRG, whose rules are all copies of the original's."""
-        copy = HRG()
+        copy = HRG(self.start_symbol)
         copy._node_labels = self._node_labels.copy()
         copy._edge_labels = self._edge_labels.copy()
-        copy._start = self._start
         copy._rules = {}
         for lhs in self._rules:
             copy._rules[lhs] = [r.copy() for r in self._rules[lhs]]
@@ -390,7 +378,7 @@ class HRG:
         equal."""
         return (isinstance(other, HRG) and
                 self._rules == other._rules and
-                self._start == other._start and
+                self.start_symbol == other.start_symbol and
                 self._node_labels == other._node_labels and
                 self._edge_labels == other._edge_labels)
     def __ne__(self, other):
@@ -404,7 +392,7 @@ class HRG:
         string += "\n\tEdge labels:"
         for label_name in self._edge_labels:
             string += f"\n{self._edge_labels[label_name].to_string(2)}"
-        string += f"\n\tStart symbol {self._start.name}"
+        string += f"\n\tStart symbol {self.start_symbol.name}"
         string += f"\n\tProductions:"
         for nonterminal in self._rules:
             for rule in self._rules[nonterminal]:

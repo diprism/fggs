@@ -19,7 +19,7 @@ class TestReplace(unittest.TestCase):
         self.graph.add_node(self.node2)
         self.graph.add_edge(self.edge1)
         self.graph.add_edge(self.edge2)
-        self.graph.set_ext((self.node2,))
+        self.graph.ext = [self.node2]
 
     def test_replace(self):
         g = replace_edges(self.graph, {self.edge2:self.graph})
@@ -29,12 +29,10 @@ class TestReplace(unittest.TestCase):
 class TestStartGraph(unittest.TestCase):        
     def setUp(self):
         self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
-
-        self.fgg = HRG()
-        self.fgg.set_start_symbol(self.start)
+        self.fgg = HRG(self.start)
 
     def test_start_graph(self):
-        s = self.fgg.start_symbol()
+        s = self.fgg.start_symbol
         g = start_graph(self.fgg)
         self.assertEqual([e.label for e in g.edges()], [s])
         self.assertEqual(len(g.nodes()), len(s.type()))

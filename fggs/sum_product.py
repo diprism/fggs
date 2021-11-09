@@ -73,15 +73,15 @@ def F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
     for nt in hrg.nonterminals():
         tau_R = []
         for rule in hrg.rules(nt):
-            if len(rule.rhs().nodes()) > 26:
+            if len(rule.rhs.nodes()) > 26:
                 raise Exception('cannot assign an index to each node')
-            if len(rule.rhs().edges()) == 0:
+            if len(rule.rhs.edges()) == 0:
                 _, shape = nt_dict[nt]
                 tau_R.append(torch.ones(shape))
                 continue
-            Xi_R = {id: chr(ord('a') + i) for i, id in enumerate(rule.rhs()._node_ids)}
+            Xi_R = {id: chr(ord('a') + i) for i, id in enumerate(rule.rhs._node_ids)}
             indexing, tensors = [], []
-            for edge in rule.rhs().edges():
+            for edge in rule.rhs.edges():
                 indexing.append([Xi_R[node.id] for node in edge.nodes])
                 if edge.label.is_nonterminal:
                     (n, k), shape = nt_dict[edge.label]
@@ -92,7 +92,7 @@ def F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
                 else:
                     raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
             equation = ','.join([''.join(indices) for indices in indexing]) + '->'
-            external = [Xi_R[node.id] for node in rule.rhs().ext()]
+            external = [Xi_R[node.id] for node in rule.rhs.ext]
             if external: equation += ''.join(external)
             tau_R.append(torch.einsum(equation, *tensors))
         (n, k), _ = nt_dict[nt]
@@ -114,12 +114,12 @@ def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
             q[1] += b - a
             tau_R = [torch.tensor(0.)]
             for rule in hrg.rules(nt_num):
-                if len(rule.rhs().nodes()) > 26:
+                if len(rule.rhs.nodes()) > 26:
                     raise Exception('cannot assign an index to each node')
                 Xi_R = {id: chr((ord('a') if i < 26 else ord('A')) + i % 26)
-                    for i, id in enumerate(rule.rhs()._node_ids)}
+                    for i, id in enumerate(rule.rhs._node_ids)}
                 nt_loc, tensors, indexing = [], [], []
-                for i, edge in enumerate(rule.rhs().edges()):
+                for i, edge in enumerate(rule.rhs.edges()):
                     indexing.append([Xi_R[node.id] for node in edge.nodes])
                     if edge.label.is_nonterminal:
                         (n, k), shape = nt_dict[edge.label]
@@ -130,7 +130,7 @@ def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
                         tensors.append(torch.tensor(weights))
                     else:
                         raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
-                external = [Xi_R[node.id] for node in rule.rhs().ext()]
+                external = [Xi_R[node.id] for node in rule.rhs.ext]
                 x = [torch.tensor(0.)]
                 for i, nt_name in nt_loc:
                     if nt_den.name != nt_name:
@@ -189,5 +189,5 @@ def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kma
             # broyden(lambda psi_X: F(psi_X) - psi_X, invJ, psi_X, tol=tol*(10**k), kmax=kmax)
             # k += 1
     else: raise ValueError('unsupported method for computing sum-product')
-    (n, k), shape = nt_dict[hrg.start_symbol()]
+    (n, k), shape = nt_dict[hrg.start_symbol]
     return psi_X[n:k].reshape(shape)
