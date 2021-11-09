@@ -289,8 +289,8 @@ class HRG:
     def __init__(self, start: EdgeLabel):
         self._node_labels  = dict()    # map from names to NodeLabels
         self._edge_labels  = dict()    # map from names to EdgeLabels
-        self._start        = start     # start symbol, a nonterminal EdgeLabel
         self._rules        = dict()    # one list of rules for each nonterminal edge label
+        self.start_symbol  = start     # start symbol, a nonterminal EdgeLabel
 
     def add_node_label(self, label: NodeLabel):
         self._node_labels[label.name] = label
@@ -378,7 +378,7 @@ class HRG:
         equal."""
         return (isinstance(other, HRG) and
                 self._rules == other._rules and
-                self._start == other._start and
+                self.start_symbol == other.start_symbol and
                 self._node_labels == other._node_labels and
                 self._edge_labels == other._edge_labels)
     def __ne__(self, other):
@@ -392,7 +392,7 @@ class HRG:
         string += "\n\tEdge labels:"
         for label_name in self._edge_labels:
             string += f"\n{self._edge_labels[label_name].to_string(2)}"
-        string += f"\n\tStart symbol {self._start.name}"
+        string += f"\n\tStart symbol {self.start_symbol.name}"
         string += f"\n\tProductions:"
         for nonterminal in self._rules:
             for rule in self._rules[nonterminal]:
