@@ -211,7 +211,7 @@ class TestGraph(unittest.TestCase):
 
         node4 = Node(self.nl1)
         self.graph.add_node(node4)
-        self.graph.set_ext((node4,))
+        self.graph.ext = [node4]
         with self.assertRaises(ValueError):
             self.graph.remove_node(node4) # because it's an external node
 
