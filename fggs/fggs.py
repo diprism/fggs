@@ -253,7 +253,6 @@ class Graph:
                 string += "\n" + edge.to_string(indent+1, False)
         return string
 
-@dataclass(frozen=True)
 class HRGRule:
     """An HRG production.
 
