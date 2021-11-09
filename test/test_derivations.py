@@ -29,9 +29,7 @@ class TestReplace(unittest.TestCase):
 class TestStartGraph(unittest.TestCase):        
     def setUp(self):
         self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
-
-        self.fgg = HRG()
-        self.fgg.start_symbol = self.start
+        self.fgg = HRG(self.start)
 
     def test_start_graph(self):
         s = self.fgg.start_symbol

@@ -7,17 +7,20 @@ from fggs import domains, factors
 
 def json_to_hrg(j):
     """Convert an object loaded by json.load to an HRG."""
-    g = HRG()
-    
+
+    labels = {}
     for name, d in j['terminals'].items():
         t = tuple(NodeLabel(l) for l in d['type'])
-        g.add_edge_label(EdgeLabel(name, t, is_terminal=True))
-
-    for nt, d in j['nonterminals'].items():
+        labels[name] = EdgeLabel(name, t, is_terminal=True)
+    for name, d in j['nonterminals'].items():
         t = tuple(NodeLabel(l) for l in d['type'])
-        g.add_edge_label(EdgeLabel(nt, t, is_nonterminal=True))
-        
-    g.start_symbol = g.get_edge_label(j['start'])
+        labels[name] = EdgeLabel(name, t, is_nonterminal=True)
+
+
+    g = HRG(labels[j['start']])
+    
+    for label in labels.values():
+        g.add_edge_label(label)
 
     for r in j['rules']:
         lhs = g.get_edge_label(r['lhs'])
