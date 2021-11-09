@@ -301,13 +301,12 @@ class TestHRG(unittest.TestCase):
         self.graph2.ext = [self.node3]
         self.rule2 = HRGRule(self.el2, self.graph2)
 
-        self.fgg = HRG()
+        self.fgg = HRG(self.start)
         self.fgg.add_node_label(self.nl1)
         self.fgg.add_node_label(self.nl2)
         self.fgg.add_edge_label(self.el1)
         self.fgg.add_edge_label(self.el2)
         self.fgg.add_edge_label(self.start)
-        self.fgg.start_symbol = self.start
         self.fgg.add_rule(self.rule)
         self.fgg.add_rule(self.rule2)
 
@@ -443,13 +442,12 @@ class TestInterpretation(unittest.TestCase):
         self.graph2.ext = [self.node3]
         self.rule2 = HRGRule(self.el2, self.graph2)
 
-        self.fgg = HRG()
+        self.fgg = HRG(self.start)
         self.fgg.add_node_label(self.nl1)
         self.fgg.add_node_label(self.nl2)
         self.fgg.add_edge_label(self.el1)
         self.fgg.add_edge_label(self.el2)
         self.fgg.add_edge_label(self.start)
-        self.fgg.start_symbol = self.start
         self.fgg.add_rule(self.rule)
         self.fgg.add_rule(self.rule2)
 

@@ -64,8 +64,9 @@ class TestConjunction(unittest.TestCase):
             conjoin_hrgs(self.hmm, self.conjunct)
 
     def test_nonterminal_pairs(self):
-        hrg1 = fggs.HRG()
-        hrg2 = fggs.HRG()
+        s = fggs.EdgeLabel("S", [], is_nonterminal=True)
+        hrg1 = fggs.HRG(s)
+        hrg2 = fggs.HRG(s)
         hrg1.add_edge_label(fggs.EdgeLabel(name="X", is_nonterminal=True, node_labels=()))
         hrg2.add_edge_label(fggs.EdgeLabel(name="Y,Z", is_nonterminal=True, node_labels=()))
         hrg1.add_edge_label(fggs.EdgeLabel(name="X,Y", is_nonterminal=True, node_labels=()))

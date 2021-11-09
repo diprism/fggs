@@ -286,10 +286,10 @@ class HRGRule:
 class HRG:
     """A hyperedge replacement graph grammar."""
     
-    def __init__(self):
+    def __init__(self, start: EdgeLabel):
         self._node_labels  = dict()    # map from names to NodeLabels
         self._edge_labels  = dict()    # map from names to EdgeLabels
-        self._start        = None      # start symbol, a nonterminal EdgeLabel
+        self._start        = start     # start symbol, a nonterminal EdgeLabel
         self._rules        = dict()    # one list of rules for each nonterminal edge label
 
     def add_node_label(self, label: NodeLabel):
@@ -363,10 +363,9 @@ class HRG:
     
     def copy(self):
         """Returns a copy of this HRG, whose rules are all copies of the original's."""
-        copy = HRG()
+        copy = HRG(self.start_symbol)
         copy._node_labels = self._node_labels.copy()
         copy._edge_labels = self._edge_labels.copy()
-        copy._start = self._start
         copy._rules = {}
         for lhs in self._rules:
             copy._rules[lhs] = [r.copy() for r in self._rules[lhs]]
