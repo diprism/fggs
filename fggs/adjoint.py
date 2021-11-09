@@ -14,8 +14,6 @@ def adjoint_hrg(g: HRG, top=None):
     """
     if top is None: top = {}
     
-    gbar = HRG()
-
     bar = {}
     for x in g.edge_labels():
         xbar = x.name + "_bar"
@@ -28,8 +26,8 @@ def adjoint_hrg(g: HRG, top=None):
     # The adjoint HRG doesn't really need a start symbol,
     # but some code doesn't like HRGs without start symbols,
     # so choose one.
-    s = g.start_symbol
-    gbar.start_symbol = bar[s]
+    
+    gbar = HRG(bar[g.start_symbol])
 
     for x in top:
         rhs = Graph()

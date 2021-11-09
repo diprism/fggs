@@ -6,10 +6,8 @@ from fggs.adjoint import adjoint_hrg
 
 class TestAdjoint(unittest.TestCase):
     def test_adjoint(self):
-        g = fggs.HRG()
-
         s = fggs.EdgeLabel("S", (), is_nonterminal=True)
-        g.start_symbol = s
+        g = fggs.HRG(s)
 
         p = 1/3
         pfac = fggs.EdgeLabel("p", (), is_terminal=True)
