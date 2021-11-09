@@ -183,7 +183,7 @@ class Graph:
         for edge in self._edges:
             if node in edge.nodes:
                 raise ValueError(f'Node {node} cannot be removed because it is an attachment node of Edge {edge}')
-        if node in self.ext():
+        if node in self.ext:
             raise ValueError(f'Node {node} cannot be removed because it is an external node of the Graph')
         self._nodes.remove(node)
         self._node_ids.remove(node.id)
