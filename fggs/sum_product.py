@@ -116,8 +116,7 @@ def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
             for rule in hrg.rules(nt_num):
                 if len(rule.rhs.nodes()) > 26:
                     raise Exception('cannot assign an index to each node')
-                Xi_R = {id: chr((ord('a') if i < 26 else ord('A')) + i % 26)
-                    for i, id in enumerate(rule.rhs._node_ids)}
+                Xi_R = {id: chr(ord('a') + i) for i, id in enumerate(rule.rhs._node_ids)}
                 nt_loc, tensors, indexing = [], [], []
                 for i, edge in enumerate(rule.rhs.edges()):
                     indexing.append([Xi_R[node.id] for node in edge.nodes])
@@ -131,21 +130,23 @@ def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
                     else:
                         raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
                 external = [Xi_R[node.id] for node in rule.rhs.ext]
+                alphabet = (chr(ord('a') + i) for i in range(26))
+                indices = set(x for sublist in indexing for x in sublist)
+                diff_index = next(x for x in alphabet if x not in indices) if indexing[i] else ''
                 x = [torch.tensor(0.)]
                 for i, nt_name in nt_loc:
                     if nt_den.name != nt_name:
                         continue
-                    new_index = next(chr(ord('a') + i) for i in range(26)) if indexing[i] else ''
                     if len(tensors) > 1:
                         equation = ','.join(''.join(indices) for j, indices in enumerate(indexing) if j != i) + '->'
                         if external: equation += ''.join(external)
-                        if new_index:
-                            equation = equation.replace(''.join(indexing[i]), new_index) + new_index
+                        if diff_index:
+                            equation = equation.replace(''.join(indexing[i]), diff_index) + diff_index
                         x.append(torch.einsum(equation, *(tensor for j, tensor in enumerate(tensors) if j != i)))
                     else:
                         x.append(torch.ones(tensors[i].size()))
-                tau_R.append(torch.stack(x).sum())
-            x = torch.stack(tau_R).sum()
+                tau_R.append(sum(t.sum() for t in x))
+            x = sum(t.sum() for t in tau_R)
             if nt_num.name == nt_den.name:
                 x -= 1 if x.size() == torch.Size([]) else torch.eye(x.size())
             JF[p[0]:p[1], q[0]:q[1]] = x
