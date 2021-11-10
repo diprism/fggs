@@ -7,17 +7,20 @@ from fggs import domains, factors
 
 def json_to_hrg(j):
     """Convert an object loaded by json.load to an HRG."""
-    g = HRG()
-    
+
+    labels = {}
     for name, d in j['terminals'].items():
         t = tuple(NodeLabel(l) for l in d['type'])
-        g.add_edge_label(EdgeLabel(name, t, is_terminal=True))
-
-    for nt, d in j['nonterminals'].items():
+        labels[name] = EdgeLabel(name, t, is_terminal=True)
+    for name, d in j['nonterminals'].items():
         t = tuple(NodeLabel(l) for l in d['type'])
-        g.add_edge_label(EdgeLabel(nt, t, is_nonterminal=True))
-        
-    g.set_start_symbol(g.get_edge_label(j['start']))
+        labels[name] = EdgeLabel(name, t, is_nonterminal=True)
+
+
+    g = HRG(labels[j['start']])
+    
+    for label in labels.values():
+        g.add_edge_label(label)
 
     for r in j['rules']:
         lhs = g.get_edge_label(r['lhs'])
@@ -41,7 +44,7 @@ def json_to_hrg(j):
                 ext.append(nodes[vi])
             except IndexError:
                 raise ValueError(f'invalid external node number {vi} (out of {len(nodes)})')
-        rhs.set_ext(ext)
+        rhs.ext = ext
         g.add_rule(HRGRule(lhs, rhs))
         
     return g
@@ -62,21 +65,21 @@ def hrg_to_json(g):
             'type': [l.name for l in nt.type()],
         }
         
-    j['start'] = g.start_symbol().name
+    j['start'] = g.start_symbol.name
     
     j['rules'] = []
     for gr in g.all_rules():
-        nodes = sorted(gr.rhs().nodes(), key=lambda v: v.id)
+        nodes = sorted(gr.rhs.nodes(), key=lambda v: v.id)
         node_nums = {v:vi for vi, v in enumerate(nodes)}
         jr = {
-            'lhs': gr.lhs().name,
+            'lhs': gr.lhs.name,
             'rhs': {
                 'nodes': [{'id': v.id, 'label': v.label.name} for v in nodes],
                 'edges': [],
-                'externals': [node_nums[v] for v in gr.rhs().ext()],
+                'externals': [node_nums[v] for v in gr.rhs.ext],
             },
         }
-        for e in sorted(gr.rhs().edges(), key=lambda e: e.id):
+        for e in sorted(gr.rhs.edges(), key=lambda e: e.id):
             jr['rhs']['edges'].append({
                 'id': e.id,
                 'attachments': [node_nums[v] for v in e.nodes],
@@ -222,7 +225,7 @@ def graph_to_dot(g: Graph, factor_formats=None, lhs=None):
                                         label=format[1],
                                         constraint=False,
                 ))
-    for i, v in enumerate(g.ext()):
+    for i, v in enumerate(g.ext):
         [dv] = dot.get_node(f'v{v.id}')
         attrs = dv.get_attributes()
         attrs['ext'] = i+1
@@ -275,7 +278,7 @@ def graph_to_tikz(g: Graph, factor_formats=None, lhs=None):
     res = []
     res.append(rf'\begin{{tikzpicture}}[baseline={baseline}pt]')
 
-    ext = {v.id:i for i,v in enumerate(g.ext())}
+    ext = {v.id:i for i,v in enumerate(g.ext)}
     for v in g.nodes():
         if v.id in ext:
             style = f'ext,label={_get_format(factor_formats, lhs, ext[v.id])[1]}'
@@ -315,10 +318,10 @@ def hrg_to_tikz(g, factor_formats=None):
     for r in g.all_rules():
         # Build a little factor graph for the lhs
         lhs = Graph()
-        lhs.add_edge(Edge(r.lhs(), [Node(x) for x in r.lhs().type()]))
+        lhs.add_edge(Edge(r.lhs(), [Node(x) for x in r.lhs.type()]))
         
-        res.append(graph_to_tikz(lhs, factor_formats, r.lhs()) +
+        res.append(graph_to_tikz(lhs, factor_formats, r.lhs) +
                    ' &\longrightarrow ' +
-                   graph_to_tikz(r.rhs(), factor_formats, r.lhs()) + r'\\')
+                   graph_to_tikz(r.rhs, factor_formats, r.lhs) + r'\\')
     res.append(r'\end{align*}')
     return '\n'.join(res)

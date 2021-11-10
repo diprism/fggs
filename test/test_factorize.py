@@ -91,14 +91,14 @@ class TestFactorize(unittest.TestCase):
             j = json.load(f)
         g = json_to_hrg(j)
         for r in g.all_rules():
-            frules = {fr.lhs():fr for fr in factorize_rule(r)}
+            frules = {fr.lhs:fr for fr in factorize_rule(r)}
             def visit(fr):
                 replacements = {}
-                for e in fr.rhs().edges():
+                for e in fr.rhs.edges():
                     if e.label.is_nonterminal and e.label not in g.nonterminals():
                         replacements[e] = visit(frules[e.label])
-                return HRGRule(fr.lhs(), replace_edges(fr.rhs(), replacements))
-            rr = visit(frules[r.lhs()])
+                return HRGRule(fr.lhs, replace_edges(fr.rhs, replacements))
+            rr = visit(frules[r.lhs])
             self.assertEqual(r, rr)
             
 if __name__ == "__main__":

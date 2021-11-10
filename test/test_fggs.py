@@ -135,7 +135,7 @@ class TestGraph(unittest.TestCase):
         self.graph.add_node(self.node2)
         self.graph.add_edge(self.edge1)
         self.graph.add_edge(self.edge2)
-        self.graph.set_ext((self.node2,))
+        self.graph.ext = [self.node2]
 
     def test_add_node(self):
         nodes = self.graph.nodes()
@@ -172,7 +172,7 @@ class TestGraph(unittest.TestCase):
             self.graph.add_edge(new_edge)
     
     def test_set_ext(self):
-        ext = self.graph.ext()
+        ext = self.graph.ext
         self.assertEqual(ext, (self.node2,))
     
     def test_add_nodes_implicitly(self):
@@ -182,7 +182,7 @@ class TestGraph(unittest.TestCase):
         self.assertTrue(node3 in self.graph.nodes())
         
         node4 = Node(self.nl1)
-        self.graph.set_ext((self.node2, node4))
+        self.graph.ext = (self.node2, node4)
         self.assertTrue(node4 in self.graph.nodes())
 
     def test_arity_and_type(self):
@@ -209,6 +209,12 @@ class TestGraph(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.graph.remove_node(node3)
 
+        node4 = Node(self.nl1)
+        self.graph.add_node(node4)
+        self.graph.ext = [node4]
+        with self.assertRaises(ValueError):
+            self.graph.remove_node(node4) # because it's an external node
+
     def test_remove_edge(self):
         self.graph.remove_edge(self.edge1)
         edges = self.graph.edges()
@@ -233,7 +239,7 @@ class TestGraph(unittest.TestCase):
         copy.add_node(self.node2)
         copy.add_edge(self.edge1)
         copy.add_edge(self.edge2)
-        copy.set_ext((self.node2,))
+        copy.ext = [self.node2]
 
         self.assertEqual(self.graph, copy)
 
@@ -252,7 +258,7 @@ class TestHRGRule(unittest.TestCase):
         graph = Graph()
         graph.add_node(node1)
         graph.add_node(node2)
-        graph.set_ext((node1, node2))
+        graph.ext = [node1, node2]
         
         with self.assertRaises(Exception):
             rule = HRGRule(terminal, graph)
@@ -284,7 +290,7 @@ class TestHRG(unittest.TestCase):
         self.graph.add_node(self.node2)
         self.graph.add_edge(self.edge1)
         self.graph.add_edge(self.edge2)
-        self.graph.set_ext(tuple())
+        self.graph.ext = []
         
         self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
         self.rule = HRGRule(self.start, self.graph)
@@ -292,16 +298,15 @@ class TestHRG(unittest.TestCase):
         self.node3 = Node(self.nl2)
         self.graph2 = Graph()
         self.graph2.add_node(self.node3)
-        self.graph2.set_ext((self.node3,))
+        self.graph2.ext = [self.node3]
         self.rule2 = HRGRule(self.el2, self.graph2)
 
-        self.fgg = HRG()
+        self.fgg = HRG(self.start)
         self.fgg.add_node_label(self.nl1)
         self.fgg.add_node_label(self.nl2)
         self.fgg.add_edge_label(self.el1)
         self.fgg.add_edge_label(self.el2)
         self.fgg.add_edge_label(self.start)
-        self.fgg.set_start_symbol(self.start)
         self.fgg.add_rule(self.rule)
         self.fgg.add_rule(self.rule2)
 
@@ -355,7 +360,7 @@ class TestHRG(unittest.TestCase):
         self.fgg.add_edge_label(self.el1)
 
     def test_set_start_symbol(self):
-        self.assertEqual(self.fgg.start_symbol(), self.start)
+        self.assertEqual(self.fgg.start_symbol, self.start)
 
     def test_add_rule(self):
         all_rules = self.fgg.all_rules()
@@ -379,7 +384,7 @@ class TestHRG(unittest.TestCase):
         new_graph.add_node(new_node1)
         new_graph.add_node(new_node2)
         new_graph.add_edge(new_edge)
-        new_graph.set_ext((new_node1, new_node2))
+        new_graph.ext = (new_node1, new_node2)
         new_rule  = HRGRule(new_nt, new_graph)
         
         self.fgg.add_rule(new_rule)
@@ -426,7 +431,7 @@ class TestInterpretation(unittest.TestCase):
         self.graph.add_node(self.node2)
         self.graph.add_edge(self.edge1)
         self.graph.add_edge(self.edge2)
-        self.graph.set_ext(tuple())
+        self.graph.ext = []
         
         self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
         self.rule = HRGRule(self.start, self.graph)
@@ -434,16 +439,15 @@ class TestInterpretation(unittest.TestCase):
         self.node3 = Node(self.nl2)
         self.graph2 = Graph()
         self.graph2.add_node(self.node3)
-        self.graph2.set_ext((self.node3,))
+        self.graph2.ext = [self.node3]
         self.rule2 = HRGRule(self.el2, self.graph2)
 
-        self.fgg = HRG()
+        self.fgg = HRG(self.start)
         self.fgg.add_node_label(self.nl1)
         self.fgg.add_node_label(self.nl2)
         self.fgg.add_edge_label(self.el1)
         self.fgg.add_edge_label(self.el2)
         self.fgg.add_edge_label(self.start)
-        self.fgg.set_start_symbol(self.start)
         self.fgg.add_rule(self.rule)
         self.fgg.add_rule(self.rule2)
 
