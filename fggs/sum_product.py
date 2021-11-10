@@ -1,8 +1,8 @@
 __all__ = ['sum_product']
 
-from fggs.fggs import FGG
+from fggs.fggs import FGG, HRG
 from fggs.factors import CategoricalFactor
-from typing import Callable, Dict
+from typing import Callable, Dict, List
 from functools import reduce
 import warnings, torch
 
@@ -10,6 +10,59 @@ def _formatwarning(message, category, filename=None, lineno=None, file=None, lin
     return '%s:%s: %s: %s' % (filename, lineno, category.__name__, message)
 warnings.formatwarning = _formatwarning
 Tensor = torch.Tensor; Function = Callable[[Tensor], Tensor]
+
+
+def scc(g: HRG) -> List[HRG]:
+    """Decompose an HRG into a its strongly-connected components using Tarjan's algorithm.
+
+    Returns a list of sets of nonterminal EdgeLabels. The list is in
+    topological order: there is no rule with a lhs in an earlier
+    component and an rhs nonterminal in a later component.
+
+    Robert Tarjan. Depth-first search and linear graph
+    algorithms. SIAM J. Comput., 1(2),
+    146-160. https://doi.org/10.1137/0201010
+
+    Based on pseudocode from https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm
+
+    """
+    
+    index = 0
+    indexof = {}    # order of nonterminals in DFS traversal
+    lowlink = {}    # lowlink[v] = min(indexof[w] | w is v or a descendant of v)
+    stack = []      # path from start nonterminal to current nonterminal
+    onstack = set() # = set(stack)
+    comps = []
+
+    def visit(v):
+        nonlocal index
+        indexof[v] = lowlink[v] = index
+        index += 1
+        stack.append(v)
+        onstack.add(v)
+
+        for r in g.rules(v):
+            for w in r.rhs.nonterminals():
+                if w not in indexof:
+                    visit(w)
+                    lowlink[v] = min(lowlink[v], lowlink[w])
+                elif w in onstack:
+                    lowlink[v] = min(lowlink[v], indexof[w])
+
+        if lowlink[v] == indexof[v]:
+            comp = set()
+            while v not in comp:
+                w = stack.pop()
+                onstack.remove(w)
+                comp.add(w)
+            comps.append(comp)
+    
+    for v in g.nonterminals():
+        if v not in indexof:
+            visit(v)
+
+    return comps
+
 
 def fixed_point(F: Function, psi_X0: Tensor, *, tol: float, kmax: int) -> None:
     k, psi_X1 = 0, F(psi_X0)

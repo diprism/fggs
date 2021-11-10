@@ -1,4 +1,5 @@
 from fggs import sum_product
+from fggs.sum_product import scc
 from fggs import FGG, json_to_hrg, json_to_interp
 import unittest, warnings, random, json
 
@@ -47,5 +48,11 @@ class TestSumProduct(unittest.TestCase):
     def test_newton_3(self):
         self.assertAlmostEqual(sum_product(self.fgg_3, method='newton').item(), 0.25, places=2)
 
+class TestSCC(unittest.TestCase):
+    def test_scc(self):
+        with open('test/hmm.json') as f:
+            g = json_to_hrg(json.load(f))
+        self.assertEqual(scc(g), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])
+        
 if __name__ == '__main__':
     unittest.main()
