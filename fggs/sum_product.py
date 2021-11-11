@@ -1,9 +1,9 @@
 __all__ = ['sum_product']
 
-from fggs.fggs import FGG, HRG, EdgeLabel
+from fggs.fggs import FGG, HRG, Edge, EdgeLabel
 from fggs.factors import CategoricalFactor
 from fggs.adjoint import adjoint_hrg
-from typing import Callable, Dict, Sequence, Tuple
+from typing import Callable, Dict, Sequence, Tuple, Iterable
 from functools import reduce
 import warnings, torch
 
@@ -72,13 +72,13 @@ def F(fgg: FGG, inputs: Dict[str, Tensor], nt_dict: Dict, psi_X0: Tensor) -> Ten
     hrg, interp = fgg.grammar, fgg.interp
     psi_X1 = psi_X0.clone()
     for nt in nt_dict:
+        _, nt_shape = nt_dict[nt]
         tau_R = []
         for rule in hrg.rules(nt):
             if len(rule.rhs.nodes()) > 26:
                 raise Exception('cannot assign an index to each node')
             if len(rule.rhs.edges()) == 0:
-                _, shape = nt_dict[nt]
-                tau_R.append(torch.ones(shape))
+                tau_R.append(torch.ones(nt_shape))
                 continue
             Xi_R = {id: chr(ord('a') + i) for i, id in enumerate(rule.rhs._node_ids)}
             indexing, tensors = [], []
@@ -100,9 +100,8 @@ def F(fgg: FGG, inputs: Dict[str, Tensor], nt_dict: Dict, psi_X0: Tensor) -> Ten
             tau_R_rule = torch.einsum(equation, *tensors)
             # Restore any external nodes that were removed.
             if len(external) < len(rule.rhs.ext):
-                vshape = [interp.domains[n.label].size() if n in connected else 1 for n in rule.rhs.ext]
-                eshape = [interp.domains[n.label].size() for n in rule.rhs.ext]
-                tau_R_rule = tau_R_rule.view(*vshape).expand(*eshape)
+                vshape = [dims if n in connected else 1 for n, dims in zip(rule.rhs.ext, nt_shape)]
+                tau_R_rule = tau_R_rule.view(*vshape).expand(*nt_shape)
             tau_R.append(tau_R_rule)
         (n, k), _ = nt_dict[nt]
         psi_X1[n:k] = sum(tau_R).flatten() if len(tau_R) > 0 else torch.zeros(k - n)

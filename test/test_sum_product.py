@@ -31,6 +31,9 @@ class TestSumProduct(unittest.TestCase):
             for A, B in zip(sum_product(self.fgg_2, method='fixed-point'), exact_value(p)):
                 self.assertAlmostEqual(A.item(), B, places=2)
 
+    def test_fixed_point_3(self):
+        self.assertAlmostEqual(sum_product(self.fgg_3, method='fixed-point').item(), 0.25, places=2)
+
     def test_broyden_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='broyden').item(), 1.0, places=2)
 
