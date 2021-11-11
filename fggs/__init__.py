@@ -6,3 +6,4 @@ from fggs.derivations import *
 from fggs.factorize import *
 from fggs.conjunction import *
 from fggs.formats import *
+from fggs.adjoint import *
