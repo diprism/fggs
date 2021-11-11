@@ -1,8 +1,8 @@
 __all__ = ['sum_product']
 
-from fggs.fggs import FGG
+from fggs.fggs import FGG, HRG, EdgeLabel
 from fggs.factors import CategoricalFactor
-from typing import Callable, Dict
+from typing import Callable, Dict, Sequence, Tuple
 from functools import reduce
 import warnings, torch
 
@@ -67,7 +67,7 @@ def broyden(F: Function, invJ: Tensor, psi_X0: Tensor, *, tol: float, kmax: int)
 #     if itc >= maxit:
 #         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
-def F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
+def F(fgg: FGG, inputs: Dict[str, Tensor], nt_dict: Dict, psi_X0: Tensor) -> Tensor:
     hrg, interp = fgg.grammar, fgg.interp
     psi_X1 = psi_X0.clone()
     for nt in hrg.nonterminals():
@@ -83,14 +83,13 @@ def F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
             indexing, tensors = [], []
             for edge in rule.rhs.edges():
                 indexing.append([Xi_R[node.id] for node in edge.nodes])
-                if edge.label.is_nonterminal:
+                if edge.label in inputs:
+                    tensors.append(inputs[edge.label])
+                elif edge.label in nt_dict:
                     (n, k), shape = nt_dict[edge.label]
                     tensors.append(psi_X0[n:k].reshape(shape))
-                elif isinstance(interp.factors[edge.label], CategoricalFactor):
-                    weights = interp.factors[edge.label]._weights
-                    tensors.append(torch.tensor(weights))
                 else:
-                    raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
+                    raise ValueError(f'nonterminal {edge.label.name} not among inputs or outputs')
             equation = ','.join([''.join(indices) for indices in indexing]) + '->'
             external = [Xi_R[node.id] for node in rule.rhs.ext]
             if external: equation += ''.join(external)
@@ -99,7 +98,7 @@ def F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
         psi_X1[n:k] = sum(tau_R).flatten() if len(tau_R) > 0 else torch.zeros(k - n)
     return psi_X1
 
-def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
+def J(fgg: FGG, inputs: Dict[str, Tensor], nt_dict: Dict, psi_X0: Tensor) -> Tensor:
     hrg, interp = fgg.grammar, fgg.interp
     JF = torch.full(2 * list(psi_X0.shape), fill_value=0.)
     p, q = [0, 0], [0, 0]
@@ -120,15 +119,13 @@ def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
                 nt_loc, tensors, indexing = [], [], []
                 for i, edge in enumerate(rule.rhs.edges()):
                     indexing.append([Xi_R[node.id] for node in edge.nodes])
-                    if edge.label.is_nonterminal:
+                    if edge.label in inputs:
+                        tensors.append(inputs[edge.label])
+                    elif edge.label in nt_dict:
                         (n, k), shape = nt_dict[edge.label]
                         tensors.append(psi_X0[n:k].reshape(shape))
-                        nt_loc.append((i, edge.label.name))
-                    elif isinstance(interp.factors[edge.label], CategoricalFactor):
-                        weights = interp.factors[edge.label]._weights
-                        tensors.append(torch.tensor(weights))
                     else:
-                        raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
+                        raise ValueError(f'nonterminal {edge.label.name} not among inputs or outputs')
                 external = [Xi_R[node.id] for node in rule.rhs.ext]
                 alphabet = (chr(ord('a') + i) for i in range(26))
                 indices = set(x for sublist in indexing for x in sublist)
@@ -153,7 +150,68 @@ def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
         q = q_[:]
     return JF
 
-def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kmax: int = 1000) -> Tensor:
+class SumProduct(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, fgg: FGG, opts: Dict, in_labels: Sequence[EdgeLabel], out_labels: Sequence[EdgeLabel], *in_values: Tensor) -> Tuple[Tensor]:
+        """Compute the sum-product of the nonterminals in out_labels, given
+        the sum-products of the terminals and/or nonterminals in in_labels
+        and in_values.
+
+        See documentation for sum_product for an explanation of the other options.
+
+        It is an error if any rule with a LHS in out_labels has an RHS
+        nonterminal not in in_labels + out_labels.
+        """
+        hrg, interp = fgg.grammar, fgg.interp
+        
+        opts.setdefault('method', 'fixed-point')
+        opts.setdefault('tol',    1e-6)
+        opts.setdefault('kmax',   1000)
+        
+        inputs = dict(zip(in_labels, in_values))
+        
+        n, nt_dict = 0, {}
+        for nt in out_labels:
+            shape = tuple(interp.domains[node_label].size() for node_label in nt.node_labels)
+            k = n + (reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1)
+            nt_dict[nt] = ((n, k), shape)
+            n = k
+        psi_X = torch.full((n,), fill_value=0.)
+        
+        if opts['method'] == 'fixed-point':
+            fixed_point(lambda psi_X: F(fgg, inputs, nt_dict, psi_X), psi_X,
+                        tol=opts['tol'], kmax=opts['kmax'])
+        elif opts['method'] == 'newton':
+            newton(lambda psi_X: F(fgg, inputs, nt_dict, psi_X) - psi_X,
+                   lambda psi_X: J(fgg, inputs, nt_dict, psi_X), psi_X,
+                   tol=opts['tol'], kmax=opts['kmax'])
+        elif opts['method'] == 'broyden':
+            # Broyden's method may fail to converge without a sufficient
+            # initial approximation of the Jacobian. If the method doesn't
+            # converge within N iteration(s), perturb the initial approximation.
+            # Source: Numerical Recipes in C: the Art of Scientific Computing
+            invJ = -torch.eye(len(psi_X), len(psi_X))
+            broyden(lambda psi_X: F(fgg, inputs, nt_dict, psi_X) - psi_X, invJ, psi_X,
+                    tol=opts['tol'], kmax=opts['kmax'])
+            # k = 1
+            while any(torch.isnan(psi_X)):
+                # perturbation = round(random.uniform(0.51, 1.99), 1)
+                psi_X = torch.full((n,), fill_value=0.)
+                # invJ = -torch.eye(len(psi_X), len(psi_X)) * perturbation
+                invJ = -torch.eye(len(psi_X), len(psi_X))
+                broyden(lambda psi_X: F(fgg, inputs, nt_dict, psi_X) - psi_X, invJ, psi_X,
+                        tol=opts['tol'], kmax=opts['kmax'])
+                # broyden(lambda psi_X: F(psi_X) - psi_X, invJ, psi_X, tol=tol*(10**k), kmax=kmax)
+                # k += 1
+        else:
+            raise ValueError('unsupported method for computing sum-product')
+        out = []
+        for nt in out_labels:
+            (n, k), shape = nt_dict[nt]
+            out.append(psi_X[n:k].reshape(shape))
+        return tuple(out)
+
+def sum_product(fgg: FGG, **opts) -> Tensor:
     """Compute the sum-product of an FGG.
 
     - fgg: The FGG to compute the sum-product of.
@@ -162,33 +220,14 @@ def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kma
     - kmax: Number of iterations after which iterative algorithms give up.
     """
     hrg, interp = fgg.grammar, fgg.interp
-    n, nt_dict = 0, {}
-    for nt in hrg.nonterminals():
-        shape = tuple(interp.domains[node_label].size() for node_label in nt.node_labels)
-        k = n + (reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1)
-        nt_dict[nt] = ((n, k), shape)
-        n = k
-    psi_X = torch.full((n,), fill_value=0.)
-    if method == 'fixed-point':
-        fixed_point(lambda psi_X: F(fgg, nt_dict, psi_X), psi_X, tol=tol, kmax=kmax)
-    elif method == 'newton':
-        newton(lambda psi_X: F(fgg, nt_dict, psi_X) - psi_X, lambda psi_X: J(fgg, nt_dict, psi_X), psi_X, tol=tol, kmax=kmax)
-    elif method == 'broyden':
-        # Broyden's method may fail to converge without a sufficient
-        # initial approximation of the Jacobian. If the method doesn't
-        # converge within N iteration(s), perturb the initial approximation.
-        # Source: Numerical Recipes in C: the Art of Scientific Computing
-        invJ = -torch.eye(len(psi_X), len(psi_X))
-        broyden(lambda psi_X: F(fgg, nt_dict, psi_X) - psi_X, invJ, psi_X, tol=tol, kmax=kmax)
-        # k = 1
-        while any(torch.isnan(psi_X)):
-            # perturbation = round(random.uniform(0.51, 1.99), 1)
-            psi_X = torch.full((n,), fill_value=0.)
-            # invJ = -torch.eye(len(psi_X), len(psi_X)) * perturbation
-            invJ = -torch.eye(len(psi_X), len(psi_X))
-            broyden(lambda psi_X: F(fgg, nt_dict, psi_X) - psi_X, invJ, psi_X, tol=tol, kmax=kmax)
-            # broyden(lambda psi_X: F(psi_X) - psi_X, invJ, psi_X, tol=tol*(10**k), kmax=kmax)
-            # k += 1
-    else: raise ValueError('unsupported method for computing sum-product')
-    (n, k), shape = nt_dict[hrg.start_symbol]
-    return psi_X[n:k].reshape(shape)
+    in_labels = list(hrg.terminals())
+    in_values = []
+    for t in in_labels:
+        w = interp.factors[t]._weights
+        if isinstance(w, Tensor):
+            in_values.append(w)
+        else:
+            in_values.append(torch.tensor(w))
+    out_labels = list(hrg.nonterminals())
+    out = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
+    return out[out_labels.index(fgg.grammar.start_symbol)]
