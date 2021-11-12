@@ -15,6 +15,8 @@ class TestSumProduct(unittest.TestCase):
                          json_to_interp(load('test/example12p_interp.json')))
         self.fgg_3 = FGG(json_to_hrg(load('test/simplefgg.json')),
                          json_to_interp(load('test/simplefgg_interp.json')))
+        self.fgg_4 = FGG(json_to_hrg(load('test/barhillel.json')),
+                         json_to_interp(load('test/barhillel_interp.json')))
 
     def test_fixed_point_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='fixed-point').item(), 1.0, places=2)
@@ -46,6 +48,11 @@ class TestSumProduct(unittest.TestCase):
 
     def test_newton_3(self):
         self.assertAlmostEqual(sum_product(self.fgg_3, method='newton').item(), 0.25, places=2)
+
+    def test_4(self):
+        z_fp = sum_product(self.fgg_4, method='fixed-point')
+        z_newton = sum_product(self.fgg_4, method='newton')
+        self.assertAlmostEqual(torch.norm(z_fp - z_newton), 0., places=2)
 
 if __name__ == '__main__':
     unittest.main()
