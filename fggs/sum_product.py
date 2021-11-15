@@ -1,10 +1,11 @@
 __all__ = ['sum_product']
 
-from fggs.fggs import FGG
+from fggs.fggs import FGG, Interpretation, Edge, Node
 from fggs.factors import CategoricalFactor
-from typing import Callable, Dict
+from typing import Callable, Dict, Iterable, Tuple
 from functools import reduce
 import warnings, torch
+import collections
 
 def _formatwarning(message, category, filename=None, lineno=None, file=None, line=None):
     return '%s:%s: %s: %s' % (filename, lineno, category.__name__, message)
@@ -88,7 +89,9 @@ def F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
                     tensors.append(psi_X0[n:k].reshape(shape))
                 elif isinstance(interp.factors[edge.label], CategoricalFactor):
                     weights = interp.factors[edge.label]._weights
-                    tensors.append(torch.tensor(weights))
+                    if not isinstance(weights, Tensor):
+                        weights = torch.tensor(weights)
+                    tensors.append(weights)
                 else:
                     raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
             equation = ','.join([''.join(indices) for indices in indexing]) + '->'
@@ -126,7 +129,9 @@ def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
                         nt_loc.append((i, edge.label.name))
                     elif isinstance(interp.factors[edge.label], CategoricalFactor):
                         weights = interp.factors[edge.label]._weights
-                        tensors.append(torch.tensor(weights))
+                        if not isinstance(weights, Tensor):
+                            weights = torch.tensor(weights)
+                        tensors.append(weights)
                     else:
                         raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
                 external = [Xi_R[node.id] for node in rule.rhs.ext]
@@ -153,11 +158,87 @@ def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
         q = q_[:]
     return JF
 
+def sum_product_edges(interp: Interpretation, ext: Tuple[Node], edges: Iterable[Edge]) -> Tensor:
+    # Each node corresponds to an index, so choose a letter for each
+    nodes = set()
+    for edge in edges:
+        nodes.update(edge.nodes)
+    if len(nodes) > 26:
+        raise Exception('cannot assign an index to each node')
+    node_to_letter = {node: chr(ord('a') + i) for i, node in enumerate(nodes)}
+    
+    indexing, tensors = [], []
+    for edge in edges:
+        indexing.append([node_to_letter[node] for node in edge.nodes])
+        if edge.label.is_nonterminal:
+            raise NotImplementedError()
+        elif isinstance(interp.factors[edge.label], CategoricalFactor):
+            weights = interp.factors[edge.label]._weights
+            if not isinstance(weights, Tensor):
+                weights = torch.tensor(weights)
+            tensors.append(weights)
+        else:
+            raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
+    equation = ','.join([''.join(indices) for indices in indexing]) + '->'
+    
+    # If an external node has no edges, einsum will complain, so remove it.
+    external = [node_to_letter[node] for node in ext if node in nodes]
+    equation += ''.join(external)
+    
+    out = torch.einsum(equation, *tensors)
+    
+    # Restore any external nodes that were removed.
+    if len(external) < len(nodes):
+        vshape = [interp.domains[n.label].size() if n in nodes else 1 for n in ext]
+        eshape = [interp.domains[n.label].size() for n in ext]
+        out = out.view(*vshape).expand(*eshape)
+        
+    return out
+
+def linear(fgg: FGG, nt_dict: Dict, n: int) -> Tensor:
+    hrg, interp = fgg.grammar, fgg.interp
+
+    nullary_index = {x:[] for x in hrg.nonterminals()}
+    unary_index = {(x,y):[] for x in hrg.nonterminals() for y in hrg.nonterminals()}
+    for x in hrg.nonterminals():
+        for rule in hrg.rules(x):
+            edges = [e for e in rule.rhs.edges() if e.label.is_nonterminal]
+            if len(edges) == 0:
+                nullary_index[x].append(rule)
+            elif len(edges) == 1:
+                unary_index[x, edges[0].label].append((rule, edges[0]))
+            else:
+                raise ValueError('FGG is not linearly recursive')
+
+    f = torch.zeros(n)
+    jf = torch.zeros(n, n)
+    for x in hrg.nonterminals():
+        (xi, xj), _ = nt_dict[x]
+        # Compute JF(0)
+        for y in hrg.nonterminals():
+            (yi, yj), _ = nt_dict[y]
+            z_rules = []
+            for rule, edge in unary_index[x, y]:
+                ext = rule.rhs.ext + edge.nodes
+                edges = set(rule.rhs.edges()) - {edge}
+                z_rules.append(sum_product_edges(interp, ext, edges))
+            if len(z_rules) > 0:
+                jf[xi:xj,yi:yj] = sum(z_rules).view(xj-xi, yj-yi)
+
+        # Compute F(0)
+        z_rules = []
+        for rule in nullary_index[x]:
+            z_rules.append(sum_product_edges(interp, rule.rhs.ext, rule.rhs.edges()))
+        if len(z_rules) > 0:
+            f[xi:xj] = sum(z_rules).view(xj-xi)
+
+    return torch.linalg.solve(torch.eye(n)-jf, f)
+
 def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kmax: int = 1000) -> Tensor:
     """Compute the sum-product of an FGG.
 
     - fgg: The FGG to compute the sum-product of.
-    - method: What method to use ('fixed-point', 'newton', 'broyden').
+    - method: What method to use ('linear', 'fixed-point', 'newton', 'broyden').
     - tol: Iterative algorithms terminate when the L∞ distance between consecutive iterates is below tol.
     - kmax: Number of iterations after which iterative algorithms give up.
     """
@@ -169,7 +250,9 @@ def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kma
         nt_dict[nt] = ((n, k), shape)
         n = k
     psi_X = torch.full((n,), fill_value=0.)
-    if method == 'fixed-point':
+    if method == 'linear':
+        psi_X = linear(fgg, nt_dict, n)
+    elif method == 'fixed-point':
         fixed_point(lambda psi_X: F(fgg, nt_dict, psi_X), psi_X, tol=tol, kmax=kmax)
     elif method == 'newton':
         newton(lambda psi_X: F(fgg, nt_dict, psi_X) - psi_X, lambda psi_X: J(fgg, nt_dict, psi_X), psi_X, tol=tol, kmax=kmax)
