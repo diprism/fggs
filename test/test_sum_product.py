@@ -3,19 +3,21 @@ from fggs.sum_product import scc
 from fggs import FGG, json_to_hrg, json_to_interp
 import unittest, warnings, random, json
 
+def load_json(filename):
+    with open(filename) as f:
+        return json.load(f)
+
+def load_fgg(gfilename, ifilename):
+    return FGG(json_to_hrg(load_json(gfilename)),
+               json_to_interp(load_json(ifilename)))
+    
 class TestSumProduct(unittest.TestCase):
 
     def setUp(self):
         warnings.filterwarnings('ignore', message='.*maximum iteration.*')
-        def load(filename):
-            with open(filename) as f:
-                return json.load(f)
-        self.fgg_1 = FGG(json_to_hrg(load('test/hmm.json')),
-                         json_to_interp(load('test/hmm_interp.json')))
-        self.fgg_2 = FGG(json_to_hrg(load('test/example12p.json')),
-                         json_to_interp(load('test/example12p_interp.json')))
-        self.fgg_3 = FGG(json_to_hrg(load('test/simplefgg.json')),
-                         json_to_interp(load('test/simplefgg_interp.json')))
+        self.fgg_1 = load_fgg('test/hmm.json', 'test/hmm_interp.json')
+        self.fgg_2 = load_fgg('test/example12p.json', 'test/example12p_interp.json')
+        self.fgg_3 = load_fgg('test/simplefgg.json', 'test/simplefgg_interp.json')
 
     def test_fixed_point_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='fixed-point').item(), 1.0, places=2)
@@ -48,10 +50,14 @@ class TestSumProduct(unittest.TestCase):
     def test_newton_3(self):
         self.assertAlmostEqual(sum_product(self.fgg_3, method='newton').item(), 0.25, places=2)
 
+    def test_disconnected_node(self):
+        fgg = load_fgg('test/disconnected_node.json', 'test/disconnected_node_interp.json')
+        self.assertAlmostEqual(sum_product(fgg, method='fixed-point').item(), 6.)
+        self.assertAlmostEqual(sum_product(fgg, method='newton').item(), 6.)
+
 class TestSCC(unittest.TestCase):
     def test_scc(self):
-        with open('test/hmm.json') as f:
-            g = json_to_hrg(json.load(f))
+        g = json_to_hrg(load_json('test/hmm.json'))
         self.assertEqual(scc(g), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])
         
 if __name__ == '__main__':

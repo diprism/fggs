@@ -1,0 +1,22 @@
+{
+    "terminals": {
+        "fac": { "type": [] }
+    },
+    "nonterminals": {
+        "S": { "type" : [] }
+    },
+    "start": "S",
+    "rules" : [
+        {
+            "lhs": "S",
+            "rhs" : {
+                "nodes": [
+                    { "label": "D" }
+                ],
+                "edges": [
+                    { "attachments": [], "label": "fac" }
+                ]
+            }
+        }
+    ]
+}
