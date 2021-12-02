@@ -1,6 +1,5 @@
 __all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 'Interpretation', 'FactorGraph', 'FGG']
 
-import random, string
 from typing import Optional, Iterable, Tuple
 from dataclasses import dataclass, field
 from fggs.domains import Domain
