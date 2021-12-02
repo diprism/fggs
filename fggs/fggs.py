@@ -74,10 +74,8 @@ class EdgeLabel:
         return string
 
     
-def _generate_id():
-    letters = string.ascii_letters
-    new_id = ''.join([random.choice(letters) for i in range(20)])
-    return new_id
+class Unique:
+    pass
 
 
 @dataclass(frozen=True)
@@ -89,7 +87,7 @@ class Node:
 
     def __post_init__(self):
         if self.id == None:
-            object.__setattr__(self, 'id', _generate_id())
+            object.__setattr__(self, 'id', Unique())
 
     def __str__(self):
         return f"Node {self.id} with NodeLabel {self.label}"
@@ -105,7 +103,7 @@ class Edge:
 
     def __post_init__(self):
         if self.id == None:
-            object.__setattr__(self, 'id', _generate_id())
+            object.__setattr__(self, 'id', Unique())
 
         if self.label.type() != tuple([node.label for node in self.nodes]):
             raise ValueError(f"Can't use edge label {self.label.name} with this set of nodes.")

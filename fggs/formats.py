@@ -1,5 +1,6 @@
 __all__ = ['json_to_hrg', 'hrg_to_json', 'json_to_interp', 'interp_to_json', 'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
 
+import fggs.fggs # for Unique
 from fggs.fggs import *
 from fggs import domains, factors
 
@@ -69,22 +70,30 @@ def hrg_to_json(g):
     
     j['rules'] = []
     for gr in g.all_rules():
-        nodes = sorted(gr.rhs.nodes(), key=lambda v: v.id)
+        nodes = sorted(gr.rhs.nodes(), key=lambda v: str(v.id))
         node_nums = {v:vi for vi, v in enumerate(nodes)}
+        jnodes = []
+        for v in nodes:
+            jv = {'label': v.label.name}
+            if not isinstance(v.id, fggs.fggs.Unique):
+                jv['id'] = v.id
+            jnodes.append(jv)
         jr = {
             'lhs': gr.lhs.name,
             'rhs': {
-                'nodes': [{'id': v.id, 'label': v.label.name} for v in nodes],
+                'nodes': jnodes,
                 'edges': [],
                 'externals': [node_nums[v] for v in gr.rhs.ext],
             },
         }
-        for e in sorted(gr.rhs.edges(), key=lambda e: e.id):
-            jr['rhs']['edges'].append({
-                'id': e.id,
+        for e in sorted(gr.rhs.edges(), key=lambda e: str(e.id)):
+            je = {
                 'attachments': [node_nums[v] for v in e.nodes],
                 'label': e.label.name,
-            })
+            }
+            if not isinstance(e.id, fggs.fggs.Unique):
+                je['id'] = e.id
+            jr['rhs']['edges'].append(je)
         j['rules'].append(jr)
         
     return j
