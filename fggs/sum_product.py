@@ -42,7 +42,8 @@ def scc(g: HRG) -> List[HRG]:
         onstack.add(v)
 
         for r in g.rules(v):
-            for w in r.rhs.nonterminals():
+            nts = set(e.label for e in r.rhs.edges() if e.label.is_nonterminal)
+            for w in nts:
                 if w not in indexof:
                     visit(w)
                     lowlink[v] = min(lowlink[v], lowlink[w])
