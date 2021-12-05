@@ -71,11 +71,7 @@ class EdgeLabel:
             for i, node_label in enumerate(self.type()):
                 string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name}"
         return string
-
     
-class Unique:
-    pass
-
 
 @dataclass(frozen=True)
 class Node:
@@ -83,10 +79,14 @@ class Node:
     
     label: NodeLabel #: The node's label
     id: str = None   #: The node's id, which must be unique. If not supplied, a random one is chosen.
+    persist_id: bool = field(init=False, default=False) #: Whether the id should be saved with the Node
 
     def __post_init__(self):
         if self.id == None:
-            object.__setattr__(self, 'id', Unique())
+            object.__setattr__(self, 'id', id(self))
+        else:
+            object.__setattr__(self, 'persist_id', True)
+            
 
     def __str__(self):
         return f"Node {self.id} with NodeLabel {self.label}"
@@ -99,10 +99,13 @@ class Edge:
     label: EdgeLabel           #: The edge's label
     nodes: Iterable[NodeLabel] #: The edge's attachment nodes
     id: str = None             #: The edge's id, which must be unique. If not supplied, a random one is chosen.
+    persist_id: bool = field(init=False, default=False) #: Whether the id should be saved with the Node
 
     def __post_init__(self):
         if self.id == None:
-            object.__setattr__(self, 'id', Unique())
+            object.__setattr__(self, 'id', id(self))
+        else:
+            object.__setattr__(self, 'persist_id', True)
 
         if self.label.type() != tuple([node.label for node in self.nodes]):
             raise ValueError(f"Can't use edge label {self.label.name} with this set of nodes.")

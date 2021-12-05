@@ -1,6 +1,5 @@
 __all__ = ['json_to_hrg', 'hrg_to_json', 'json_to_interp', 'interp_to_json', 'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
 
-import fggs.fggs # for Unique
 from fggs.fggs import *
 from fggs import domains, factors
 
@@ -75,7 +74,7 @@ def hrg_to_json(g):
         jnodes = []
         for v in nodes:
             jv = {'label': v.label.name}
-            if not isinstance(v.id, fggs.fggs.Unique):
+            if v.persist_id:
                 jv['id'] = v.id
             jnodes.append(jv)
         jr = {
@@ -91,7 +90,7 @@ def hrg_to_json(g):
                 'attachments': [node_nums[v] for v in e.nodes],
                 'label': e.label.name,
             }
-            if not isinstance(e.id, fggs.fggs.Unique):
+            if e.persist_id:
                 je['id'] = e.id
             jr['rhs']['edges'].append(je)
         j['rules'].append(jr)
