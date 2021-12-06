@@ -69,22 +69,30 @@ def hrg_to_json(g):
     
     j['rules'] = []
     for gr in g.all_rules():
-        nodes = sorted(gr.rhs.nodes(), key=lambda v: v.id)
+        nodes = sorted(gr.rhs.nodes(), key=lambda v: str(v.id))
         node_nums = {v:vi for vi, v in enumerate(nodes)}
+        jnodes = []
+        for v in nodes:
+            jv = {'label': v.label.name}
+            if v.persist_id:
+                jv['id'] = v.id
+            jnodes.append(jv)
         jr = {
             'lhs': gr.lhs.name,
             'rhs': {
-                'nodes': [{'id': v.id, 'label': v.label.name} for v in nodes],
+                'nodes': jnodes,
                 'edges': [],
                 'externals': [node_nums[v] for v in gr.rhs.ext],
             },
         }
-        for e in sorted(gr.rhs.edges(), key=lambda e: e.id):
-            jr['rhs']['edges'].append({
-                'id': e.id,
+        for e in sorted(gr.rhs.edges(), key=lambda e: str(e.id)):
+            je = {
                 'attachments': [node_nums[v] for v in e.nodes],
                 'label': e.label.name,
-            })
+            }
+            if e.persist_id:
+                je['id'] = e.id
+            jr['rhs']['edges'].append(je)
         j['rules'].append(jr)
         
     return j

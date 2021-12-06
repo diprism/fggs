@@ -46,6 +46,11 @@ def replace_edges(graph: Graph, replacements: Dict[Edge, Graph]):
         repl = replacements[e]
         if isinstance(repl, HRGRule):
             repl = repl.rhs
+            
+        # Copy repl into ret. We assign fresh ids repl's nodes and edges if necessary
+        # (and only if necessary, just because it makes the unit tests for
+        # factorization easier).
+        
         rnodes = {}
         for ve, vr in zip(e.nodes, repl.ext):
             rnodes[vr] = ve
@@ -58,11 +63,10 @@ def replace_edges(graph: Graph, replacements: Dict[Edge, Graph]):
                 rnodes[v] = vcopy
                 ret.add_node(vcopy)
         for er in repl.edges():
+            er_nodes = tuple(rnodes[v] for v in er.nodes)
             if er.id in ret._edge_ids:
-                er = Edge(er.label, [rnodes[v] for v in er.nodes]) # fresh id
-            else:
-                er = Edge(er.label, [rnodes[v] for v in er.nodes], id=er.id)
+                er = Edge(er.label, er_nodes) # fresh id
+            elif er_nodes != er.nodes:
+                er = Edge(er.label, er_nodes, id=er.id)
             ret.add_edge(er)
     return ret
-
-
