@@ -91,7 +91,9 @@ class TestNode(unittest.TestCase):
     def test_id(self):
         self.assertEqual(self.node2.id, "id2")
 
-
+    def test_bad_id(self):
+        with self.assertRaises(TypeError):
+            n = Node(self.label, id=1234)
 
 
 class TestEdge(unittest.TestCase):
@@ -115,19 +117,22 @@ class TestEdge(unittest.TestCase):
         # list of nodes has wrong arity
         with self.assertRaises(Exception):
             bad_edge = self.Edge(self.el2, (self.node2, self.node2))
-    
+
+        # non-string id
+        with self.assertRaises(TypeError):
+            n = Edge(self.el1, (self.node1, self.node2), id=1234)
         
 class TestGraph(unittest.TestCase):
 
     def setUp(self):
         self.nl1   = NodeLabel("nl1")
         self.nl2   = NodeLabel("nl2")
-        self.node1 = Node(self.nl1)
+        self.node1 = Node(self.nl1, id='node1')
         self.node2 = Node(self.nl2)
         
         self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), is_terminal=True)
         self.el2   = EdgeLabel("el2", (self.nl2,), is_nonterminal=True)
-        self.edge1 = Edge(self.el1, (self.node1, self.node2))
+        self.edge1 = Edge(self.el1, (self.node1, self.node2), id='edge1')
         self.edge2 = Edge(self.el2, (self.node2,))
         
         self.graph = Graph()

@@ -86,7 +86,8 @@ class Node:
             object.__setattr__(self, 'id', id(self))
         else:
             object.__setattr__(self, 'persist_id', True)
-            
+            if not isinstance(self.id, str):
+                raise TypeError('explicit Node ids must be strings')
 
     def __str__(self):
         return f"Node {self.id} with NodeLabel {self.label}"
@@ -106,6 +107,8 @@ class Edge:
             object.__setattr__(self, 'id', id(self))
         else:
             object.__setattr__(self, 'persist_id', True)
+            if not isinstance(self.id, str):
+                raise TypeError('explicit Edge ids must be strings')
 
         if self.label.type() != tuple([node.label for node in self.nodes]):
             raise ValueError(f"Can't use edge label {self.label.name} with this set of nodes.")
