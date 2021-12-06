@@ -9,7 +9,7 @@ class TestJSON(unittest.TestCase):
         # This file doesn't have node/edge ids, so we can't check the result.
         for filename in ['test.json']:
             with open(os.path.join(os.path.dirname(__file__), filename)) as f:
-                j = json.load(f)
+                j = json.load(f)['grammar']
             g = fggs.json_to_hrg(j)
             j_check = fggs.hrg_to_json(g)
 
