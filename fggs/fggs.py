@@ -83,6 +83,10 @@ class Node:
 
     def __post_init__(self):
         if self.id == None:
+            # If no id was specified, use the object's address as a numeric id.
+            # Since explicit ids are required to be strings, there can't be an
+            # accidental id collision. We also set persist_id to False so that
+            # if the Node is saved and loaded, it will receive a new id.
             object.__setattr__(self, 'id', id(self))
         else:
             object.__setattr__(self, 'persist_id', True)
@@ -103,6 +107,7 @@ class Edge:
     persist_id: bool = field(init=False, default=False) #: Whether the id should be saved with the Node
 
     def __post_init__(self):
+        # See Node.__post_init__ for further explanation of id and persist_id.
         if self.id == None:
             object.__setattr__(self, 'id', id(self))
         else:
