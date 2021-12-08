@@ -27,7 +27,7 @@ class TestSumProduct(unittest.TestCase):
             return ((3 - 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), ( 1 - 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p)) if p > 0.5 \
               else ((1 + 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), (-1 + 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p))
         for p in (random.uniform(0.01, 0.99) for _ in range(10)):
-            self.fgg_2.interp.factors[self.fgg_2.grammar.get_edge_label('p')]._weights = [1 - p, p]
+            self.fgg_2.interp.factors[self.fgg_2.grammar.get_edge_label('p')].weights = [1 - p, p]
             for A, B in zip(sum_product(self.fgg_2, method='fixed-point'), exact_value(p)):
                 self.assertAlmostEqual(A.item(), B, places=2)
 
@@ -41,7 +41,7 @@ class TestSumProduct(unittest.TestCase):
             return ((3 - 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), ( 1 - 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p)) if p > 0.5 \
               else ((1 + 2*p - sqrt(1 + 4*p - 4*p**2))/(4*p), (-1 + 2*p + sqrt(1 + 4*p - 4*p**2))/(4*p))
         for p in (random.uniform(0.01, 0.99) for _ in range(10)):
-            self.fgg_2.interp.factors[self.fgg_2.grammar.get_edge_label('p')]._weights = [1 - p, p]
+            self.fgg_2.interp.factors[self.fgg_2.grammar.get_edge_label('p')].weights = [1 - p, p]
             for A, B in zip(sum_product(self.fgg_2, method='broyden'), exact_value(p)):
                 self.assertAlmostEqual(A.item(), B, places=2)
 

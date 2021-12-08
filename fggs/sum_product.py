@@ -141,8 +141,10 @@ def F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
                     (n, k), shape = nt_dict[edge.label]
                     tensors.append(psi_X0[n:k].reshape(shape))
                 elif isinstance(interp.factors[edge.label], CategoricalFactor):
-                    weights = interp.factors[edge.label]._weights
-                    tensors.append(torch.tensor(weights))
+                    weights = interp.factors[edge.label].weights
+                    if not isinstance(weights, Tensor):
+                        weights = torch.tensor(weights, dtype=torch.get_default_dtype())
+                    tensors.append(weights)
                 else:
                     raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
             equation = ','.join([''.join(indices) for indices in indexing]) + '->'
@@ -180,8 +182,10 @@ def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
                         tensors.append(psi_X0[n:k].reshape(shape))
                         nt_loc.append((i, edge.label.name))
                     elif isinstance(interp.factors[edge.label], CategoricalFactor):
-                        weights = interp.factors[edge.label]._weights
-                        tensors.append(torch.tensor(weights))
+                        weights = interp.factors[edge.label].weights
+                        if not isinstance(weights, Tensor):
+                            weights = torch.tensor(weights, dtype=torch.get_default_dtype())
+                        tensors.append(weights)
                     else:
                         raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
                 external = [Xi_R[node.id] for node in rule.rhs.ext]

@@ -56,13 +56,13 @@ def hrg_to_json(g):
     j['terminals'] = {}
     for t in g.terminals():
         j['terminals'][t.name] = {
-            'type': [l.name for l in t.type()],
+            'type': [l.name for l in t.type],
         }
         
     j['nonterminals'] = {}
     for nt in g.nonterminals():
         j['nonterminals'][nt.name] = {
-            'type': [l.name for l in nt.type()],
+            'type': [l.name for l in nt.type],
         }
         
     j['start'] = g.start_symbol.name
@@ -139,7 +139,7 @@ def interp_to_json(interp):
         if isinstance(fac, factors.CategoricalFactor):
             j['factors'][el.name] = {
                 'function': 'categorical',
-                'type': [nl.name for nl in el.type()],
+                'type': [nl.name for nl in el.type],
                 'weights': fac.weights(),
             }
             
@@ -326,7 +326,7 @@ def hrg_to_tikz(g, factor_formats=None):
     for r in g.all_rules():
         # Build a little factor graph for the lhs
         lhs = Graph()
-        lhs.add_edge(Edge(r.lhs(), [Node(x) for x in r.lhs.type()]))
+        lhs.add_edge(Edge(r.lhs(), [Node(x) for x in r.lhs.type]))
         
         res.append(graph_to_tikz(lhs, factor_formats, r.lhs) +
                    ' &\longrightarrow ' +
