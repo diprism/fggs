@@ -1,5 +1,6 @@
 from fggs import sum_product, Interpretation, CategoricalFactor
 from fggs.sum_product import _sum_product
+from fggs.sum_product import scc
 from fggs import FGG, json_to_hrg, json_to_interp
 import unittest, warnings, random, json
 
@@ -67,5 +68,11 @@ class TestSumProduct(unittest.TestCase):
             return _sum_product(self.fgg_1, opts, in_labels, out_labels, in_values)
         self.assertTrue(torch.autograd.gradcheck(f, in_values))
 
+class TestSCC(unittest.TestCase):
+    def test_scc(self):
+        with open('test/hmm.json') as f:
+            g = json_to_hrg(json.load(f))
+        self.assertEqual(scc(g), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])
+        
 if __name__ == '__main__':
     unittest.main()

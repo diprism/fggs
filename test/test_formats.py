@@ -5,6 +5,19 @@ import copy
 import fggs
 
 class TestJson(unittest.TestCase):
+    def test_write(self):
+        # This file doesn't have node/edge ids, so we can't check the result.
+        for filename in ['test.json']:
+            with open(os.path.join(os.path.dirname(__file__), filename)) as f:
+                j = json.load(f)
+            g = fggs.json_to_hrg(j)
+            j_check = fggs.hrg_to_json(g)
+
+            # But do check that the JSON doesn't have any IDs in it.
+            for r in j_check['rules']:
+                for n in r['rhs']['nodes']:
+                    self.assertTrue('id' not in n)
+    
     def test_roundtrip(self):
         for filename in ['hmm.json', 'example12p.json']:
             with open(os.path.join(os.path.dirname(__file__), filename)) as f:
