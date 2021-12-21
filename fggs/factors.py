@@ -56,10 +56,10 @@ class CategoricalFactor(Factor):
         super().__init__(doms)
 
         def check_size(weights, size):
-            if not isinstance(weights, list):
+            if isinstance(weights, float):
                 if len(size) > 0:
                     raise ValueError('weights has too few axes')
-            else:
+            elif isinstance(weights, list):
                 if len(size) == 0:
                     raise ValueError('weights has too many axes')
                 if len(weights) != size[0]:

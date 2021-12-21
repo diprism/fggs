@@ -1,4 +1,5 @@
-from fggs import sum_product
+from fggs import sum_product, Interpretation, CategoricalFactor
+from fggs.sum_product import _sum_product
 from fggs.sum_product import scc
 from fggs import FGG, json_to_hrg, json_to_interp
 import unittest, warnings, random, json
@@ -31,6 +32,9 @@ class TestSumProduct(unittest.TestCase):
             for A, B in zip(sum_product(self.fgg_2, method='fixed-point'), exact_value(p)):
                 self.assertAlmostEqual(A.item(), B, places=2)
 
+    def test_fixed_point_3(self):
+        self.assertAlmostEqual(sum_product(self.fgg_3, method='fixed-point').item(), 0.25, places=2)
+
     def test_broyden_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='broyden').item(), 1.0, places=2)
 
@@ -47,6 +51,22 @@ class TestSumProduct(unittest.TestCase):
 
     def test_newton_3(self):
         self.assertAlmostEqual(sum_product(self.fgg_3, method='newton').item(), 0.25, places=2)
+
+    def test_autograd(self):
+        import torch
+        in_labels = []
+        out_labels = []
+        in_values = []
+        for lab, fac in self.fgg_1.interp.factors.items():
+            if lab.is_terminal:
+                in_labels.append(lab)
+                in_values.append(torch.tensor(fac.weights(), dtype=torch.double, requires_grad=True))
+            else:
+                out_labels.append(lab)
+        def f(*in_values):
+            opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 1000}
+            return _sum_product(self.fgg_1, opts, in_labels, out_labels, in_values)
+        self.assertTrue(torch.autograd.gradcheck(f, in_values))
 
 class TestSCC(unittest.TestCase):
     def test_scc(self):
