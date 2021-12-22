@@ -52,7 +52,7 @@ for lhs in cfgrules:
                 hrhs.add_edge(fggs.Edge(el, [prevnode, newnode]))
             prevnode = newnode
         el = fggs.EdgeLabel(f'{lhs} -> {" ".join(rhs)}', [], is_terminal=True)
-        params[el] = torch.tensor(-3., requires_grad=True)
+        params[el] = torch.tensor(-5., requires_grad=True)
         interp.add_factor(el, fggs.CategoricalFactor([], 0.)) # will set weight later
         hrhs.add_edge(fggs.Edge(el, []))
         hrhs.ext = [firstnode, prevnode]
@@ -62,7 +62,7 @@ for lhs in cfgrules:
 hrg = fggs.factorize(hrg)
 fgg = fggs.FGG(hrg, interp)
 
-opt = torch.optim.SGD(params.values(), lr=1e-2)
+opt = torch.optim.SGD(params.values(), lr=1e-3)
 
 for epoch in range(100):
     train_loss = 0.
@@ -79,14 +79,14 @@ for epoch in range(100):
                 el = fggs.EdgeLabel(f'{lhs} -> {" ".join(rhs)}', [], is_terminal=True)
                 w += params[el]
 
-        z = fggs.sum_product(fgg, method='fixed-point')
+        z = fggs.sum_product(fgg, method='fixed-point', kmax=10, tol=1e-20)
 
         loss = -w + torch.log(z)
         train_loss += loss.item()
-        print(f'p(tree) = {w}, Z = {z.item()}')
+        #print(f'p(tree) = {w}, Z = {z.log().item()}')
 
         opt.zero_grad()
         loss.backward()
         opt.step()
-    print(f'epoch={epoch+1} train_loss={train_loss}, Z={z.item()}')
+    print(f'epoch={epoch+1} train_loss={train_loss}, Z={z.log().item()}')
 
