@@ -1,0 +1,20 @@
+{
+    "domains": {},
+    "factors": {
+        "a": {
+            "function": "categorical",
+            "type": [],
+            "weights": 2
+        },
+        "b": {
+            "function": "categorical",
+            "type": [],
+            "weights": 0.2
+        },
+        "c": {
+            "function": "categorical",
+            "type": [],
+            "weights": 3
+        }
+    }
+}

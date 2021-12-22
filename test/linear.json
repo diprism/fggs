@@ -1,0 +1,46 @@
+{
+    "terminals": {
+        "a": { "type": [] },
+        "b": { "type": [] },
+        "c": { "type": [] }
+    },
+    "nonterminals": {
+        "S": { "type" : [] },
+        "X": { "type" : [] }
+    },
+    "start": "S",
+    "rules": [
+        {
+            "lhs": "S",
+            "rhs": {
+                "nodes": [],
+                "edges": [
+                    { "attachments": [], "label": "X" },
+                    { "attachments": [], "label": "a" }
+                ],
+                "externals": []
+            }
+        },
+        {
+            "lhs": "X",
+            "rhs": {
+                "nodes": [],
+                "edges": [
+                    { "attachments": [], "label": "X" },
+                    { "attachments": [], "label": "b" }
+                ],
+                "externals": []
+            }
+        },
+        {
+            "lhs": "X",
+            "rhs": {
+                "nodes": [],
+                "edges": [
+                    { "attachments": [], "label": "c" }
+                ],
+                "externals": []
+            }
+        }
+    ]
+}
