@@ -185,10 +185,12 @@ class TestGraph(unittest.TestCase):
         edge3 = Edge(self.el1, (node3, self.node2))
         self.graph.add_edge(edge3)
         self.assertTrue(node3 in self.graph.nodes())
+        self.assertTrue(node3.id in self.graph._node_ids)
         
         node4 = Node(self.nl1)
         self.graph.ext = (self.node2, node4)
         self.assertTrue(node4 in self.graph.nodes())
+        self.assertTrue(node4.id in self.graph._node_ids)
 
     def test_arity_and_type(self):
         self.assertEqual(self.graph.arity, 1)
