@@ -204,7 +204,7 @@ class Graph:
             raise ValueError(f"Can't have two edge labels with same name {edge.label.name} in same Graph.")
         for node in edge.nodes:
             if node not in self._nodes:
-                self._nodes.add(node)
+                self.add_node(node)
         self._edges.add(edge)
         self._edge_ids.add(edge.id)
         self._edge_labels[edge.label.name] = edge.label
@@ -221,7 +221,7 @@ class Graph:
         """Sets the external nodes. If they are not already in the hypergraph, they are added."""
         for node in nodes:
             if node not in self._nodes:
-                self._nodes.add(node)
+                self.add_node(node)
         self._ext = tuple(nodes)
     
     def copy(self):
