@@ -146,7 +146,7 @@ def F(fgg: FGG, inputs: Dict[str, Tensor], nt_dict: Dict, psi_X0: Tensor) -> Ten
                     (n, k), shape = nt_dict[edge.label]
                     tensors.append(psi_X0[n:k].reshape(shape))
                 else:
-                    raise ValueError(f'nonterminal {edge.label.name} not among inputs or outputs')
+                    raise ValueError(f'edge label {edge.label.name} not among inputs or outputs')
             equation = ','.join([''.join(indices) for indices in indexing]) + '->'
             # If an external node has no edges, einsum will complain, so remove it.
             external = [Xi_R[node.id] for node in rule.rhs.ext if node in connected]
@@ -188,7 +188,7 @@ def J(fgg: FGG, inputs: Dict[str, Tensor], nt_dict: Dict, psi_X0: Tensor) -> Ten
                         (n, k), shape = nt_dict[edge.label]
                         tensors.append(psi_X0[n:k].reshape(shape))
                     else:
-                        raise ValueError(f'nonterminal {edge.label.name} not among inputs or outputs')
+                        raise ValueError(f'edge label {edge.label.name} not among inputs or outputs')
                 external = [Xi_R[node.id] for node in rule.rhs.ext]
                 alphabet = (chr(ord('a') + i) for i in range(26))
                 indices = set(x for sublist in indexing for x in sublist)
@@ -225,6 +225,7 @@ def _sum_product(fgg: FGG, opts: Dict, in_labels: Sequence[EdgeLabel], out_label
     """
     hrg, interp = fgg.grammar, fgg.interp
 
+    assert len(in_labels) == len(in_values)
     inputs = dict(zip(in_labels, in_values))
 
     n, nt_dict = 0, {}
@@ -284,14 +285,16 @@ class SumProduct(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, *grad_out):
-        hrg_adj, bar = adjoint_hrg(ctx.fgg.grammar) # to do: precompute or write a DF that operates directly on hrg
+        top = {el:EdgeLabel(el.name+'_top', el.type(), is_nonterminal=True) for el in ctx.out_labels}
+        hrg_adj, bar = adjoint_hrg(ctx.fgg.grammar, top) # to do: precompute or write a DF that operates directly on hrg
         fgg_adj = FGG(hrg_adj, ctx.fgg.interp)
-        
-        grad_in = _sum_product(fgg_adj, ctx.opts,
-                               ctx.in_labels + ctx.out_labels + [bar[x] for x in ctx.out_labels],
-                               [bar[x] for x in ctx.in_labels],
-                               ctx.saved_tensors + ctx.out_values + grad_out)
-        return (None, None, None, None) + grad_in
+
+        # bug: some nonterminals need to be part of both in and out
+        grads = _sum_product(fgg_adj, ctx.opts,
+                             ctx.in_labels + ctx.out_labels + [top[x] for x in ctx.out_labels],
+                             [bar[x] for x in ctx.in_labels + ctx.out_labels],
+                             ctx.saved_tensors + ctx.out_values + grad_out)
+        return (None, None, None, None) + grads[:len(ctx.in_labels)]
 
 def sum_product(fgg: FGG, **opts) -> Tensor:
     """Compute the sum-product of an FGG.

@@ -6,7 +6,7 @@ def adjoint_hrg(g: HRG, top=None):
     expectations.
 
     - g: The HRG to form the adjoint of.
-    - top: Add rules X -> top[X]
+    - top: Add rules bar[X] -> top[X]
 
     Returns: a pair (gbar, index), where
     - gbar: The adjoint HRG

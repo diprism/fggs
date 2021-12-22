@@ -1,5 +1,5 @@
 from fggs import sum_product, Interpretation, CategoricalFactor
-from fggs.sum_product import _sum_product
+from fggs.sum_product import SumProduct
 from fggs.sum_product import scc
 from fggs import FGG, json_to_hrg, json_to_interp
 import unittest, warnings, random, json
@@ -17,6 +17,8 @@ class TestSumProduct(unittest.TestCase):
                          json_to_interp(load('test/example12p_interp.json')))
         self.fgg_3 = FGG(json_to_hrg(load('test/simplefgg.json')),
                          json_to_interp(load('test/simplefgg_interp.json')))
+        self.fgg_4 = FGG(json_to_hrg(load('test/linear.json')),
+                         json_to_interp(load('test/linear_interp.json')))
 
     def test_fixed_point_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='fixed-point').item(), 1.0, places=2)
@@ -34,6 +36,9 @@ class TestSumProduct(unittest.TestCase):
 
     def test_fixed_point_3(self):
         self.assertAlmostEqual(sum_product(self.fgg_3, method='fixed-point').item(), 0.25, places=2)
+
+    def test_fixed_point_4(self):
+        self.assertAlmostEqual(sum_product(self.fgg_4, method='fixed-point').item(), 7.5, places=2)
 
     def test_broyden_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='broyden').item(), 1.0, places=2)
@@ -54,19 +59,17 @@ class TestSumProduct(unittest.TestCase):
 
     def test_autograd(self):
         import torch
-        in_labels = []
-        out_labels = []
-        in_values = []
-        for lab, fac in self.fgg_1.interp.factors.items():
-            if lab.is_terminal:
-                in_labels.append(lab)
-                in_values.append(torch.tensor(fac.weights(), dtype=torch.double, requires_grad=True))
-            else:
-                out_labels.append(lab)
-        def f(*in_values):
-            opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 1000}
-            return _sum_product(self.fgg_1, opts, in_labels, out_labels, in_values)
-        self.assertTrue(torch.autograd.gradcheck(f, in_values))
+        torch.set_default_dtype(torch.double)
+        torch.autograd.set_detect_anomaly(True)
+        for fgg in [self.fgg_1, self.fgg_4]:
+            in_labels = list(fgg.interp.factors.keys())
+            in_values = [torch.tensor(fac.weights(), requires_grad=True)
+                         for fac in fgg.interp.factors.values()]
+            out_labels = list(fgg.grammar.nonterminals())
+            def f(*in_values):
+                opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 1000}
+                return SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
+            self.assertTrue(torch.autograd.gradcheck(f, in_values))
 
 class TestSCC(unittest.TestCase):
     def test_scc(self):
