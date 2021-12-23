@@ -285,7 +285,7 @@ def sum_product_edges(interp: Interpretation, ext: Tuple[Node], edges: Iterable[
     out = torch.einsum(equation, *tensors)
     
     # Restore any external nodes that were removed.
-    if 0 < len(external) < len(nodes):
+    if 0 < len(external) < len(ext):
         vshape = [interp.domains[n.label].size() if n in nodes else 1 for n in ext]
         eshape = [interp.domains[n.label].size() for n in ext]
         out = out.view(*vshape).expand(*eshape)
