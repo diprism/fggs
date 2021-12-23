@@ -1,6 +1,5 @@
 __all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 'Interpretation', 'FactorGraph', 'FGG']
 
-import random, string
 from typing import Optional, Iterable, Tuple
 from dataclasses import dataclass, field
 from fggs.domains import Domain
@@ -72,13 +71,7 @@ class EdgeLabel:
             for i, node_label in enumerate(self.type()):
                 string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name}"
         return string
-
     
-def _generate_id():
-    letters = string.ascii_letters
-    new_id = ''.join([random.choice(letters) for i in range(20)])
-    return new_id
-
 
 @dataclass(frozen=True)
 class Node:
@@ -86,10 +79,19 @@ class Node:
     
     label: NodeLabel #: The node's label
     id: str = None   #: The node's id, which must be unique. If not supplied, a random one is chosen.
+    persist_id: bool = field(init=False, default=False) #: Whether the id should be saved with the Node
 
     def __post_init__(self):
         if self.id == None:
-            object.__setattr__(self, 'id', _generate_id())
+            # If no id was specified, use the object's address as a numeric id.
+            # Since explicit ids are required to be strings, there can't be an
+            # accidental id collision. We also set persist_id to False so that
+            # if the Node is saved and loaded, it will receive a new id.
+            object.__setattr__(self, 'id', id(self))
+        else:
+            object.__setattr__(self, 'persist_id', True)
+            if not isinstance(self.id, str):
+                raise TypeError('explicit Node ids must be strings')
 
     def __str__(self):
         return f"Node {self.id} with NodeLabel {self.label}"
@@ -102,10 +104,16 @@ class Edge:
     label: EdgeLabel           #: The edge's label
     nodes: Iterable[NodeLabel] #: The edge's attachment nodes
     id: str = None             #: The edge's id, which must be unique. If not supplied, a random one is chosen.
+    persist_id: bool = field(init=False, default=False) #: Whether the id should be saved with the Node
 
     def __post_init__(self):
+        # See Node.__post_init__ for further explanation of id and persist_id.
         if self.id == None:
-            object.__setattr__(self, 'id', _generate_id())
+            object.__setattr__(self, 'id', id(self))
+        else:
+            object.__setattr__(self, 'persist_id', True)
+            if not isinstance(self.id, str):
+                raise TypeError('explicit Edge ids must be strings')
 
         if self.label.type() != tuple([node.label for node in self.nodes]):
             raise ValueError(f"Can't use edge label {self.label.name} with this set of nodes.")
@@ -196,7 +204,7 @@ class Graph:
             raise ValueError(f"Can't have two edge labels with same name {edge.label.name} in same Graph.")
         for node in edge.nodes:
             if node not in self._nodes:
-                self._nodes.add(node)
+                self.add_node(node)
         self._edges.add(edge)
         self._edge_ids.add(edge.id)
         self._edge_labels[edge.label.name] = edge.label
@@ -213,7 +221,7 @@ class Graph:
         """Sets the external nodes. If they are not already in the hypergraph, they are added."""
         for node in nodes:
             if node not in self._nodes:
-                self._nodes.add(node)
+                self.add_node(node)
         self._ext = tuple(nodes)
     
     def copy(self):

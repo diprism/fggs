@@ -1,5 +1,6 @@
-from fggs import sum_product, Interpretation, CategoricalFactor
-from fggs import FGG, json_to_hrg, json_to_interp
+from fggs import sum_product, FGG, Interpretation, CategoricalFactor
+from fggs.sum_product import scc
+from fggs import json_to_hrg, json_to_interp
 import unittest, warnings, random, json
 
 class TestSumProduct(unittest.TestCase):
@@ -70,6 +71,12 @@ class TestSumProduct(unittest.TestCase):
         z = sum_product(fgg, method='linear')
         z.backward()
         # As long as there's no error, the gradient should be correct
+
+class TestSCC(unittest.TestCase):
+    def test_scc(self):
+        with open('test/hmm.json') as f:
+            g = json_to_hrg(json.load(f))
+        self.assertEqual(scc(g), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])
 
 if __name__ == '__main__':
     unittest.main()
