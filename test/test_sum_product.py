@@ -1,7 +1,7 @@
 from fggs import sum_product, FGG, Interpretation, CategoricalFactor
 from fggs.sum_product import scc
 from fggs import json_to_hrg, json_to_interp
-import unittest, warnings, random, json
+import unittest, warnings, torch, random, json
 
 class TestSumProduct(unittest.TestCase):
 
@@ -59,7 +59,6 @@ class TestSumProduct(unittest.TestCase):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='linear').item(), 1.0, places=2)
         
     def test_linear_1_grad(self):
-        import torch
         interp = Interpretation()
         for nl, dom in self.fgg_1.interp.domains.items():
             interp.add_domain(nl, dom)

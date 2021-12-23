@@ -1,8 +1,8 @@
 __all__ = ['sum_product']
 
-from fggs.fggs import FGG, Interpretation, EdgeLabel, Edge, Node
+from fggs.fggs import FGG, HRG,Interpretation, EdgeLabel, Edge, Node
 from fggs.factors import CategoricalFactor
-from typing import Callable, Dict, Iterable, Tuple
+from typing import Callable, Dict, Iterable, Tuple, List
 from functools import reduce
 import warnings, torch
 
@@ -188,7 +188,7 @@ def F(fgg: FGG, x0: MultiTensor) -> Tensor:
         for rule in hrg.rules(nonterminal):
             # An FGG with no edges has a weight of 1
             tau_R.append(sum_product_edges(interp, rule.rhs.ext, rule.rhs.edges(), x0) \
-                if len(rule.rhs.edges()) > 0 else torch.ones(x0.shape))
+                if len(rule.rhs.edges()) > 0 else torch.ones(x0.size()[0]))
         x1[nonterminal] = sum(tau_R)
     return x1
 
