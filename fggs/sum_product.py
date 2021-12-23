@@ -1,6 +1,6 @@
 __all__ = ['sum_product']
 
-from fggs.fggs import FGG, HRG
+from fggs.fggs import FGG, HRG, HRGRule, Interpretation
 from fggs.factors import CategoricalFactor
 from typing import Callable, Dict, List
 from functools import reduce
@@ -120,6 +120,16 @@ def broyden(F: Function, invJ: Tensor, psi_X0: Tensor, *, tol: float, kmax: int)
 #     if itc >= maxit:
 #         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
+
+def disconnected_nodes(rule: HRGRule, interp: Interpretation) -> int:
+    nodes = set(node for edge in rule.rhs.edges() for node in edge.nodes)
+    n = 1
+    for node in rule.rhs.nodes():
+        if node not in nodes:
+            n *= interp.domains[node.label].size()
+    return n
+
+
 def F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
     hrg, interp = fgg.grammar, fgg.interp
     psi_X1 = psi_X0.clone()
@@ -147,9 +157,11 @@ def F(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
             equation = ','.join([''.join(indices) for indices in indexing]) + '->'
             external = [Xi_R[node.id] for node in rule.rhs.ext]
             if external: equation += ''.join(external)
-            tau_R.append(torch.einsum(equation, *tensors))
+            tau_rule = torch.einsum(equation, *tensors)
+            tau_rule *= disconnected_nodes(rule, interp)
+            tau_R.append(tau_rule)
         (n, k), _ = nt_dict[nt]
-        psi_X1[n:k] = sum(tau_R).flatten() if len(tau_R) > 0 else torch.zeros(k - n)
+        psi_X1[n:k] = sum(tau_R).flatten() if len(tau_R) > 0 else torch.zeros(k - n) 
     return psi_X1
 
 def J(fgg: FGG, nt_dict: Dict[str, Tensor], psi_X0: Tensor) -> Tensor:
