@@ -120,14 +120,16 @@ def broyden(F: Function, invJ: Tensor, x0: Tensor, *, tol: float, kmax: int) -> 
 #         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
 class MultiTensor:
-    """ https://pytorch.org/docs/stable/notes/extending.html """
+    """Tensor-like object that concatenates multiple tensors into one."""
+    
+    # https://pytorch.org/docs/stable/notes/extending.html
 
     def __init__(self, data: Iterable, nt_dict: Dict = None, **kwargs):
         self._t = torch.as_tensor(data, **kwargs)
         self.nt_dict = nt_dict
 
     @staticmethod
-    def initialize(fgg: FGG, value: int = 0., dim: int = 1):
+    def initialize(fgg: FGG, value: float = 0., dim: int = 1):
         hrg, interp = fgg.grammar, fgg.interp
         n, nt_dict = 0, dict()
         for nonterminal in hrg.nonterminals():
@@ -147,7 +149,8 @@ class MultiTensor:
         if isinstance(key, (str, EdgeLabel)):
             (n, k), shape = self.nt_dict[key]
             return self._t[n:k].reshape(shape)
-        return self._t[key]
+        else:
+            return self._t[key]
 
     def __setitem__(self, key, value):
         if isinstance(value, MultiTensor):
@@ -186,9 +189,7 @@ def F(fgg: FGG, x0: MultiTensor) -> Tensor:
     for nonterminal in hrg.nonterminals():
         tau_R = []
         for rule in hrg.rules(nonterminal):
-            # An FGG with no edges has a weight of 1
-            tau_R.append(sum_product_edges(interp, rule.rhs.ext, rule.rhs.edges(), x0) \
-                if len(rule.rhs.edges()) > 0 else torch.tensor(1.))
+            tau_R.append(sum_product_edges(interp, rule.rhs.ext, rule.rhs.edges(), x0))
         x1[nonterminal] = sum(tau_R)
     return x1
 
@@ -251,6 +252,10 @@ def J(fgg: FGG, x0: MultiTensor) -> Tensor:
     return JF
 
 def sum_product_edges(interp: Interpretation, ext: Tuple[Node], edges: Iterable[Edge], sumprod: MultiTensor = None) -> Tensor:
+    # The sum-product of an empty set of edges is 1
+    if len(edges) == 0:
+        return 1.
+    
     # Each node corresponds to an index, so choose a letter for each
     nodes = set()
     for edge in edges:
