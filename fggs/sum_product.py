@@ -253,9 +253,14 @@ def J(fgg: FGG, x0: MultiTensor) -> Tensor:
     return JF
 
 def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iterable[Edge], ext: Tuple[Node], sumprod: MultiTensor = None) -> Tensor:
+    eshape = [interp.domains[n.label].size() for n in ext]
+    
     # The sum-product of an empty set of edges is 1
     if len(edges) == 0:
-        return 1.
+        out = torch.tensor(1.)
+        if len(eshape) > 0:
+            out = out.expand(*eshape)
+        return out
     
     # Each node corresponds to an index, so choose a letter for each
     connected = set()
@@ -284,20 +289,19 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
     equation += ''.join(external)
     
     out = torch.einsum(equation, *tensors)
-    
+
     # Restore any external nodes that were removed.
-    if 0 < len(external) < len(ext):
+    if len(external) < len(ext):
         vshape = [interp.domains[n.label].size() if n in connected else 1 for n in ext]
-        eshape = [interp.domains[n.label].size() for n in ext]
         out = out.view(*vshape).expand(*eshape)
 
-    # Handle any disconnected nodes.
+    # Handle any disconnected internal nodes.
     mul = 1
     for n in nodes:
-        if n not in connected:
+        if n not in connected and n not in ext:
             mul *= interp.domains[n.label].size()
     if mul > 1:
-        out *= mul
+        out = out * mul
         
     return out
 

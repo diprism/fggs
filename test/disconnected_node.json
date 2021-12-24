@@ -3,7 +3,7 @@
         "fac": { "type": [] }
     },
     "nonterminals": {
-        "S": { "type" : [] }
+        "S": { "type" : ["D"] }
     },
     "start": "S",
     "rules" : [
@@ -11,11 +11,14 @@
             "lhs": "S",
             "rhs" : {
                 "nodes": [
+                    { "label": "D" },
+                    { "label": "D" },
                     { "label": "D" }
                 ],
                 "edges": [
                     { "attachments": [], "label": "fac" }
-                ]
+                ],
+                "externals": [0]
             }
         }
     ]
