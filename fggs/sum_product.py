@@ -190,17 +190,17 @@ class MultiTensor(collections.abc.Mapping):
         assert len(metadata) > 0
         return MultiTensor(func(*args, **kwargs), nt_dict=metadata[0])
 
-def F(fgg: FGG, x0: MultiTensor) -> Tensor:
+def F(fgg: FGG, x0: MultiTensor, inputs: Dict[EdgeLabel, Tensor]) -> Tensor:
     hrg, interp = fgg.grammar, fgg.interp
     x1 = x0.clone()
     for nonterminal in hrg.nonterminals():
         tau_R = []
         for rule in hrg.rules(nonterminal):
-            tau_R.append(sum_product_edges(interp, rule.rhs.ext, rule.rhs.edges(), x0))
+            tau_R.append(sum_product_edges(interp, rule.rhs.ext, rule.rhs.edges(), x0, inputs))
         x1[nonterminal] = sum(tau_R)
     return x1
 
-def J(fgg: FGG, x0: MultiTensor) -> Tensor:
+def J(fgg: FGG, x0: MultiTensor, inputs: Dict[EdgeLabel, Tensor]) -> Tensor:
     hrg, interp = fgg.grammar, fgg.interp
     JF = torch.full(2 * list(x0._t.shape), fill_value=0.)
     ############# TODO
@@ -259,10 +259,27 @@ def J(fgg: FGG, x0: MultiTensor) -> Tensor:
     return JF
 
 
-def sum_product_edges(interp: Interpretation, ext: Tuple[Node], edges: Iterable[Edge], sumprod: MultiTensor = None) -> Tensor:
+def sum_product_edges(interp: Interpretation, ext: Tuple[Node], edges: Iterable[Edge],
+                      inputs1: Dict[EdgeLabel, Tensor] = {}, inputs2: Dict[EdgeLabel, Tensor] = {}) -> Tensor:
+    """
+    Compute the sum-product of a set of edges.
+
+    Parameters:
+    - interp
+    - ext: the nodes whose values are not summed over
+    - edges: the edges whose factors are multiplied together
+    - inputs1, inputs2: sum-products of nonterminals that have already been computed
+
+    Return: the tensor of sum-products
+    """
+    eshape = [interp.domains[n.label].size() for n in ext]
+    
     # The sum-product of an empty set of edges is 1
     if len(edges) == 0:
-        return 1.
+        out = torch.tensor(1.)
+        if len(eshape) > 0:
+            out = out.expand(*eshape)
+        return out
     
     # Each node corresponds to an index, so choose a letter for each
     nodes = set()
@@ -275,8 +292,10 @@ def sum_product_edges(interp: Interpretation, ext: Tuple[Node], edges: Iterable[
     indexing, tensors = [], []
     for edge in edges:
         indexing.append([node_to_index[node] for node in edge.nodes])
-        if edge.label.is_nonterminal:
-            tensors.append(sumprod[edge.label])
+        if edge.label in inputs1:
+            tensors.append(inputs1[edge.label])
+        elif edge.label in inputs2:
+            tensors.append(inputs2[edge.label])
         elif isinstance(interp.factors[edge.label], CategoricalFactor):
             weights = interp.factors[edge.label]._weights
             if not isinstance(weights, Tensor):
@@ -295,98 +314,59 @@ def sum_product_edges(interp: Interpretation, ext: Tuple[Node], edges: Iterable[
     # Restore any external nodes that were removed.
     if 0 < len(external) < len(ext):
         vshape = [interp.domains[n.label].size() if n in nodes else 1 for n in ext]
-        eshape = [interp.domains[n.label].size() for n in ext]
         out = out.view(*vshape).expand(*eshape)
         
     return out
 
 
-def linear(fgg: FGG, sumprod: MultiTensor) -> Tensor:
+def linear(fgg: FGG, inputs: Dict[EdgeLabel, Tensor] = {}) -> MultiTensor:
+    """Compute the sum-product of the nonterminals of `fgg`, which is
+    linearly recursive given that each nonterminals `x` in `inputs` is
+    treated as a terminal with weight `inputs[x]`.
+    """
     hrg, interp = fgg.grammar, fgg.interp
 
     nullary_index = {x:[] for x in hrg.nonterminals()}
     unary_index = {(x,y):[] for x in hrg.nonterminals() for y in hrg.nonterminals()}
     for x in hrg.nonterminals():
+        if x in inputs:
+            continue
         for rule in hrg.rules(x):
-            edges = [e for e in rule.rhs.edges() if e.label.is_nonterminal]
+            edges = [e for e in rule.rhs.edges() if e.label.is_nonterminal and e.label not in inputs]
             if len(edges) == 0:
                 nullary_index[x].append(rule)
             elif len(edges) == 1:
                 unary_index[x, edges[0].label].append((rule, edges[0]))
             else:
-                raise ValueError(f'FGG is not linearly recursive ({rule.lhs.name}->{",".join(edge.label.name for edge in edges)})')
+                raise ValueError('FGG is not linearly recursive')
 
-    n = sumprod.size()[0]
+    outputs = MultiTensor.initialize(fgg)
+    n = outputs.size()[0]
     f = torch.zeros(n)
     jf = torch.zeros(n, n)
     for x in hrg.nonterminals():
-        (xi, xj), _ = sumprod.nt_dict[x]
+        (xi, xj), _ = outputs.nt_dict[x]
         # Compute JF(0)
         for y in hrg.nonterminals():
-            (yi, yj), _ = sumprod.nt_dict[y]
+            (yi, yj), _ = outputs.nt_dict[y]
             z_rules = []
             for rule, edge in unary_index[x, y]:
                 ext = rule.rhs.ext + edge.nodes
                 edges = set(rule.rhs.edges()) - {edge}
-                z_rule = sum_product_edges(interp, ext, edges)
+                z_rule = sum_product_edges(interp, ext, edges, inputs)
                 z_rules.append(z_rule)
             if len(z_rules) > 0:
-                s = sum(z_rules)
-                jf[xi:xj,yi:yj] = s.view(xj-xi, yj-yi)
+                jf[xi:xj,yi:yj] = sum(z_rules).reshape(xj-xi, yj-yi)
 
         # Compute F(0)
         z_rules = []
         for rule in nullary_index[x]:
-            z_rules.append(sum_product_edges(interp, rule.rhs.ext, rule.rhs.edges()))
+            z_rules.append(sum_product_edges(interp, rule.rhs.ext, rule.rhs.edges(), inputs))
         if len(z_rules) > 0:
             f[xi:xj] = sum(z_rules).view(xj-xi)
 
-    sumprod._t[...] = torch.linalg.solve(torch.eye(n)-jf, f)
-
-    
-def _sum_product(fgg: FGG, opts: Dict, inputs: Dict[EdgeLabel, Tensor], out_labels: Sequence[EdgeLabel]):
-    """Compute the sum-product of a subset of the nonterminals of an FGG.
-
-    - fgg: The FGG
-    - opts: A dict of options (see documentation for sum_product).
-    - inputs: Maps the (terminal or nonterminal) EdgeLabels whose
-      sum-products are already computed to their sum-products.
-    - out_labels: The nonterminal Edgelabels whose sum-product to
-      compute.
-
-    Returns: A dict mapping the nonterminals in out_labels to their sum-products.
-
-    It is an error if any rule with a LHS in out_labels has an RHS
-    nonterminal not in in_labels + out_labels.
-    """
-    # to do: streamline this
-    # bug: out_labels is not even used
-    interp = Interpretation()
-    interp.domains = fgg.interp.domains
-    
-    x0 = MultiTensor.initialize(fgg)
-    for el, val in inputs.items():
-        if el.is_terminal:
-            fac = fgg.interp.factors[el]
-            interp.add_factor(el, CategoricalFactor(fac.domains(), val))
-        else:
-            x0[el] = val
-            
-    fgg = FGG(fgg.grammar, interp)
-
-    if opts['method'] == 'linear':
-        linear(fgg, x0)
-    elif opts['method'] == 'fixed-point':
-        fixed_point(lambda x: F(fgg, x), x0, tol=opts['tol'], kmax=opts['kmax'])
-    elif opts['method'] == 'newton':
-        newton(lambda x: F(fgg, x) - x, lambda x: J(fgg, x), x0, tol=opts['tol'], kmax=opts['kmax'])
-    elif opts['method'] == 'broyden':
-        n = x0.size()[0]
-        invJ = -torch.eye(n, n)
-        broyden(lambda x: F(fgg, x) - x, invJ, x0, tol=opts['tol'], kmax=opts['kmax'])
-    else:
-        raise ValueError('unsupported method for computing sum-product')
-    return x0
+    outputs._t[...] = torch.linalg.solve(torch.eye(n)-jf, f)
+    return outputs
 
 
 class SumProduct(torch.autograd.Function):
@@ -399,8 +379,7 @@ class SumProduct(torch.autograd.Function):
     - opts: A dict of options (see documentation for sum_product).
     - in_labels: The (terminal or nonterminal) EdgeLabels whose
       sum-products are already computed.
-    - out_labels: The nonterminal Edgelabels whose sum-product to
-      compute.
+    - out_labels: The nonterminal EdgeLabels whose sum-products to compute.
     - in_values: A sequence of Tensors such that in_values[i] is the
       sum-product of in_labels[i].
 
@@ -418,8 +397,29 @@ class SumProduct(torch.autograd.Function):
         ctx.in_labels = in_labels
         ctx.out_labels = out_labels
         ctx.save_for_backward(*in_values)
-        ctx.out_values = _sum_product(fgg, opts, dict(zip(in_labels, in_values)), out_labels)
-        return tuple(ctx.out_values[x] for x in out_labels)
+
+        inputs = dict(zip(in_labels, in_values))
+
+        if opts['method'] == 'linear':
+            # To do: make linear() not use custom backward function, and raise an exception here
+            out = linear(fgg, inputs)
+        else:
+            x0 = MultiTensor.initialize(fgg)
+
+            if opts['method'] == 'fixed-point':
+                fixed_point(lambda x: F(fgg, x, inputs), x0, tol=opts['tol'], kmax=opts['kmax'])
+            elif opts['method'] == 'newton':
+                newton(lambda x: F(fgg, x, inputs) - x, lambda x: J(fgg, x, inputs), x0, tol=opts['tol'], kmax=opts['kmax'])
+            elif opts['method'] == 'broyden':
+                n = x0.size()[0]
+                invJ = -torch.eye(n, n)
+                broyden(lambda x: F(fgg, x, inputs) - x, invJ, x0, tol=opts['tol'], kmax=opts['kmax'])
+            else:
+                raise ValueError('unsupported method for computing sum-product')
+            out = x0
+
+        ctx.out_values = out
+        return tuple(out[nt] for nt in out_labels)
 
     @staticmethod
     def backward(ctx, *grad_out):
@@ -431,10 +431,8 @@ class SumProduct(torch.autograd.Function):
         inputs.update(zip(ctx.in_labels, ctx.saved_tensors))
         inputs.update(ctx.out_values.items())
         inputs.update(zip([top[x] for x in ctx.out_labels], grad_out))
-        grads = _sum_product(fgg_adj, ctx.opts,
-                             inputs,
-                             [bar[x] for x in ctx.in_labels + ctx.out_labels])
-        return (None, None, None, None) + [grads[x] for x in ctx.in_labels]
+        grads = linear(fgg_adj, inputs)
+        return (None, None, None, None) + tuple(grads[bar[x]] for x in ctx.in_labels)
 
 
 def sum_product(fgg: FGG, **opts) -> Tensor:
