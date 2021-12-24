@@ -2,7 +2,6 @@ __all__ = ['sum_product']
 
 from fggs.fggs import FGG, HRG, Interpretation, EdgeLabel, Edge, Node
 from fggs.factors import CategoricalFactor
-from fggs.adjoint import adjoint_hrg
 from typing import Callable, Dict, Sequence, Iterable, Tuple, List, Iterable
 from functools import reduce
 import collections.abc
@@ -423,16 +422,60 @@ class SumProduct(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, *grad_out):
-        top = {el:EdgeLabel(el.name+'_top', el.type(), is_nonterminal=True) for el in ctx.out_labels}
-        hrg_adj, bar = adjoint_hrg(ctx.fgg.grammar, top) # to do: precompute or write a DF that operates directly on hrg
-        fgg_adj = FGG(hrg_adj, ctx.fgg.interp)
+        inputs = dict(zip(ctx.in_labels, ctx.saved_tensors))
 
-        inputs = {}
-        inputs.update(zip(ctx.in_labels, ctx.saved_tensors))
-        inputs.update(ctx.out_values.items())
-        inputs.update(zip([top[x] for x in ctx.out_labels], grad_out))
-        grads = linear(fgg_adj, inputs)
-        return (None, None, None, None) + tuple(grads[bar[x]] for x in ctx.in_labels)
+        hrg, interp = ctx.fgg.grammar, ctx.fgg.interp
+        grad_nt = MultiTensor.initialize(ctx.fgg)
+        n = grad_nt.size()[0]
+        f = torch.zeros(n)
+        jf = torch.zeros(n, n)
+
+        # Compute JF(0) of adjoint grammar
+        for rule in hrg.all_rules():
+            y = rule.lhs
+            (yi, yj), _ = grad_nt.nt_dict[y]
+
+            for edge in rule.rhs.edges():
+                if edge.label.is_terminal: continue
+                x = edge.label
+                (xi, xj), _ = grad_nt.nt_dict[x]
+
+                ext = edge.nodes + rule.rhs.ext
+                edges = set(rule.rhs.edges()) - {edge}
+                jf[xi:xj,yi:yj] += sum_product_edges(interp, ext, edges, inputs, ctx.out_values)
+
+        # Compute F(0) of adjoint grammar
+        for x, grad_x in zip(ctx.out_labels, grad_out):
+            (xi, xj), _ = grad_nt.nt_dict[x]
+            f[xi:xj] += grad_x
+
+        # Solve linear system of equations
+        grad_nt._t[...] = torch.linalg.solve(torch.eye(n)-jf, f)
+
+        # Compute gradients of factors
+        grad_t = {}
+        for el in ctx.in_labels:
+            if el.is_terminal:
+                grad_t[el] = torch.zeros([interp.domains[nl].size() for nl in el.type()])
+
+        for rule in hrg.all_rules():
+            y = rule.lhs
+            grad_y = grad_nt[y].flatten()
+            for edge in rule.rhs.edges():
+                if edge.label in grad_t:
+                    ext = edge.nodes + rule.rhs.ext
+                    edges = set(rule.rhs.edges()) - {edge}
+                    dydx = sum_product_edges(interp, ext, edges, inputs, ctx.out_values)
+                    grad_t[edge.label] += dydx.flatten(start_dim=len(edge.nodes)) @ grad_y
+
+        grad_in = []
+        for el in ctx.in_labels:
+            if el.is_terminal:
+                grad_in.append(grad_t[el])
+            else:
+                grad_in.append(grad_nt[el])
+
+        return (None, None, None, None) + tuple(grad_in)
 
 
 def sum_product(fgg: FGG, **opts) -> Tensor:
