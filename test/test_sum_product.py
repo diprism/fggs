@@ -1,7 +1,7 @@
-from fggs import sum_product
+from fggs import sum_product, FGG, Interpretation, CategoricalFactor
 from fggs.sum_product import scc
-from fggs import FGG, json_to_hrg, json_to_interp
-import unittest, warnings, random, json
+from fggs import json_to_hrg, json_to_interp
+import unittest, warnings, torch, random, json
 
 def load_json(filename):
     with open(filename) as f:
@@ -18,6 +18,7 @@ class TestSumProduct(unittest.TestCase):
         self.fgg_1 = load_fgg('test/hmm.json', 'test/hmm_interp.json')
         self.fgg_2 = load_fgg('test/example12p.json', 'test/example12p_interp.json')
         self.fgg_3 = load_fgg('test/simplefgg.json', 'test/simplefgg_interp.json')
+        self.fgg_4 = load_fgg('test/barhillel.json', 'test/barhillel_interp.json')
 
     def test_fixed_point_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='fixed-point').item(), 1.0, places=2)
@@ -55,10 +56,32 @@ class TestSumProduct(unittest.TestCase):
         self.assertAlmostEqual(sum_product(fgg, method='fixed-point').item(), 6.)
         self.assertAlmostEqual(sum_product(fgg, method='newton').item(), 6.)
 
+    def xtest_4(self):
+        z_fp = sum_product(self.fgg_4, method='fixed-point')
+        z_newton = sum_product(self.fgg_4, method='newton')
+        self.assertAlmostEqual(torch.norm(z_fp - z_newton), 0., places=2)
+
+    def test_linear_1(self):
+        self.assertAlmostEqual(sum_product(self.fgg_1, method='linear').item(), 1.0, places=2)
+        
+    def test_linear_1_grad(self):
+        interp = Interpretation()
+        for nl, dom in self.fgg_1.interp.domains.items():
+            interp.add_domain(nl, dom)
+        for el, fac in self.fgg_1.interp.factors.items():
+            fac = CategoricalFactor(fac.domains(), fac.weights())
+            fac._weights = torch.tensor(fac._weights, requires_grad=True)
+            interp.add_factor(el, fac)
+        fgg = FGG(self.fgg_1.grammar, interp)
+        z = sum_product(fgg, method='linear')
+        z.backward()
+        # As long as there's no error, the gradient should be correct
+
+
 class TestSCC(unittest.TestCase):
     def test_scc(self):
         g = json_to_hrg(load_json('test/hmm.json'))
         self.assertEqual(scc(g), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])
-        
+
 if __name__ == '__main__':
     unittest.main()

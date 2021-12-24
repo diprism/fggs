@@ -1,0 +1,15 @@
+{
+    "domains": {
+        "state": {
+            "class": "finite",
+            "values": ["q1", "q2"]
+        }
+    },
+    "factors": {
+        "a": {
+            "function": "categorical",
+            "type": ["state", "state"],
+            "weights" : [[0.1, 0.01], [0.01, 0.1]]
+        }
+    }
+}
