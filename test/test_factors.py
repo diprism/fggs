@@ -14,7 +14,6 @@ class TestCategoricalFactor(unittest.TestCase):
 
     def test_basic(self):
         self.assertEqual(self.f.apply(['foo', 'jia']), 0)
-        self.assertTrue(isinstance(self.f.apply(['foo', 'jia']), float))
         self.assertEqual(self.f.apply(['foo', 'yi']), 1)
         self.assertEqual(self.f.apply(['bar', 'jia']), 4)
         self.assertEqual(self.f.apply(['baz', 'ding']), 11)

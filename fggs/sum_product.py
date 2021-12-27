@@ -236,9 +236,9 @@ def sum_product_edges(interp: Interpretation, ext: Tuple[Node], edges: Iterable[
         if edge.label.is_nonterminal:
             tensors.append(x.get(edge.label))
         elif isinstance(interp.factors[edge.label], CategoricalFactor):
-            weights = interp.factors[edge.label]._weights
+            weights = interp.factors[edge.label].weights
             if not isinstance(weights, Tensor):
-                weights = torch.tensor(weights)
+                weights = torch.tensor(weights, dtype=torch.get_default_dtype())
             tensors.append(weights)
         else:
             raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')

@@ -74,10 +74,10 @@ class TestEdgeLabel(unittest.TestCase):
         self.assertTrue(d[self.terminal] == 7)
 
     def test_arity(self):
-        self.assertEqual(self.terminal.arity(), 3)
+        self.assertEqual(self.terminal.arity, 3)
     
     def test_type(self):
-        self.assertEqual(self.terminal.type(), (self.nl1, self.nl2, self.nl3))
+        self.assertEqual(self.terminal.type, (self.nl1, self.nl2, self.nl3))
     
 
 
@@ -193,8 +193,8 @@ class TestGraph(unittest.TestCase):
         self.assertTrue(node4.id in self.graph._node_ids)
 
     def test_arity_and_type(self):
-        self.assertEqual(self.graph.arity(), 1)
-        self.assertEqual(self.graph.type(), (self.nl2,))
+        self.assertEqual(self.graph.arity, 1)
+        self.assertEqual(self.graph.type, (self.nl2,))
 
     def test_terminals_and_nonterminals(self):
         self.assertEqual(self.graph.terminals(), [self.edge1.label])

@@ -3,6 +3,7 @@
 import json
 import sys
 import argparse
+
 import fggs
 
 if __name__ == '__main__':
