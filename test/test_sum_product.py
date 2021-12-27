@@ -1,7 +1,7 @@
 from fggs import sum_product, FGG, Interpretation, CategoricalFactor
 from fggs.sum_product import SumProduct
 from fggs.sum_product import scc
-from fggs import json_to_hrg, json_to_interp
+from fggs import FGG, json_to_hrg, json_to_interp, json_to_fgg
 import unittest, warnings, torch, random, json
 
 class TestSumProduct(unittest.TestCase):
@@ -11,16 +11,11 @@ class TestSumProduct(unittest.TestCase):
         def load(filename):
             with open(filename) as f:
                 return json.load(f)
-        self.fgg_1 = FGG(json_to_hrg(load('test/hmm.json')),
-                         json_to_interp(load('test/hmm_interp.json')))
-        self.fgg_2 = FGG(json_to_hrg(load('test/example12p.json')),
-                         json_to_interp(load('test/example12p_interp.json')))
-        self.fgg_3 = FGG(json_to_hrg(load('test/simplefgg.json')),
-                         json_to_interp(load('test/simplefgg_interp.json')))
-        self.fgg_4 = FGG(json_to_hrg(load('test/barhillel.json')),
-                         json_to_interp(load('test/barhillel_interp.json')))
-        self.fgg_5 = FGG(json_to_hrg(load('test/linear.json')),
-                         json_to_interp(load('test/linear_interp.json')))
+        self.fgg_1 = json_to_fgg(load('test/hmm.json'))
+        self.fgg_2 = json_to_fgg(load('test/example12p.json'))
+        self.fgg_3 = json_to_fgg(load('test/simplefgg.json'))
+        self.fgg_4 = json_to_fgg(load('test/barhillel.json'))
+        self.fgg_5 = json_to_fgg(load('test/linear.json'))
 
     def test_fixed_point_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='fixed-point').item(), 1.0, places=2)
@@ -100,7 +95,7 @@ class TestSumProduct(unittest.TestCase):
 class TestSCC(unittest.TestCase):
     def test_scc(self):
         with open('test/hmm.json') as f:
-            g = json_to_hrg(json.load(f))
+            g = json_to_hrg(json.load(f)['grammar'])
         self.assertEqual(scc(g), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])
 
 if __name__ == '__main__':
