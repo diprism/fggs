@@ -4,22 +4,25 @@ import json
 import sys
 import argparse
 
-from fggs import FGG, sum_product, json_to_hrg, json_to_interp
+import fggs
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='Compute the sum-product of an FGG.')
-    ap.add_argument('hrg', metavar='json')
-    ap.add_argument('interp', metavar='json')
-    ap.add_argument('-m', metavar='method', dest='method', default='fixed-point', choices=['fixed-point', 'broyden'])
+    ap.add_argument('fgg', metavar='json')
+    ap.add_argument('-m', metavar='method', dest='method', default='fixed-point', choices=['fixed-point', 'newton', 'linear', 'broyden'])
     ap.add_argument('-w', metavar=('factor', 'weights'), dest='weights', action='append', default=[], nargs=2)
 
     args = ap.parse_args()
 
-    fgg = FGG(json_to_hrg(json.load(open(args.hrg))),
-              json_to_interp(json.load(open(args.interp))))
+    fgg = fggs.json_to_fgg(json.load(open(args.fgg)))
 
     for name, weights in args.weights:
-        el = fgg.grammar.get_terminal(name)
-        fgg.interp.factors[el]._weights = json.loads(weights)
+        el = fgg.grammar.get_edge_label(name)
+        weights = json.loads(weights)
+        if el not in fgg.interp.factors:
+            doms = [fgg.interp.domains[nl] for nl in el.type()]
+            fgg.interp.add_factor(el, fggs.CategoricalFactor(doms, weights))
+        else:
+            fgg.interp.factors[el].weights = weights
     
-    print(sum_product(fgg, method=args.method))
+    print(json.dumps(fggs.formats.weights_to_json(fggs.sum_product(fgg, method=args.method))))

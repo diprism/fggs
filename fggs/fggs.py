@@ -50,10 +50,12 @@ class EdgeLabel:
         """Whether the edge label is a nonterminal symbol."""
         return not self.is_terminal
 
+    @property
     def arity(self):
         """The arity of the edge label (how many attachment nodes an edge with this label must have)."""
         return len(self.node_labels)
-        
+
+    @property
     def type(self):
         """The tuple of node labels that the attachment nodes an edge with this label must have."""
         return self.node_labels
@@ -63,12 +65,12 @@ class EdgeLabel:
     def to_string(self, indent):
         string = "\t"*indent
         if self.is_terminal:
-            string += f"Terminal EdgeLabel {self.name} with arity {self.arity()}"
+            string += f"Terminal EdgeLabel {self.name} with arity {self.arity}"
         else:
-            string += f"Nonterminal EdgeLabel {self.name} with arity {self.arity()}"
-        if self.arity() != 0:
+            string += f"Nonterminal EdgeLabel {self.name} with arity {self.arity}"
+        if self.arity != 0:
             string += " and endpoints of type:"
-            for i, node_label in enumerate(self.type()):
+            for i, node_label in enumerate(self.type):
                 string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name}"
         return string
     
@@ -115,7 +117,7 @@ class Edge:
             if not isinstance(self.id, str):
                 raise TypeError('explicit Edge ids must be strings')
 
-        if self.label.type() != tuple([node.label for node in self.nodes]):
+        if self.label.type != tuple([node.label for node in self.nodes]):
             raise ValueError(f"Can't use edge label {self.label.name} with this set of nodes.")
         if not isinstance(self.nodes, tuple):
             object.__setattr__(self, 'nodes', tuple(self.nodes))
@@ -168,11 +170,13 @@ class Graph:
     def ext(self):
         """Tuple of external nodes."""
         return self._ext
-    
+
+    @property
     def arity(self):
         """Returns the number of external nodes."""
         return len(self._ext)
-    
+
+    @property
     def type(self):
         """Returns the tuple of node labels of the external nodes."""
         return tuple([node.label for node in self._ext])
@@ -275,8 +279,8 @@ class HRGRule:
     def __post_init__(self):
         if self.lhs.is_terminal:
             raise Exception(f"Can't make HRG rule with terminal left-hand side.")
-        if (self.lhs.type() != self.rhs.type()):
-            raise Exception(f"Can't make HRG rule: left-hand side of type ({','.join(l.name for l in self.lhs.type())}) not compatible with right-hand side of type ({','.join(l.name for l in self.rhs.type())}).")
+        if (self.lhs.type != self.rhs.type):
+            raise Exception(f"Can't make HRG rule: left-hand side of type ({','.join(l.name for l in lhs.type)}) not compatible with right-hand side of type ({','.join(l.name for l in rhs.type)}).")
 
     def copy(self):
         """Returns a copy of this HRGRule, whose right-hand side is a copy of the original's."""
@@ -432,10 +436,9 @@ class Interpretation:
             raise ValueError(f"Nonterminals cannot be mapped to Factors")
         if el in self.factors:
             raise ValueError(f"EdgeLabel {el} is already mapped")
-        doms = list(fac.domains())
-        if len(doms) != len(el.node_labels):
+        if fac.arity != el.arity:
             raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (wrong arity)')
-        for nl, dom in zip(el.node_labels, doms):
+        for nl, dom in zip(el.node_labels, fac.domains):
             if nl not in self.domains:
                 raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (NodeLabel {nl} not mapped)')
             elif dom != self.domains[nl]:

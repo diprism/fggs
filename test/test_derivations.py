@@ -35,6 +35,6 @@ class TestStartGraph(unittest.TestCase):
         s = self.fgg.start_symbol
         g = start_graph(self.fgg)
         self.assertEqual([e.label for e in g.edges()], [s])
-        self.assertEqual(len(g.nodes()), len(s.type()))
+        self.assertEqual(len(g.nodes()), len(s.type))
     
     

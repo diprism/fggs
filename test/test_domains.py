@@ -11,9 +11,10 @@ class TestFiniteDomain(unittest.TestCase):
     def test_basic(self):
         self.assertTrue(self.dom.contains('foo'))
         self.assertFalse(self.dom.contains('qux'))
-        self.assertEqual(self.dom.values(), ['foo', 'bar', 'baz'])
+        self.assertEqual(self.dom.values, ['foo', 'bar', 'baz'])
         self.assertEqual(self.dom.size(), 3)
         self.assertEqual(self.dom.numberize('bar'), 1)
+        self.assertEqual(self.dom.denumberize(1), 'bar')
     
     def test_equals(self):
         self.assertFalse(self.dom == None)
