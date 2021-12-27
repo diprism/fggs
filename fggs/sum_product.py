@@ -157,12 +157,7 @@ class MultiTensor:
         return ret
 
     def __getitem__(self, key):
-        # TODO seperate get() and __getitem__()
-        if isinstance(key, (str, EdgeLabel)):
-            (n, k), shape = self.nt_dict[key]
-            return self._t[n:k].reshape(shape)
-        else:
-            return self._t[key]
+        return self._t[key]
 
     def __setitem__(self, key, value):
         if isinstance(value, MultiTensor):
@@ -239,7 +234,7 @@ def sum_product_edges(interp: Interpretation, ext: Tuple[Node], edges: Iterable[
     for edge in edges:
         indexing.append([node_to_index[node] for node in edge.nodes])
         if edge.label.is_nonterminal:
-            tensors.append(x[edge.label])
+            tensors.append(x.get(edge.label))
         elif isinstance(interp.factors[edge.label], CategoricalFactor):
             weights = interp.factors[edge.label]._weights
             if not isinstance(weights, Tensor):
@@ -325,4 +320,4 @@ def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kma
         invJ = -torch.eye(n, n)
         broyden(lambda x: F(fgg, x) - x, invJ, x0, tol=tol, kmax=kmax)
     else: raise ValueError('unsupported method for computing sum-product')
-    return x0[fgg.grammar.start_symbol]
+    return x0.get(fgg.grammar.start_symbol)
