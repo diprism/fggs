@@ -1,5 +1,5 @@
 from fggs import sum_product, FGG, Interpretation, CategoricalFactor
-from fggs.sum_product import scc
+from fggs.sum_product import scc, MultiTensor
 from fggs import FGG, json_to_hrg, json_to_interp, json_to_fgg
 import unittest, warnings, torch, random, json
 
@@ -46,10 +46,10 @@ class TestSumProduct(unittest.TestCase):
     def test_newton_3(self):
         self.assertAlmostEqual(sum_product(self.fgg_3, method='newton').item(), 0.25, places=2)
 
-    def xtest_4(self):
+    def test_4(self):
         z_fp = sum_product(self.fgg_4, method='fixed-point')
         z_newton = sum_product(self.fgg_4, method='newton')
-        self.assertAlmostEqual(torch.norm(z_fp - z_newton), 0., places=2)
+        self.assertAlmostEqual(torch.norm(z_fp - z_newton).item(), 0., places=2)
 
     def test_linear_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='linear').item(), 1.0, places=2)
@@ -73,5 +73,31 @@ class TestSCC(unittest.TestCase):
             g = json_to_hrg(json.load(f)['grammar'])
         self.assertEqual(scc(g), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])
 
+class TestMultiTensor(unittest.TestCase):
+    def setUp(self):
+        def load(filename):
+            with open(filename) as f:
+                return json.load(f)
+        self.fgg_1 = json_to_fgg(load('test/hmm.json'))
+        
+    def test_basic(self):
+        fgg = self.fgg_1
+        hrg = fgg.grammar
+        mt = MultiTensor.initialize(fgg)
+        self.assertEqual(list(mt.size()), [7])
+        self.assertEqual(list(mt.get(hrg.get_edge_label('S')).size()), [])
+        self.assertEqual(list(mt.get(hrg.get_edge_label('X')).size()), [6])
+
+    def test_square(self):
+        fgg = self.fgg_1
+        hrg = fgg.grammar
+        mt = MultiTensor.initialize(self.fgg_1, ndim=2)
+        self.assertEqual(list(mt.size()), [7, 7])
+        S, X = hrg.get_edge_label('S'), hrg.get_edge_label('X')
+        self.assertEqual(list(mt.get(S, S).size()), [])
+        self.assertEqual(list(mt.get(S, X).size()), [6])
+        self.assertEqual(list(mt.get(X, S).size()), [6])
+        self.assertEqual(list(mt.get(X, X).size()), [6, 6])
+        
 if __name__ == '__main__':
     unittest.main()
