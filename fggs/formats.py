@@ -140,7 +140,7 @@ def interp_to_json(interp):
         if isinstance(dom, domains.FiniteDomain):
             j['domains'][nl.name] = {
                 'class' : 'finite',
-                'values' : list(dom.values()),
+                'values' : list(dom.values),
             }
         else:
             raise NotImplementedError(f'unsupported domain type {type(j.domain)}')
@@ -151,7 +151,7 @@ def interp_to_json(interp):
             j['factors'][el.name] = {
                 'function': 'categorical',
                 'type': [nl.name for nl in el.type],
-                'weights': fac.weights(),
+                'weights': fac.weights,
             }
             
     return j
