@@ -279,29 +279,27 @@ def linear(fgg: FGG, sumprod: MultiTensor) -> Tensor:
                 raise ValueError('FGG is not linearly recursive')
 
     n = sumprod.size()[0]
-    f = torch.zeros(n)
-    jf = torch.zeros(n, n)
+    f = MultiTensor.initialize(fgg)
+    jf = MultiTensor.initialize(fgg, ndim=2)
     for x in hrg.nonterminals():
-        (xi, xj), _ = sumprod.nt_dict[x]
         # Compute JF(0)
         for y in hrg.nonterminals():
-            (yi, yj), _ = sumprod.nt_dict[y]
             z_rules = []
             for rule, edge in unary_index[x, y]:
                 ext = rule.rhs.ext + edge.nodes
                 edges = set(rule.rhs.edges()) - {edge}
                 z_rules.append(sum_product_edges(interp, ext, edges))
             if len(z_rules) > 0:
-                jf[xi:xj,yi:yj] = sum(z_rules).view(xj-xi, yj-yi)
+                jf.get(x, y)[...] = sum(z_rules).view(jf.get(x, y).size())
 
         # Compute F(0)
         z_rules = []
         for rule in nullary_index[x]:
             z_rules.append(sum_product_edges(interp, rule.rhs.ext, rule.rhs.edges()))
         if len(z_rules) > 0:
-            f[xi:xj] = sum(z_rules).view(xj-xi)
+            f.get(x)[...] = sum(z_rules).view(f.get(x).size())
 
-    sumprod._t[...] = torch.linalg.solve(torch.eye(n)-jf, f)
+    sumprod._t[...] = torch.linalg.solve(torch.eye(n)-jf._t, f._t)
 
 def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kmax: int = 1000) -> Tensor:
     """Compute the sum-product of an FGG.
