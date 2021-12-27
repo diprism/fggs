@@ -1,0 +1,40 @@
+{
+    "description": "The CFG { X -> X X, X -> a } intersected with a finite automaton",
+    "terminals": {
+        "a": { "type" : ["state", "state"] }
+    },
+    "nonterminals": {
+        "X": { "type" : ["state", "state"] }
+    },
+    "start": "X",
+    "rules": [
+        {
+            "lhs": "X",
+            "rhs": {
+                "nodes": [
+                    { "label": "state" },
+                    { "label": "state" },
+                    { "label": "state" }
+                ],
+                "edges": [
+                    { "attachments": [0, 1], "label": "X" },
+                    { "attachments": [1, 2], "label": "X" }
+                ],
+                "externals": [0, 2]
+            }
+        },
+        {
+            "lhs": "X",
+            "rhs": {
+                "nodes": [
+                    { "label": "state" },
+                    { "label": "state" }
+                ],
+                "edges": [
+                    { "attachments": [0, 1], "label": "a" }
+                ],
+                "externals": [0, 1]
+            }
+        }
+    ]
+}
