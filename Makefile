@@ -4,6 +4,7 @@ PYTHON=python3
 
 test:
 	$(PYTHON) -m unittest
+	test/test_sum_product.sh
 
 docs:
 	sphinx-build -M html docs/source "$@"
