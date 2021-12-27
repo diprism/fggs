@@ -1,25 +1,42 @@
 {
-    "terminals": {
-        "fac": { "type": [] }
+    "grammar": {
+        "terminals": {
+            "fac": { "type": [] }
+        },
+        "nonterminals": {
+            "S": { "type" : ["D"] }
+        },
+        "start": "S",
+        "rules" : [
+            {
+                "lhs": "S",
+                "rhs" : {
+                    "nodes": [
+                        { "label": "D" },
+                        { "label": "D" },
+                        { "label": "D" }
+                    ],
+                    "edges": [
+                        { "attachments": [], "label": "fac" }
+                    ],
+                    "externals": [0]
+                }
+            }
+        ]
     },
-    "nonterminals": {
-        "S": { "type" : ["D"] }
-    },
-    "start": "S",
-    "rules" : [
-        {
-            "lhs": "S",
-            "rhs" : {
-                "nodes": [
-                    { "label": "D" },
-                    { "label": "D" },
-                    { "label": "D" }
-                ],
-                "edges": [
-                    { "attachments": [], "label": "fac" }
-                ],
-                "externals": [0]
+    "interpretation": {
+        "domains": {
+            "D": {
+                "class": "finite",
+                "values": ["foo", "bar", "baz"]
+            }
+        },
+        "factors": {
+            "fac": {
+                "function": "categorical",
+                "type": [],
+                "weights": 2
             }
         }
-    ]
+    }
 }

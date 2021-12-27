@@ -1,24 +1,20 @@
 from fggs import sum_product, FGG, Interpretation, CategoricalFactor
 from fggs.sum_product import scc
-from fggs import json_to_hrg, json_to_interp
+from fggs import FGG, json_to_hrg, json_to_interp, json_to_fgg
 import unittest, warnings, torch, random, json
 
 def load_json(filename):
     with open(filename) as f:
         return json.load(f)
 
-def load_fgg(gfilename, ifilename):
-    return FGG(json_to_hrg(load_json(gfilename)),
-               json_to_interp(load_json(ifilename)))
-    
 class TestSumProduct(unittest.TestCase):
 
     def setUp(self):
         warnings.filterwarnings('ignore', message='.*maximum iteration.*')
-        self.fgg_1 = load_fgg('test/hmm.json', 'test/hmm_interp.json')
-        self.fgg_2 = load_fgg('test/example12p.json', 'test/example12p_interp.json')
-        self.fgg_3 = load_fgg('test/simplefgg.json', 'test/simplefgg_interp.json')
-        self.fgg_4 = load_fgg('test/barhillel.json', 'test/barhillel_interp.json')
+        self.fgg_1 = json_to_fgg(load_json('test/hmm.json'))
+        self.fgg_2 = json_to_fgg(load_json('test/example12p.json'))
+        self.fgg_3 = json_to_fgg(load_json('test/simplefgg.json'))
+        self.fgg_4 = json_to_fgg(load_json('test/barhillel.json'))
 
     def test_fixed_point_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='fixed-point').item(), 1.0, places=2)
@@ -52,7 +48,7 @@ class TestSumProduct(unittest.TestCase):
         self.assertAlmostEqual(sum_product(self.fgg_3, method='newton').item(), 0.25, places=2)
 
     def test_disconnected_node(self):
-        fgg = load_fgg('test/disconnected_node.json', 'test/disconnected_node_interp.json')
+        fgg = json_to_fgg(load_json('test/disconnected_node.json'))
         self.assertAlmostEqual(sum_product(fgg, method='fixed-point').sum().item(), 54.)
         #self.assertAlmostEqual(sum_product(fgg, method='newton').sum().item(), 54.) # disabled until J uses sum_product_edges
         self.assertAlmostEqual(sum_product(fgg, method='linear').sum().item(), 54.)
@@ -81,7 +77,7 @@ class TestSumProduct(unittest.TestCase):
 
 class TestSCC(unittest.TestCase):
     def test_scc(self):
-        g = json_to_hrg(load_json('test/hmm.json'))
+        g = json_to_fgg(load_json('test/hmm.json')).grammar
         self.assertEqual(scc(g), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])
 
 if __name__ == '__main__':
