@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export PYTHONPATH=.:$PYTHONPATH
+
 echo -n "simplefgg.json: "
 
 ANS=`python bin/sum_product.py test/simplefgg.json -w fac1 0.2 -w fac2 0.8`
