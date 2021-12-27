@@ -5,15 +5,21 @@ import copy
 import fggs
 
 class TestJSON(unittest.TestCase):
-    def test_write(self):
-        # This file doesn't have node/edge ids, so we can't check the result.
+    def test_erase_ids(self):
+        
+        # When an HRG is created without explicit node/edge ids,
+        # unique ids are automatically chosen. We can read a JSON file
+        # without explicit ids and write it back to JSON, but checking
+        # that the result is equal would require checking for graph
+        # isomorphism. So we don't bother, but we do check that the
+        # written JSON also doesn't have explicit ids.
+        
         for filename in ['test.json']:
             with open(os.path.join(os.path.dirname(__file__), filename)) as f:
                 j = json.load(f)['grammar']
             g = fggs.json_to_hrg(j)
             j_check = fggs.hrg_to_json(g)
 
-            # But do check that the JSON doesn't have any IDs in it.
             for r in j_check['rules']:
                 for n in r['rhs']['nodes']:
                     self.assertTrue('id' not in n)
