@@ -195,33 +195,21 @@ def F(fgg: FGG, x0: MultiTensor) -> Tensor:
 
 def J(fgg: FGG, x0: MultiTensor) -> Tensor:
     hrg, interp = fgg.grammar, fgg.interp
-    JF = torch.full(2 * list(x0._t.shape), fill_value=0.)
-    ############# TODO
-    p, q = [0, 0], [0, 0]
+    JF = torch.zeros(2 * list(x0._t.shape))
     for nt_num in hrg.nonterminals():
-        p[0] = p[1]
-        a, b = x0.nt_dict[nt_num][0]
-        p[1] += b - a
-        q_ = q[:] # q[1] = 0
-        nt_num_nelem = b - a
-        for nt_den in hrg.nonterminals():
-            q[0] = q[1]
-            a, b = x0.nt_dict[nt_den][0]
-            q[1] += b - a
-            nt_den_nelem = b - a
-    #############
-            tau_R = 0.
-            for rule in hrg.rules(nt_num):
-                for edge in rule.rhs.edges():
-                    if edge.label == nt_den:
-                        ext = rule.rhs.ext + edge.nodes
-                        edges = set(rule.rhs.edges()) - {edge}
-                        tau_R += sum_product_edges(interp, ext, edges, x0)
-            tau_R = tau_R.reshape(nt_num_nelem, nt_den_nelem)
-            if nt_num.name == nt_den.name:
-                tau_R -= 1 if nt_num_nelem == 1 else torch.eye(nt_num_nelem)
-            JF[p[0]:p[1], q[0]:q[1]] = tau_R
-        q = q_[:]
+        p, _ = x0.nt_dict[nt_num]
+        nt_num_nelem = p[1]-p[0]
+        for rule in hrg.rules(nt_num):
+            for edge in rule.rhs.edges():
+                if edge.label.is_terminal: continue
+                q, _ = x0.nt_dict[edge.label]
+                nt_den_nelem = q[1]-q[0]
+                ext = rule.rhs.ext + edge.nodes
+                edges = set(rule.rhs.edges()) - {edge}
+                tau_edge = sum_product_edges(interp, ext, edges, x0)
+                tau_edge = tau_edge.reshape(nt_num_nelem, nt_den_nelem)
+                JF[p[0]:p[1], q[0]:q[1]] += tau_edge
+        JF[p[0]:p[1],p[0]:p[1]] -= 1 if nt_num_nelem == 1 else torch.eye(nt_num_nelem)
     return JF
 
 def sum_product_edges(interp: Interpretation, ext: Tuple[Node], edges: Iterable[Edge], sumprod: MultiTensor = None) -> Tensor:
