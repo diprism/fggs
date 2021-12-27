@@ -1,6 +1,6 @@
 __all__ = ['sum_product']
 
-from fggs.fggs import FGG, HRG,Interpretation, EdgeLabel, Edge, Node
+from fggs.fggs import FGG, HRG, HRGRule, Interpretation, EdgeLabel, Edge, Node
 from fggs.factors import CategoricalFactor
 from typing import Callable, Dict, Iterable, Tuple, List
 from functools import reduce
@@ -119,6 +119,7 @@ def broyden(F: Function, invJ: Tensor, x0: Tensor, *, tol: float, kmax: int) -> 
 #     if itc >= maxit:
 #         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
+
 class MultiTensor:
     """Tensor-like object that concatenates multiple tensors into one."""
     
@@ -196,7 +197,7 @@ def F(fgg: FGG, x: MultiTensor) -> Tensor:
     for n in hrg.nonterminals():
         tau_R = []
         for rule in hrg.rules(n):
-            tau_R.append(sum_product_edges(interp, rule.rhs.ext, rule.rhs.edges(), x))
+            tau_R.append(sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x))
         Fx[n] = sum(tau_R)
     return Fx
 
@@ -209,7 +210,7 @@ def J(fgg: FGG, x: MultiTensor) -> Tensor:
                 if edge.label.is_terminal: continue
                 ext = rule.rhs.ext + edge.nodes
                 edges = set(rule.rhs.edges()) - {edge}
-                tau_edge = sum_product_edges(interp, ext, edges, x)
+                tau_edge = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, x)
                 tau_edge = tau_edge.reshape(Jx.get(n, edge.label).size())
                 Jx.get(n, edge.label)[...] += tau_edge
         block = Jx.get(n, n, flat=True)
@@ -217,18 +218,23 @@ def J(fgg: FGG, x: MultiTensor) -> Tensor:
         block[...] -= 1 if block_size == 1 else torch.eye(block_size)
     return Jx
 
-def sum_product_edges(interp: Interpretation, ext: Tuple[Node], edges: Iterable[Edge], x: MultiTensor = None) -> Tensor:
+def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iterable[Edge], ext: Tuple[Node], x: MultiTensor = None) -> Tensor:
+    eshape = [interp.domains[n.label].size() for n in ext]
+    
     # The sum-product of an empty set of edges is 1
     if len(edges) == 0:
-        return 1.
+        out = torch.tensor(1.)
+        if len(eshape) > 0:
+            out = out.expand(*eshape)
+        return out
     
     # Each node corresponds to an index, so choose a letter for each
-    nodes = set()
+    connected = set()
     for edge in edges:
-        nodes.update(edge.nodes)
-    if len(nodes) > 26:
+        connected.update(edge.nodes)
+    if len(connected) > 26:
         raise Exception('cannot assign an index to each node')
-    node_to_index = {node: chr(ord('a') + i) for i, node in enumerate(nodes)}
+    node_to_index = {node: chr(ord('a') + i) for i, node in enumerate(connected)}
     
     indexing, tensors = [], []
     for edge in edges:
@@ -245,16 +251,23 @@ def sum_product_edges(interp: Interpretation, ext: Tuple[Node], edges: Iterable[
     equation = ','.join([''.join(indices) for indices in indexing]) + '->'
     
     # If an external node has no edges, einsum will complain, so remove it.
-    external = [node_to_index[node] for node in ext if node in nodes]
+    external = [node_to_index[node] for node in ext if node in connected]
     equation += ''.join(external)
     
     out = torch.einsum(equation, *tensors)
-    
+
     # Restore any external nodes that were removed.
-    if 0 < len(external) < len(ext):
-        vshape = [interp.domains[n.label].size() if n in nodes else 1 for n in ext]
-        eshape = [interp.domains[n.label].size() for n in ext]
+    if len(external) < len(ext):
+        vshape = [interp.domains[n.label].size() if n in connected else 1 for n in ext]
         out = out.view(*vshape).expand(*eshape)
+
+    # Handle any disconnected internal nodes.
+    mul = 1
+    for n in nodes:
+        if n not in connected and n not in ext:
+            mul *= interp.domains[n.label].size()
+    if mul > 1:
+        out = out * mul
         
     return out
 
@@ -283,14 +296,14 @@ def linear(fgg: FGG, x: MultiTensor) -> Tensor:
             for rule, edge in unary_index[n, m]:
                 ext = rule.rhs.ext + edge.nodes
                 edges = set(rule.rhs.edges()) - {edge}
-                z_rules.append(sum_product_edges(interp, ext, edges))
+                z_rules.append(sum_product_edges(interp, rule.rhs.nodes(), edges, ext))
             if len(z_rules) > 0:
                 Jx.get(n, m)[...] = sum(z_rules).view(Jx.get(n, m).size())
 
         # Compute F(0)
         z_rules = []
         for rule in nullary_index[n]:
-            z_rules.append(sum_product_edges(interp, rule.rhs.ext, rule.rhs.edges()))
+            z_rules.append(sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext))
         if len(z_rules) > 0:
             Fx.get(n)[...] = sum(z_rules).view(Fx.get(n).size())
 

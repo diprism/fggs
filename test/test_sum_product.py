@@ -3,17 +3,18 @@ from fggs.sum_product import scc, MultiTensor
 from fggs import FGG, json_to_hrg, json_to_interp, json_to_fgg
 import unittest, warnings, torch, random, json
 
+def load_json(filename):
+    with open(filename) as f:
+        return json.load(f)
+
 class TestSumProduct(unittest.TestCase):
 
     def setUp(self):
         warnings.filterwarnings('ignore', message='.*maximum iteration.*')
-        def load(filename):
-            with open(filename) as f:
-                return json.load(f)
-        self.fgg_1 = json_to_fgg(load('test/hmm.json'))
-        self.fgg_2 = json_to_fgg(load('test/example12p.json'))
-        self.fgg_3 = json_to_fgg(load('test/simplefgg.json'))
-        self.fgg_4 = json_to_fgg(load('test/barhillel.json'))
+        self.fgg_1 = json_to_fgg(load_json('test/hmm.json'))
+        self.fgg_2 = json_to_fgg(load_json('test/example12p.json'))
+        self.fgg_3 = json_to_fgg(load_json('test/simplefgg.json'))
+        self.fgg_4 = json_to_fgg(load_json('test/barhillel.json'))
 
     def test_fixed_point_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='fixed-point').item(), 1.0, places=2)
@@ -46,6 +47,12 @@ class TestSumProduct(unittest.TestCase):
     def test_newton_3(self):
         self.assertAlmostEqual(sum_product(self.fgg_3, method='newton').item(), 0.25, places=2)
 
+    def test_disconnected_node(self):
+        fgg = json_to_fgg(load_json('test/disconnected_node.json'))
+        self.assertAlmostEqual(sum_product(fgg, method='fixed-point').sum().item(), 54.)
+        self.assertAlmostEqual(sum_product(fgg, method='newton').sum().item(), 54.) # disabled until J uses sum_product_edges
+        self.assertAlmostEqual(sum_product(fgg, method='linear').sum().item(), 54.)
+
     def test_4(self):
         z_fp = sum_product(self.fgg_4, method='fixed-point')
         z_newton = sum_product(self.fgg_4, method='newton')
@@ -67,10 +74,10 @@ class TestSumProduct(unittest.TestCase):
         z.backward()
         # As long as there's no error, the gradient should be correct
 
+
 class TestSCC(unittest.TestCase):
     def test_scc(self):
-        with open('test/hmm.json') as f:
-            g = json_to_hrg(json.load(f)['grammar'])
+        g = json_to_fgg(load_json('test/hmm.json')).grammar
         self.assertEqual(scc(g), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])
 
 class TestMultiTensor(unittest.TestCase):
