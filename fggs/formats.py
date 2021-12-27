@@ -131,6 +131,12 @@ def json_to_interp(j):
         
     return interp
 
+def weights_to_json(weights):
+    if isinstance(weights, float) or hasattr(weights, 'shape') and len(weights.shape) == 0:
+        return float(weights)
+    else:
+        return [weights_to_json(w) for w in weights]
+
 def interp_to_json(interp):
     """Convert an Interpretation to an object writable by json.dump()."""
     j = {}
