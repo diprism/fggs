@@ -203,51 +203,24 @@ def J(fgg: FGG, x0: MultiTensor) -> Tensor:
         a, b = x0.nt_dict[nt_num][0]
         p[1] += b - a
         q_ = q[:] # q[1] = 0
+        nt_num_nelem = b - a
         for nt_den in hrg.nonterminals():
             q[0] = q[1]
             a, b = x0.nt_dict[nt_den][0]
             q[1] += b - a
+            nt_den_nelem = b - a
     #############
-            tau_R = [torch.tensor(0.)]
+            tau_R = 0.
             for rule in hrg.rules(nt_num):
-                if len(rule.rhs.nodes()) > 26:
-                    raise Exception('cannot assign an index to each node')
-                Xi_R = {id: chr(ord('a') + i) for i, id in enumerate(rule.rhs._node_ids)}
-                nt_loc, tensors, indexing = [], [], []
-                for i, edge in enumerate(rule.rhs.edges()):
-                    indexing.append([Xi_R[node.id] for node in edge.nodes])
-                    if edge.label.is_nonterminal:
-                        tensors.append(x0[edge.label])
-                        nt_loc.append((i, edge.label.name))
-                    elif isinstance(interp.factors[edge.label], CategoricalFactor):
-                        weights = interp.factors[edge.label]._weights
-                        if not isinstance(weights, Tensor):
-                            weights = torch.tensor(weights)
-                        tensors.append(weights)
-                    else:
-                        raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
-                external = [Xi_R[node.id] for node in rule.rhs.ext]
-                # TODO sum_product_edges for each term in the product rule
-                alphabet = (chr(ord('a') + i) for i in range(26))
-                indices = set(x for sublist in indexing for x in sublist)
-                diff_index = next(x for x in alphabet if x not in indices) if indexing[i] else ''
-                x = [torch.tensor(0.)]
-                for i, nt_name in nt_loc:
-                    if nt_den.name != nt_name:
-                        continue
-                    if len(tensors) > 1:
-                        equation = ','.join(''.join(indices) for j, indices in enumerate(indexing) if j != i) + '->'
-                        if external: equation += ''.join(external)
-                        if diff_index:
-                            equation = equation.replace(''.join(indexing[i]), diff_index) + diff_index
-                        x.append(torch.einsum(equation, *(tensor for j, tensor in enumerate(tensors) if j != i)))
-                    else:
-                        x.append(torch.ones(tensors[i].size()))
-                tau_R.append(sum(t.sum() for t in x))
-            x = sum(t.sum() for t in tau_R)
+                for edge in rule.rhs.edges():
+                    if edge.label == nt_den:
+                        ext = rule.rhs.ext + edge.nodes
+                        edges = set(rule.rhs.edges()) - {edge}
+                        tau_R += sum_product_edges(interp, ext, edges, x0)
+            tau_R = tau_R.reshape(nt_num_nelem, nt_den_nelem)
             if nt_num.name == nt_den.name:
-                x -= 1 if x.size() == torch.Size([]) else torch.eye(x.size())
-            JF[p[0]:p[1], q[0]:q[1]] = x
+                tau_R -= 1 if nt_num_nelem == 1 else torch.eye(nt_num_nelem)
+            JF[p[0]:p[1], q[0]:q[1]] = tau_R
         q = q_[:]
     return JF
 

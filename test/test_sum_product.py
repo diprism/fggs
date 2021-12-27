@@ -46,10 +46,10 @@ class TestSumProduct(unittest.TestCase):
     def test_newton_3(self):
         self.assertAlmostEqual(sum_product(self.fgg_3, method='newton').item(), 0.25, places=2)
 
-    def xtest_4(self):
+    def test_4(self):
         z_fp = sum_product(self.fgg_4, method='fixed-point')
         z_newton = sum_product(self.fgg_4, method='newton')
-        self.assertAlmostEqual(torch.norm(z_fp - z_newton), 0., places=2)
+        self.assertAlmostEqual(torch.norm(z_fp - z_newton).item(), 0., places=2)
 
     def test_linear_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='linear').item(), 1.0, places=2)
