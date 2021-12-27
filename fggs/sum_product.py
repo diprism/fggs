@@ -76,7 +76,7 @@ def newton(F: Function, J: Function, x0: Tensor, *, tol: float, kmax: int) -> No
     F0 = F(x0)
     while any(torch.abs(F0) > tol) and k <= kmax:
         JF = J(x0)
-        dX = torch.linalg.solve(JF, -F0) if len(JF) > 1 else -F0/JF
+        dX = torch.linalg.solve(JF, -F0) if JF.size()[0] > 1 else -F0/JF
         x1[...] = x0 + dX
         x0[...], F0 = x1, F(x1)
         k += 1
@@ -129,7 +129,7 @@ class MultiTensor:
         self.nt_dict = nt_dict
 
     @staticmethod
-    def initialize(fgg: FGG, value: float = 0., dim: int = 1):
+    def initialize(fgg: FGG, fill_value: float = 0., ndim: int = 1):
         hrg, interp = fgg.grammar, fgg.interp
         n, nt_dict = 0, dict()
         for nonterminal in hrg.nonterminals():
@@ -137,13 +137,25 @@ class MultiTensor:
             k = n + (reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1)
             nt_dict[nonterminal] = ((n, k), shape) # TODO namedtuple(range=(n, k), shape=shape)
             n = k
-        return MultiTensor(torch.full(dim * [n], fill_value=value), nt_dict)
+        return MultiTensor(torch.full(ndim * [n], fill_value=fill_value), nt_dict)
 
     def clone(self):
         return MultiTensor(self._t.clone(), self.nt_dict)
 
     def size(self):
         return self._t.size()
+
+    def get(self, *key, flat=False):
+        slices = []
+        shape = []
+        for keyitem in key:
+            (n, k), s = self.nt_dict[keyitem]
+            slices.append(slice(n, k))
+            shape.extend(s)
+        ret = self._t[slices]
+        if not flat:
+            ret = ret.reshape(tuple(shape))
+        return ret
 
     def __getitem__(self, key):
         if isinstance(key, (str, EdgeLabel)):
@@ -195,21 +207,19 @@ def F(fgg: FGG, x0: MultiTensor) -> Tensor:
 
 def J(fgg: FGG, x0: MultiTensor) -> Tensor:
     hrg, interp = fgg.grammar, fgg.interp
-    JF = torch.zeros(2 * list(x0._t.shape))
-    for nt_num in hrg.nonterminals():
-        p, _ = x0.nt_dict[nt_num]
-        nt_num_nelem = p[1]-p[0]
-        for rule in hrg.rules(nt_num):
+    JF = MultiTensor.initialize(fgg, ndim=2)
+    for lhs in hrg.nonterminals():
+        for rule in hrg.rules(lhs):
             for edge in rule.rhs.edges():
                 if edge.label.is_terminal: continue
-                q, _ = x0.nt_dict[edge.label]
-                nt_den_nelem = q[1]-q[0]
                 ext = rule.rhs.ext + edge.nodes
                 edges = set(rule.rhs.edges()) - {edge}
                 tau_edge = sum_product_edges(interp, ext, edges, x0)
-                tau_edge = tau_edge.reshape(nt_num_nelem, nt_den_nelem)
-                JF[p[0]:p[1], q[0]:q[1]] += tau_edge
-        JF[p[0]:p[1],p[0]:p[1]] -= 1 if nt_num_nelem == 1 else torch.eye(nt_num_nelem)
+                tau_edge = tau_edge.reshape(JF.get(lhs, edge.label).size())
+                JF.get(lhs, edge.label)[...] += tau_edge
+        block = JF.get(lhs, lhs, flat=True)
+        block_size = block.size()[0]
+        block[...] -= 1 if block_size == 1 else torch.eye(block_size)
     return JF
 
 def sum_product_edges(interp: Interpretation, ext: Tuple[Node], edges: Iterable[Edge], sumprod: MultiTensor = None) -> Tensor:
