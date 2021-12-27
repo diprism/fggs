@@ -1,163 +1,196 @@
 {
-    "nonterminals": {
-        "A": { "type": ["dom"] },
-        "B": { "type": ["dom"] },
-        "Empty": { "type": ["dom"] },
-        "Unreachable": { "type": ["dom"] },
-        "Unproductive1": { "type": ["dom"] },
-        "Unproductive2": { "type": ["dom"] }
+    "grammar": {
+        "nonterminals": {
+            "A": { "type": ["dom"] },
+            "B": { "type": ["dom"] },
+            "Empty": { "type": ["dom"] },
+            "Unreachable": { "type": ["dom"] },
+            "Unproductive1": { "type": ["dom"] },
+            "Unproductive2": { "type": ["dom"] }
+        },
+        "terminals": {
+            "start": {
+                "type": ["dom"]
+            },
+            "fac0": {
+                "type": ["dom"]
+            },
+            "fac1": {
+                "type": ["dom"]
+            },
+            "fac2": {
+                "type": ["dom"]
+            }
+        },
+        "start": "A",
+        "rules": [
+            {
+                "lhs": "A",
+                "rhs": {
+                    "nodes": [
+                        { "label": "dom" }
+                    ],
+                    "edges": [
+                        { "attachments": [0], "label": "start" },
+                        { "attachments": [0], "label": "B" }
+                    ],
+                    "externals": [0]
+                }
+            },
+            {
+                "lhs": "A",
+                "rhs": {
+                    "nodes": [
+                        { "label": "dom" }
+                    ],
+                    "edges": [
+                        { "attachments": [0], "label": "Empty" }
+                    ],
+                    "externals": [0]
+                }
+            },
+            {
+                "lhs": "A",
+                "rhs": {
+                    "nodes": [
+                        { "label": "dom" }
+                    ],
+                    "edges": [
+                        { "attachments": [0], "label": "Unproductive1" }
+                    ],
+                    "externals": [0]
+                }
+            },
+            {
+                "lhs": "A",
+                "rhs": {
+                    "nodes": [
+                        { "label": "dom" }
+                    ],
+                    "edges": [
+                        { "attachments": [0], "label": "Unproductive2" }
+                    ],
+                    "externals": [0]
+                }
+            },
+            {
+                "lhs": "B",
+                "rhs": {
+                    "nodes": [
+                        { "label": "dom" }
+                    ],
+                    "edges": [
+                        { "attachments": [0], "label": "fac2" },
+                        { "attachments": [0], "label": "B" },
+                        { "attachments": [0], "label": "B" }
+                    ],
+                    "externals": [0]
+                }
+            },
+            {
+                "lhs": "B",
+                "rhs": {
+                    "nodes": [
+                        { "label": "dom" }
+                    ],
+                    "edges": [
+                        { "attachments": [0], "label": "fac1" },
+                        { "attachments": [0], "label": "B" }
+                    ],
+                    "externals": [0]
+                }
+            },
+            {
+                "lhs": "B",
+                "rhs": {
+                    "nodes": [
+                        { "label": "dom" }
+                    ],
+                    "edges": [
+                        { "attachments": [0], "label": "fac0" }
+                    ],
+                    "externals": [0]
+                }
+            },
+            {
+                "lhs": "Empty",
+                "rhs": {
+                    "nodes": [
+                        { "label": "dom" }
+                    ],
+                    "edges": [
+                    ],
+                    "externals": [0]
+                }
+            },
+            {
+                "lhs": "Unreachable",
+                "rhs": {
+                    "nodes": [
+                        { "label": "dom" }
+                    ],
+                    "edges": [
+                    ],
+                    "externals": [0]
+                }
+            },
+            {
+                "comment": "This rule and the next one make the Jacobian singular",
+                "lhs": "Unproductive2",
+                "rhs": {
+                    "nodes": [
+                        { "label": "dom" }
+                    ],
+                    "edges": [
+                        { "attachments": [0], "label": "Unproductive2" }
+                    ],
+                    "externals": [0]
+                }
+            },
+            {
+                "lhs": "Unproductive2",
+                "rhs": {
+                    "nodes": [
+                        { "label": "dom" }
+                    ],
+                    "edges": [
+                        { "attachments": [0], "label": "Unproductive2" },
+                        { "attachments": [0], "label": "Unproductive2" }
+                    ],
+                    "externals": [0]
+                }
+            }
+        ]
     },
-    "terminals": {
-        "start": {
-            "type": ["dom"]
-        },
-        "fac0": {
-            "type": ["dom"]
-        },
-        "fac1": {
-            "type": ["dom"]
-        },
-        "fac2": {
-            "type": ["dom"]
-        }
-    },
-    "start": "A",
-    "rules": [
-        {
-            "lhs": "A",
-            "rhs": {
-                "nodes": [
-                    { "label": "dom" }
-                ],
-                "edges": [
-                    { "attachments": [0], "label": "start" },
-                    { "attachments": [0], "label": "B" }
-                ],
-                "externals": [0]
+    "interpretation": {
+        "domains": {
+            "dom": {
+                "class": "finite",
+                "values": ["good", "unreachable", "unproductive"]
             }
         },
-        {
-            "lhs": "A",
-            "rhs": {
-                "nodes": [
-                    { "label": "dom" }
-                ],
-                "edges": [
-                    { "attachments": [0], "label": "Empty" }
-                ],
-                "externals": [0]
-            }
-        },
-        {
-            "lhs": "A",
-            "rhs": {
-                "nodes": [
-                    { "label": "dom" }
-                ],
-                "edges": [
-                    { "attachments": [0], "label": "Unproductive1" }
-                ],
-                "externals": [0]
-            }
-        },
-        {
-            "lhs": "A",
-            "rhs": {
-                "nodes": [
-                    { "label": "dom" }
-                ],
-                "edges": [
-                    { "attachments": [0], "label": "Unproductive2" }
-                ],
-                "externals": [0]
-            }
-        },
-        {
-            "lhs": "B",
-            "rhs": {
-                "nodes": [
-                    { "label": "dom" }
-                ],
-                "edges": [
-                    { "attachments": [0], "label": "fac2" },
-                    { "attachments": [0], "label": "B" },
-                    { "attachments": [0], "label": "B" }
-                ],
-                "externals": [0]
-            }
-        },
-        {
-            "lhs": "B",
-            "rhs": {
-                "nodes": [
-                    { "label": "dom" }
-                ],
-                "edges": [
-                    { "attachments": [0], "label": "fac1" },
-                    { "attachments": [0], "label": "B" }
-                ],
-                "externals": [0]
-            }
-        },
-        {
-            "lhs": "B",
-            "rhs": {
-                "nodes": [
-                    { "label": "dom" }
-                ],
-                "edges": [
-                    { "attachments": [0], "label": "fac0" }
-                ],
-                "externals": [0]
-            }
-        },
-        {
-            "lhs": "Empty",
-            "rhs": {
-                "nodes": [
-                    { "label": "dom" }
-                ],
-                "edges": [
-                ],
-                "externals": [0]
-            }
-        },
-        {
-            "lhs": "Unreachable",
-            "rhs": {
-                "nodes": [
-                    { "label": "dom" }
-                ],
-                "edges": [
-                ],
-                "externals": [0]
-            }
-        },
-        {
-            "comment": "This rule and the next one make the Jacobian singular",
-            "lhs": "Unproductive2",
-            "rhs": {
-                "nodes": [
-                    { "label": "dom" }
-                ],
-                "edges": [
-                    { "attachments": [0], "label": "Unproductive2" }
-                ],
-                "externals": [0]
-            }
-        },
-        {
-            "lhs": "Unproductive2",
-            "rhs": {
-                "nodes": [
-                    { "label": "dom" }
-                ],
-                "edges": [
-                    { "attachments": [0], "label": "Unproductive2" },
-                    { "attachments": [0], "label": "Unproductive2" }
-                ],
-                "externals": [0]
+        "factors": {
+            "start": {
+                "function": "categorical",
+                "type": ["dom"],
+                "weights": [3, 0, 5]
+            },
+            "fac0": {
+                "function": "categorical",
+                "type": ["dom"],
+                "weights": [1, 7, 0]
+            },
+            "fac1": {
+                "function": "categorical",
+                "type": ["dom"],
+                "weights": [0.5, 11, 1]
+            },
+            "fac2": {
+                "function": "categorical",
+                "type": ["dom"],
+                "weights": [0, 0, 1]
             }
         }
-    ]
+    }
 }
+

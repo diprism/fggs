@@ -9,7 +9,7 @@ class TestConjunction(unittest.TestCase):
 
     def setUp(self):
         with open(os.path.join(os.path.dirname(__file__), 'hmm.json')) as f:
-            self.hmm_json = json.load(f)
+            self.hmm_json = json.load(f)['grammar']
         with open(os.path.join(os.path.dirname(__file__), 'conjunct.json')) as f:
             self.conjunct_json = json.load(f)
         with open(os.path.join(os.path.dirname(__file__), 'conjunction.json')) as f:
