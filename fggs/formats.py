@@ -1,9 +1,20 @@
-__all__ = ['json_to_hrg', 'hrg_to_json', 'json_to_interp', 'interp_to_json', 'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
+__all__ = ['json_to_fgg', 'fgg_to_json', 'json_to_hrg', 'hrg_to_json', 'json_to_interp', 'interp_to_json', 'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
 
 from fggs.fggs import *
 from fggs import domains, factors
 
 ### JSON
+
+def json_to_fgg(j):
+    """Convert an object loaded by json.load to an FGG."""
+    return FGG(json_to_hrg(j['grammar']), json_to_interp(j['interpretation']))
+
+def fgg_to_json(fgg):
+    """Convert an FGG to an object writable by json.dump()."""
+    return {
+        'grammar': hrg_to_json(fgg.grammar),
+        'interpretation': interp_to_json(fgg.interp)
+    }
 
 def json_to_hrg(j):
     """Convert an object loaded by json.load to an HRG."""
