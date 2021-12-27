@@ -17,6 +17,11 @@ if __name__ == '__main__':
 
     for name, weights in args.weights:
         el = fgg.grammar.get_edge_label(name)
-        fgg.interp.factors[el].weights = json.loads(weights)
+        weights = json.loads(weights)
+        if el not in fgg.interp.factors:
+            doms = [fgg.interp.domains[nl] for nl in el.type()]
+            fgg.interp.add_factor(el, fggs.CategoricalFactor(doms, weights))
+        else:
+            fgg.interp.factors[el].weights = weights
     
     print(json.dumps(fggs.formats.weights_to_json(fggs.sum_product(fgg, method=args.method))))
