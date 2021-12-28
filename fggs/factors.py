@@ -7,14 +7,12 @@ from fggs import domains
 class Factor(ABC):
     """Abstract base class for factors."""
     def __init__(self, doms):
-        self._domains = tuple(doms)
+        self.domains = tuple(doms)
 
+    @property
     def arity(self):
-        return len(self._domains)
+        return len(self.domains)
 
-    def domains(self):
-        return self._domains
-    
     @abstractmethod
     def apply(self, values):
         pass
@@ -30,18 +28,18 @@ class ConstantFactor(Factor):
     """A factor that always has the same weight."""
     def __init__(self, doms, weight):
         super().__init__(doms)
-        self._weight = weight
+        self.weight = weight
 
     def apply(self, values):
-        return self._weight
+        return self.weight
 
     def __eq__(self, other):
         if self is other:
             return True
         else:
-            return type(self) == type(other) and\
-                   self.domains() == other.domains() and\
-                   self._weight == other._weight
+            return type(self) == type(other) and \
+                   self.domains == other.domains and \
+                   self.weight == other.weight
 
         
 class CategoricalFactor(Factor):
@@ -56,37 +54,30 @@ class CategoricalFactor(Factor):
         super().__init__(doms)
 
         def check_size(weights, size):
-            if isinstance(weights, float):
+            if hasattr(weights, 'shape'):
+                return weights.shape == size
+            elif isinstance(weights, (int, float)):
                 if len(size) > 0:
                     raise ValueError('weights has too few axes')
-            elif isinstance(weights, list):
+            elif isinstance(weights, (list, tuple)):
                 if len(size) == 0:
                     raise ValueError('weights has too many axes')
                 if len(weights) != size[0]:
                     raise ValueError(f'wrong number of weights (domain has {size[0]} values but weights has {len(weights)})')
                 for subweights in weights:
                     check_size(subweights, size[1:])
-
-        def to_float(weights):
-            if isinstance(weights, list):
-                return list(map(to_float, weights))
-            elif isinstance(weights, int):
-                return float(weights)
             else:
-                return weights
+                raise TypeError("weights are wrong type")
 
         check_size(weights, [d.size() for d in doms])
-        self._weights = to_float(weights)
-
-    def weights(self):
-        return self._weights
+        self.weights = weights
 
     def apply(self, values):
         """Apply factor to a sequence of values.
 
         values: list of values"""
-        w = self._weights
-        for d, v in zip(self._domains, values):
+        w = self.weights
+        for d, v in zip(self.domains, values):
             w = w[d.numberize(v)]
         return w
 
@@ -94,6 +85,6 @@ class CategoricalFactor(Factor):
         if self is other:
             return True
         else:
-            return type(self) == type(other) and\
-                   self.domains() == other.domains() and\
-                   self.weights() == other.weights()
+            return type(self) == type(other) and \
+                   self.domains == other.domains and \
+                   self.weights == other.weights

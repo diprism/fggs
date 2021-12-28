@@ -27,17 +27,14 @@ class FiniteDomain(Domain):
     
     def __init__(self, values):
         super().__init__()
-        self._values = list(values)
-        self._value_index = {v:i for (i,v) in enumerate(self._values)}
+        self.values = list(values)
+        self._value_index = {v:i for (i,v) in enumerate(values)}
 
     def contains(self, value):
-        return value in self._values
-
-    def values(self):
-        return list(self._values)
+        return value in self.values
 
     def size(self):
-        return len(self._values)
+        return len(self.values)
 
     def numberize(self, value):
         """Convert a value into an integer.
@@ -45,9 +42,16 @@ class FiniteDomain(Domain):
         """
         return self._value_index[value]
 
+    def denumberize(self, num):
+        """Convert a numberized value back to the original value."""
+        return self.values[num]
+
     def __eq__(self, other):
         if self is other:
             return True
         else:
-            return type(self) == type(other) and\
-                   self.values() == other.values()
+            return type(self) == type(other) and \
+                   self.values == other.values
+
+    def __ne__(self, other):
+        return not self.__eq__(other)

@@ -9,7 +9,7 @@ def start_graph(g: HRG) -> Graph:
     nonterminal symbol."""
     ret = Graph()
     s = g._start
-    e = Edge(s, [Node(l) for l in s.type()])
+    e = Edge(s, [Node(l) for l in s.type])
     ret.add_edge(e)
     return ret
         
@@ -29,7 +29,7 @@ def replace_edges(graph: Graph, replacements: Dict[Edge, Graph]):
             if edge.label != repl.lhs:
                 raise ValueError("An edge can only be replaced with a HRGRule with a matching left-hand side.")
         elif isinstance(repl, Graph):
-            if edge.label.type() != repl.type():
+            if edge.label.type != repl.type:
                 raise ValueError("A graph fragment can only replace a edge with the same type.")
         else:
             raise TypeError("The replacement for an edge must be a HRGRule or a Graph.")
