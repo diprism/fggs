@@ -17,6 +17,7 @@ class TestSumProduct(unittest.TestCase):
         self.fgg_4 = json_to_fgg(load_json('test/barhillel.json'))
         self.fgg_5 = json_to_fgg(load_json('test/linear.json'))
 
+
     def test_fixed_point_1(self):
         self.assertAlmostEqual(sum_product(self.fgg_1, method='fixed-point').item(), 1.0, places=2)
 
@@ -58,20 +59,22 @@ class TestSumProduct(unittest.TestCase):
         import torch
         torch.set_default_dtype(torch.double)
         torch.autograd.set_detect_anomaly(True)
-        for fgg in [self.fgg_4, self.fgg_5]:
-            in_labels = list(fgg.interp.factors.keys())
-            in_values = [torch.tensor(fac.weights, requires_grad=True, dtype=torch.get_default_dtype())
-                         for fac in fgg.interp.factors.values()]
-            out_labels = list(fgg.grammar.nonterminals())
-            def f(*in_values):
-                opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 1000}
-                return SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
-            self.assertTrue(torch.autograd.gradcheck(f, in_values))
+        fggs = [self.fgg_1, self.fgg_2, self.fgg_3, self.fgg_4, self.fgg_5]
+        for i, fgg in enumerate(fggs):
+            with self.subTest(i=i):
+                in_labels = list(fgg.interp.factors.keys())
+                in_values = [torch.tensor(fac.weights, requires_grad=True, dtype=torch.get_default_dtype())
+                             for fac in fgg.interp.factors.values()]
+                out_labels = list(fgg.grammar.nonterminals())
+                def f(*in_values):
+                    opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 1000}
+                    return SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
+                self.assertTrue(torch.autograd.gradcheck(f, in_values, atol=1e-3))
 
     def test_disconnected_node(self):
         fgg = json_to_fgg(load_json('test/disconnected_node.json'))
         self.assertAlmostEqual(sum_product(fgg, method='fixed-point').sum().item(), 54.)
-        self.assertAlmostEqual(sum_product(fgg, method='newton').sum().item(), 54.) # disabled until J uses sum_product_edges
+        self.assertAlmostEqual(sum_product(fgg, method='newton').sum().item(), 54.)
         self.assertAlmostEqual(sum_product(fgg, method='linear').sum().item(), 54.)
 
     def test_4(self):
@@ -84,7 +87,7 @@ class TestSumProduct(unittest.TestCase):
     def test_linear_5(self):
         self.assertAlmostEqual(sum_product(self.fgg_5, method='linear').item(), 7.5, places=2)
         
-    def xtest_linear_1_grad(self):
+    def test_linear_1_grad(self):
         import fggs
         interp = Interpretation()
         for nl, dom in self.fgg_1.interp.domains.items():

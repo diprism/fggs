@@ -229,7 +229,6 @@ def J(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor]) -> MultiTensor:
         Jx.dict[n, n] -= 1 if N == 1 else torch.eye(N).view(Jx.dict[n, n].size())
     return Jx
 
-
 def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iterable[Edge], ext: Tuple[Node], *inputses: Iterable[Dict[EdgeLabel, Tensor]]) -> Tensor:
     """Compute the sum-product of a set of edges.
 
@@ -244,26 +243,26 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
     Return: the tensor of sum-products
     """
 
-    eshape = [interp.domains[n.label].size() for n in ext]
-    
-    # The sum-product of an empty set of edges is 1
-    if len(edges) == 0:
-        out = torch.tensor(1.)
-        if len(eshape) > 0:
-            out = out.expand(*eshape)
-        return out
-    
-    # Each node corresponds to an index, so choose a letter for each
     connected = set()
+    indexing, tensors = [], []
+    
+    # Derivatives can sometimes produce duplicate external nodes.
+    # Rename them apart and add identity factors between them.
+    ext_orig = ext
+    ext = []
+    for n in ext_orig:
+        if n in ext:
+            ncopy = Node(n.label)
+            ext.append(ncopy)
+            connected.update([n, ncopy])
+            indexing.append([n, ncopy])
+            tensors.append(torch.eye(interp.domains[n.label].size()))
+        else:
+            ext.append(n)
+
     for edge in edges:
         connected.update(edge.nodes)
-    if len(connected) > 26:
-        raise Exception('cannot assign an index to each node')
-    node_to_index = {node: chr(ord('a') + i) for i, node in enumerate(connected)}
-    
-    indexing, tensors = [], []
-    for edge in edges:
-        indexing.append([node_to_index[node] for node in edge.nodes])
+        indexing.append(edge.nodes)
         for inputs in reversed(inputses):
             if edge.label in inputs:
                 tensors.append(inputs[edge.label])
@@ -276,27 +275,36 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
                 tensors.append(weights)
             else:
                 raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
-    equation = ','.join([''.join(indices) for indices in indexing]) + '->'
-    
-    # If an external node has no edges, einsum will complain, so remove it.
-    external = [node_to_index[node] for node in ext if node in connected]
-    equation += ''.join(external)
-    
-    out = torch.einsum(equation, *tensors)
+
+    if len(indexing) > 0:
+        # Each node corresponds to an index, so choose a letter for each
+        if len(connected) > 26:
+            raise Exception('cannot assign an index to each node')
+        node_to_index = {node: chr(ord('a') + i) for i, node in enumerate(connected)}
+
+        equation = ','.join([''.join(node_to_index[n] for n in indices) for indices in indexing]) + '->'
+
+        # If an external node has no edges, einsum will complain, so remove it.
+        equation += ''.join(node_to_index[node] for node in ext if node in connected)
+
+        out = torch.einsum(equation, *tensors)
+    else:
+        out = torch.tensor(1.)
 
     # Restore any external nodes that were removed.
-    if len(external) < len(ext):
+    if out.ndim < len(ext):
         vshape = [interp.domains[n.label].size() if n in connected else 1 for n in ext]
+        eshape = [interp.domains[n.label].size() for n in ext]
         out = out.view(*vshape).expand(*eshape)
 
-    # Handle any disconnected internal nodes.
+    # Multiply in any disconnected internal nodes.
     mul = 1
     for n in nodes:
         if n not in connected and n not in ext:
             mul *= interp.domains[n.label].size()
     if mul > 1:
         out = out * mul
-        
+
     return out
 
 
@@ -406,31 +414,25 @@ class SumProduct(torch.autograd.Function):
 
         hrg, interp = ctx.fgg.grammar, ctx.fgg.interp
         grad_nt = MultiTensor.initialize(ctx.fgg)
-        n = grad_nt.size()[0]
-        f = torch.zeros(n)
-        jf = torch.zeros(n, n)
+        f = MultiTensor.initialize(ctx.fgg)
+        jf = MultiTensor.initialize(ctx.fgg, ndim=2)
 
         # Compute JF(0) of adjoint grammar
         for rule in hrg.all_rules():
             y = rule.lhs
-            (yi, yj), _ = grad_nt.nt_dict[y]
-
             for edge in rule.rhs.edges():
                 if edge.label.is_terminal: continue
                 x = edge.label
-                (xi, xj), _ = grad_nt.nt_dict[x]
-
                 ext = edge.nodes + rule.rhs.ext
                 edges = set(rule.rhs.edges()) - {edge}
-                jf[xi:xj,yi:yj] += sum_product_edges(interp, rule.rhs.nodes(), edges, ext, inputs, ctx.out_values)
+                jf.dict[x,y] += sum_product_edges(interp, rule.rhs.nodes(), edges, ext, inputs, ctx.out_values)
 
         # Compute F(0) of adjoint grammar
         for x, grad_x in zip(ctx.out_labels, grad_out):
-            (xi, xj), _ = grad_nt.nt_dict[x]
-            f[xi:xj] += grad_x
+            f.dict[x] += grad_x
 
         # Solve linear system of equations
-        grad_nt._t[...] = torch.linalg.solve(torch.eye(n)-jf, f)
+        grad_nt._t[...] = torch.linalg.solve(torch.eye(grad_nt.size()[0])-jf._t, f._t)
 
         # Compute gradients of factors
         grad_t = {}
@@ -440,13 +442,13 @@ class SumProduct(torch.autograd.Function):
 
         for rule in hrg.all_rules():
             y = rule.lhs
-            grad_y = grad_nt.dict[y].flatten()
+            grad_y = grad_nt.dict[y]
             for edge in rule.rhs.edges():
                 if edge.label in grad_t:
                     ext = edge.nodes + rule.rhs.ext
                     edges = set(rule.rhs.edges()) - {edge}
-                    dydx = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, inputs, ctx.out_values)
-                    grad_t[edge.label] += dydx.flatten(start_dim=len(edge.nodes)) @ grad_y
+                    j = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, inputs, ctx.out_values)
+                    grad_t[edge.label] += torch.tensordot(j, grad_y, len(rule.rhs.ext))
 
         grad_in = []
         for el in ctx.in_labels:
