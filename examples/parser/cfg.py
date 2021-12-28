@@ -78,7 +78,9 @@ for epoch in range(100):
                 rhs = tuple(child.label for child in node.children)
                 w += params[rules[lhs, rhs]]
 
-        z = fggs.sum_product(fgg, method='fixed-point', kmax=10, tol=1e-20)
+        # Newton's method currently works better than fixed-point iteration
+        # for avoiding z = 0.
+        z = fggs.sum_product(fgg, method='newton', kmax=100, tol=1e-30)
 
         loss = -w + torch.log(z)
         train_loss += loss.item()
