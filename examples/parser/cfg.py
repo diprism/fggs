@@ -69,7 +69,7 @@ for epoch in range(100):
     train_loss = 0.
     for tree in traintrees:
         for el in params:
-            interp.factors[el]._weights = torch.exp(params[el])
+            interp.factors[el].weights = torch.exp(params[el])
 
         w = 0.
         for node in tree.bottomup():
