@@ -17,12 +17,12 @@ def nonterminal_pairs(hrg1, hrg2):
         for el2 in hrg2.nonterminals():
             new_nt = fggs.EdgeLabel(name=f'<{el1.name},{el2.name}>',
                                     is_nonterminal=True,
-                                    node_labels=el1.type())
+                                    node_labels=el1.type)
             i = 2
             while new_nt.name in names:
                 new_nt = fggs.EdgeLabel(name=f'<{el1.name},{el2.name}>_{i}',
                                         is_nonterminal=True,
-                                        node_labels=el1.type())
+                                        node_labels=el1.type)
                 i += 1
             nt_map[el1,el2] = new_nt
             names.add(new_nt.name)

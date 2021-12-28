@@ -88,7 +88,7 @@ class TestTreewidth(unittest.TestCase):
 class TestFactorize(unittest.TestCase):
     def test_factorize(self):
         with open(os.path.join(os.path.dirname(__file__), 'hmm.json')) as f:
-            j = json.load(f)
+            j = json.load(f)['grammar']
         g = json_to_hrg(j)
         for r in g.all_rules():
             frules = {fr.lhs:fr for fr in factorize_rule(r)}

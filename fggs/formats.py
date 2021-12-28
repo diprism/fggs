@@ -1,9 +1,20 @@
-__all__ = ['json_to_hrg', 'hrg_to_json', 'json_to_interp', 'interp_to_json', 'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
+__all__ = ['json_to_fgg', 'fgg_to_json', 'json_to_hrg', 'hrg_to_json', 'json_to_interp', 'interp_to_json', 'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
 
 from fggs.fggs import *
 from fggs import domains, factors
 
 ### JSON
+
+def json_to_fgg(j):
+    """Convert an object loaded by json.load to an FGG."""
+    return FGG(json_to_hrg(j['grammar']), json_to_interp(j['interpretation']))
+
+def fgg_to_json(fgg):
+    """Convert an FGG to an object writable by json.dump()."""
+    return {
+        'grammar': hrg_to_json(fgg.grammar),
+        'interpretation': interp_to_json(fgg.interp)
+    }
 
 def json_to_hrg(j):
     """Convert an object loaded by json.load to an HRG."""
@@ -56,13 +67,13 @@ def hrg_to_json(g):
     j['terminals'] = {}
     for t in g.terminals():
         j['terminals'][t.name] = {
-            'type': [l.name for l in t.type()],
+            'type': [l.name for l in t.type],
         }
         
     j['nonterminals'] = {}
     for nt in g.nonterminals():
         j['nonterminals'][nt.name] = {
-            'type': [l.name for l in nt.type()],
+            'type': [l.name for l in nt.type],
         }
         
     j['start'] = g.start_symbol.name
@@ -120,6 +131,12 @@ def json_to_interp(j):
         
     return interp
 
+def weights_to_json(weights):
+    if isinstance(weights, float) or hasattr(weights, 'shape') and len(weights.shape) == 0:
+        return float(weights)
+    else:
+        return [weights_to_json(w) for w in weights]
+
 def interp_to_json(interp):
     """Convert an Interpretation to an object writable by json.dump()."""
     j = {}
@@ -129,7 +146,7 @@ def interp_to_json(interp):
         if isinstance(dom, domains.FiniteDomain):
             j['domains'][nl.name] = {
                 'class' : 'finite',
-                'values' : list(dom.values()),
+                'values' : list(dom.values),
             }
         else:
             raise NotImplementedError(f'unsupported domain type {type(j.domain)}')
@@ -139,8 +156,8 @@ def interp_to_json(interp):
         if isinstance(fac, factors.CategoricalFactor):
             j['factors'][el.name] = {
                 'function': 'categorical',
-                'type': [nl.name for nl in el.type()],
-                'weights': fac.weights(),
+                'type': [nl.name for nl in el.type],
+                'weights': fac.weights,
             }
             
     return j
@@ -326,7 +343,7 @@ def hrg_to_tikz(g, factor_formats=None):
     for r in g.all_rules():
         # Build a little factor graph for the lhs
         lhs = Graph()
-        lhs.add_edge(Edge(r.lhs(), [Node(x) for x in r.lhs.type()]))
+        lhs.add_edge(Edge(r.lhs(), [Node(x) for x in r.lhs.type]))
         
         res.append(graph_to_tikz(lhs, factor_formats, r.lhs) +
                    ' &\longrightarrow ' +
