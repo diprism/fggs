@@ -58,7 +58,7 @@ class TestSumProduct(unittest.TestCase):
         import torch
         torch.set_default_dtype(torch.double)
         torch.autograd.set_detect_anomaly(True)
-        for fgg in [self.fgg_5]:
+        for fgg in [self.fgg_4, self.fgg_5]:
             in_labels = list(fgg.interp.factors.keys())
             in_values = [torch.tensor(fac.weights, requires_grad=True, dtype=torch.get_default_dtype())
                          for fac in fgg.interp.factors.values()]
