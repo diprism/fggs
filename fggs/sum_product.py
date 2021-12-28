@@ -174,6 +174,7 @@ class MultiTensor:
 
     def __getitem__(self, key):
         return self._t[key]
+    
     def __setitem__(self, key, value):
         if isinstance(value, MultiTensor):
             value = value._t
@@ -315,8 +316,8 @@ def linear(fgg: FGG, inputs: Dict[EdgeLabel, Tensor] = {}) -> MultiTensor:
     """
     hrg, interp = fgg.grammar, fgg.interp
 
-    nullary_index = {x:[] for x in hrg.nonterminals()}
-    unary_index = {(x,y):[] for x in hrg.nonterminals() for y in hrg.nonterminals()}
+    nullary_index = {n:[] for n in hrg.nonterminals()}
+    unary_index = {(n, m):[] for n in hrg.nonterminals() for m in hrg.nonterminals()}
     for n in hrg.nonterminals():
         if n in inputs:
             continue
@@ -464,7 +465,7 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
     """Compute the sum-product of an FGG.
     
     - fgg: The FGG to compute the sum-product of.
-    - method: What method to use ('fixed-point', 'linear', 'newton', 'broyden').
+    - method: What method to use ('linear', 'fixed-point', 'newton', 'broyden').
     - tol: Iterative algorithms terminate when the L∞ distance between consecutive iterates is below tol.
     - kmax: Number of iterations after which iterative algorithms give up.
     """
