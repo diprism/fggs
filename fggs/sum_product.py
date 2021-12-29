@@ -126,9 +126,9 @@ class MultiTensorDict(collections.abc.Mapping):
     def __init__(self, mt):
         self.mt = mt
     def __iter__(self):
-        return iter(self.nt_dict)
+        return iter(self.mt.nt_dict)
     def __len__(self):
-        return len(self.nt_dict)
+        return len(self.mt.nt_dict)
     def __getitem__(self, keys):
         if not isinstance(keys, tuple):
             keys = (keys,)
