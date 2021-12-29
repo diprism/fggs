@@ -61,6 +61,7 @@ class TestSumProduct(unittest.TestCase):
         torch.set_default_dtype(torch.double)
         for example in self.examples:
             if example.slow: continue
+            if not example.clean: continue # not implemented yet
             with self.subTest(example=str(example)):
                 fgg = example.fgg
                 in_labels = list(fgg.interp.factors.keys())
@@ -82,6 +83,7 @@ class TestSumProduct(unittest.TestCase):
 
     def test_linear(self):
         for example in self.examples:
+            if not example.clean: continue # not implemented yet
             with self.subTest(example=str(example)):
                 if example.linear:
                     z = sum_product(example.fgg, method='linear')
