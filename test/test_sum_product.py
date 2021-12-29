@@ -50,19 +50,26 @@ class TestSumProduct(unittest.TestCase):
             Example('test/simplefgg.json', value=0.25),
             Example('test/disconnected_node.json', value=torch.tensor([18., 18., 18.]), linear=True),
             Example('test/barhillel.json', value=torch.tensor([[0.1129, 0.0129], [0.0129, 0.1129]])),
+            Example('test/test.json', value=torch.tensor([7., 1., 1.]), clean=False),
         ]
         
 
     def test_fixed_point(self):
         for example in self.examples:
             with self.subTest(example=str(example)):
-                self.assertTrue(torch.norm(sum_product(example.fgg, method='fixed-point') - example.exact()) < 1e-2)
+                z = sum_product(example.fgg, method='fixed-point')
+                z_exact = example.exact()
+                self.assertTrue(torch.norm(z - z_exact) < 1e-2,
+                                f'{z} != {z_exact}')
 
     def test_linear(self):
         for example in self.examples:
             with self.subTest(example=str(example)):
                 if example.linear:
-                    self.assertTrue(torch.norm(sum_product(example.fgg, method='linear') - example.exact()) < 1e-10)
+                    z = sum_product(example.fgg, method='linear')
+                    z_exact = example.exact()
+                    self.assertTrue(torch.norm(z - z_exact) < 1e-10,
+                                    f'{z} != {z_exact}')
                 else:
                     with self.assertRaises(ValueError):
                         _ = sum_product(example.fgg, method='linear')
@@ -88,14 +95,16 @@ class TestSumProduct(unittest.TestCase):
             with self.subTest(example=str(example)):
                 z = sum_product(example.fgg, method='newton')
                 z_exact = example.exact()
-                self.assertTrue(torch.norm(z - z_exact) < 1e-2, f'{z} != {z_exact}')
+                self.assertTrue(torch.norm(z - z_exact) < 1e-2,
+                                f'{z} != {z_exact}')
                 
     def test_broyden(self):
         for example in self.examples:
             with self.subTest(example=str(example)):
                 z = sum_product(example.fgg, method='broyden')
                 z_exact = example.exact()
-                self.assertTrue(torch.norm(z - z_exact) < 1e-2, f'{z} != {z_exact}')
+                self.assertTrue(torch.norm(z - z_exact) < 1e-2,
+                                f'{z} != {z_exact}')
 
                 
 class TestSCC(unittest.TestCase):

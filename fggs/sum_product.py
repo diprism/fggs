@@ -165,7 +165,10 @@ class MultiTensor:
             value = value._t
         if isinstance(key, (str, EdgeLabel)):
             (n, k), _ = self.nt_dict[key]
-            self._t[n:k] = value.flatten()
+            if isinstance(value, Tensor):
+                self._t[n:k] = value.flatten()
+            else:
+                self._t[n:k] = value
         else:
             self._t[key] = value
 
