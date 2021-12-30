@@ -389,16 +389,16 @@ class SumProduct(torch.autograd.Function):
         inputs = dict(zip(ctx.in_labels, ctx.saved_tensors))
 
         hrg, interp = ctx.fgg.grammar, ctx.fgg.interp
-        grad_nt = MultiTensor.initialize(ctx.fgg)
-        f = MultiTensor.initialize(ctx.fgg)
 
-        jf = J(ctx.fgg, ctx.out_values, {})
+        jf = J(ctx.fgg, ctx.out_values, inputs)
 
         # Compute F(0) of adjoint grammar
+        f = MultiTensor.initialize(ctx.fgg)
         for x, grad_x in zip(ctx.out_labels, grad_out):
             f.dict[x] += grad_x
 
         # Solve linear system of equations
+        grad_nt = MultiTensor.initialize(ctx.fgg)
         grad_nt._t[...] = torch.linalg.solve(torch.eye(grad_nt.size()[0])-jf._t.T, f._t)
 
         # Compute gradients of factors
