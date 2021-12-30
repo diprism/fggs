@@ -165,7 +165,10 @@ class MultiTensor:
             value = value._t
         if isinstance(key, (str, EdgeLabel)):
             (n, k), _ = self.nt_dict[key]
-            self._t[n:k] = value.flatten()
+            if isinstance(value, Tensor):
+                self._t[n:k] = value.flatten()
+            else:
+                self._t[n:k] = value
         else:
             self._t[key] = value
 
@@ -212,10 +215,7 @@ def J(fgg: FGG, x: MultiTensor) -> Tensor:
                 edges = set(rule.rhs.edges()) - {edge}
                 tau_edge = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, x)
                 tau_edge = tau_edge.reshape(Jx.get(n, edge.label).size())
-                Jx.get(n, edge.label)[...] += tau_edge
-        block = Jx.get(n, n, flat=True)
-        block_size = block.size()[0]
-        block[...] -= 1 if block_size == 1 else torch.eye(block_size)
+                Jx.get(n, edge.label)[...] = Jx.get(n, edge.label) + tau_edge
     return Jx
 
 def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iterable[Edge], ext: Tuple[Node], x: MultiTensor = None) -> Tensor:
@@ -274,40 +274,19 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
 def linear(fgg: FGG, x: MultiTensor) -> Tensor:
     hrg, interp = fgg.grammar, fgg.interp
 
-    nullary_index = {n:[] for n in hrg.nonterminals()}
-    unary_index = {(n, m):[] for n in hrg.nonterminals() for m in hrg.nonterminals()}
+    # Check linearity and compute F(0)
+    Fx = MultiTensor.initialize(fgg)
     for n in hrg.nonterminals():
         for rule in hrg.rules(n):
             edges = [e for e in rule.rhs.edges() if e.label.is_nonterminal]
             if len(edges) == 0:
-                nullary_index[n].append(rule)
-            elif len(edges) == 1:
-                unary_index[n, edges[0].label].append((rule, edges[0]))
-            else:
+                Fx.get(n)[...] = Fx.get(n) + sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext)
+            elif len(edges) > 1:
                 raise ValueError('FGG is not linearly recursive')
 
-    N = x.size()[0]
-    Fx = MultiTensor.initialize(fgg)
-    Jx = MultiTensor.initialize(fgg, ndim=2)
-    for n in hrg.nonterminals():
-        # Compute JF(0)
-        for m in hrg.nonterminals():
-            z_rules = []
-            for rule, edge in unary_index[n, m]:
-                ext = rule.rhs.ext + edge.nodes
-                edges = set(rule.rhs.edges()) - {edge}
-                z_rules.append(sum_product_edges(interp, rule.rhs.nodes(), edges, ext))
-            if len(z_rules) > 0:
-                Jx.get(n, m)[...] = sum(z_rules).view(Jx.get(n, m).size())
-
-        # Compute F(0)
-        z_rules = []
-        for rule in nullary_index[n]:
-            z_rules.append(sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext))
-        if len(z_rules) > 0:
-            Fx.get(n)[...] = sum(z_rules).view(Fx.get(n).size())
-
-    x._t[...] = torch.linalg.solve(torch.eye(N)-Jx._t, Fx._t)
+    Jx = J(fgg, x)
+    
+    x._t[...] = torch.linalg.solve(torch.eye(Jx.size()[0])-Jx._t, Fx._t)
 
 def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kmax: int = 1000) -> Tensor:
     """Compute the sum-product of an FGG.
@@ -323,7 +302,8 @@ def sum_product(fgg: FGG, *, method: str = 'fixed-point', tol: float = 1e-6, kma
     elif method == 'fixed-point':
         fixed_point(lambda x: F(fgg, x), x0, tol=tol, kmax=kmax)
     elif method == 'newton':
-        newton(lambda x: F(fgg, x) - x, lambda x: J(fgg, x), x0, tol=tol, kmax=kmax)
+        N = x0.size()[0]
+        newton(lambda x: F(fgg, x) - x, lambda x: J(fgg, x) - torch.eye(N), x0, tol=tol, kmax=kmax)
     elif method == 'broyden':
         # Broyden's method may fail to converge without a sufficient
         # initial approximation of the Jacobian. If the method doesn't
