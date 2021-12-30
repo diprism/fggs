@@ -381,7 +381,7 @@ class SumProduct(torch.autograd.Function):
                 raise ValueError('unsupported method for computing sum-product')
             out = x0
 
-        ctx.out_values = out.dict
+        ctx.out_values = out
         return tuple(out.dict[nt] for nt in out_labels)
 
     @staticmethod
@@ -391,24 +391,15 @@ class SumProduct(torch.autograd.Function):
         hrg, interp = ctx.fgg.grammar, ctx.fgg.interp
         grad_nt = MultiTensor.initialize(ctx.fgg)
         f = MultiTensor.initialize(ctx.fgg)
-        jf = MultiTensor.initialize(ctx.fgg, ndim=2)
 
-        # Compute JF(0) of adjoint grammar
-        for rule in hrg.all_rules():
-            y = rule.lhs
-            for edge in rule.rhs.edges():
-                if edge.label.is_terminal: continue
-                x = edge.label
-                ext = edge.nodes + rule.rhs.ext
-                edges = set(rule.rhs.edges()) - {edge}
-                jf.dict[x,y] += sum_product_edges(interp, rule.rhs.nodes(), edges, ext, inputs, ctx.out_values)
+        jf = J(ctx.fgg, ctx.out_values, {})
 
         # Compute F(0) of adjoint grammar
         for x, grad_x in zip(ctx.out_labels, grad_out):
             f.dict[x] += grad_x
 
         # Solve linear system of equations
-        grad_nt._t[...] = torch.linalg.solve(torch.eye(grad_nt.size()[0])-jf._t, f._t)
+        grad_nt._t[...] = torch.linalg.solve(torch.eye(grad_nt.size()[0])-jf._t.T, f._t)
 
         # Compute gradients of factors
         grad_t = {}
@@ -417,23 +408,16 @@ class SumProduct(torch.autograd.Function):
                 grad_t[el] = torch.zeros([interp.domains[nl].size() for nl in el.type])
 
         for rule in hrg.all_rules():
-            y = rule.lhs
-            grad_y = grad_nt.dict[y]
+            grad_y = grad_nt.dict[rule.lhs]
             for edge in rule.rhs.edges():
                 if edge.label in grad_t:
                     ext = edge.nodes + rule.rhs.ext
                     edges = set(rule.rhs.edges()) - {edge}
-                    j = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, inputs, ctx.out_values)
+                    j = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, ctx.out_values.dict, inputs)
                     grad_t[edge.label] += torch.tensordot(j, grad_y, len(rule.rhs.ext))
 
-        grad_in = []
-        for el in ctx.in_labels:
-            if el.is_terminal:
-                grad_in.append(grad_t[el])
-            else:
-                grad_in.append(grad_nt[el])
-
-        return (None, None, None, None) + tuple(grad_in)
+        grad_in = tuple(grad_t[el] if el.is_terminal else grad_nt[el] for el in ctx.in_labels)
+        return (None, None, None, None) + grad_in
 
 
 def sum_product(fgg: FGG, **opts) -> Tensor:
