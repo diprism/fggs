@@ -2,7 +2,7 @@ __all__ = ['sum_product']
 
 from fggs.fggs import FGG, HRG, HRGRule, Interpretation, EdgeLabel, Edge, Node
 from fggs.factors import CategoricalFactor
-from typing import Callable, Dict, Sequence, Iterable, Tuple, List, Iterable
+from typing import Callable, Dict, Sequence, Iterable, Tuple, List
 from functools import reduce
 import collections.abc
 import warnings, torch
@@ -302,7 +302,7 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
             mul *= interp.domains[n.label].size()
     if mul > 1:
         out = out * mul
-
+        
     return out
 
 
@@ -424,7 +424,7 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
     """Compute the sum-product of an FGG.
     
     - fgg: The FGG to compute the sum-product of.
-    - method: What method to use ('fixed-point', 'linear', 'newton', 'broyden').
+    - method: What method to use ('linear', 'fixed-point', 'newton', 'broyden').
     - tol: Iterative algorithms terminate when the L∞ distance between consecutive iterates is below tol.
     - kmax: Number of iterations after which iterative algorithms give up.
     """
