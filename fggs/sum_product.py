@@ -203,6 +203,7 @@ class MultiTensor:
     
 
 def F(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor]) -> MultiTensor:
+    # boolalg = False
     hrg, interp = fgg.grammar, fgg.interp
     Fx = x.clone()
     for n in hrg.nonterminals():
@@ -210,6 +211,8 @@ def F(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor]) -> MultiTensor:
         for rule in hrg.rules(n):
             tau_R.append(sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x.dict, inputs))
         Fx.dict[n] = sum(tau_R)
+        # Fx.dict[n] = sum(tau_R) if not boolalg \
+        #     else (sum(tau_R) > 0.).float()
     return Fx
 
 
@@ -414,7 +417,9 @@ class SumProduct(torch.autograd.Function):
                     ext = edge.nodes + rule.rhs.ext
                     edges = set(rule.rhs.edges()) - {edge}
                     j = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, ctx.out_values.dict, inputs)
-                    grad_t[edge.label] += torch.tensordot(j, grad_y, len(rule.rhs.ext))
+                    # https://github.com/pytorch/pytorch/issues/61096 (PyTorch 1.9.0)
+                    grad_t[edge.label] += torch.tensordot(j, grad_y, len(rule.rhs.ext)) if len(rule.rhs.ext) > 0 \
+                        else j.reshape(j.size() + (1,) * grad_y.dim()) * grad_y
 
         grad_in = tuple(grad_t[el] if el.is_terminal else grad_nt[el] for el in ctx.in_labels)
         return (None, None, None, None) + grad_in
