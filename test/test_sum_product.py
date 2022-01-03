@@ -1,5 +1,5 @@
 from fggs import sum_product, FGG, Interpretation, CategoricalFactor, json_to_fgg
-from fggs.sum_product import scc, MultiTensor
+from fggs.sum_product import scc, MultiTensor, SumProduct
 import unittest, warnings, torch, random, json
 
 def load_fgg(filename):
@@ -7,10 +7,11 @@ def load_fgg(filename):
         return json_to_fgg(json.load(f))
 
 class Example:
-    def __init__(self, filename, linear=False, clean=True, value=None):
+    def __init__(self, filename, linear=False, clean=True, slow=False, value=None):
         self.name = filename
         self.linear = linear
         self.clean = clean
+        self.slow = slow
         if value is not None:
             self.value = value
         self.fgg = load_fgg(filename)
@@ -23,7 +24,7 @@ class Example:
 
 class PPLExample(Example):
     def __init__(self, p):
-        super().__init__('test/example12p.json', clean=False)
+        super().__init__('test/example12p.json', clean=False, slow=True)
         self.p = p
         self.fgg.interp.factors[self.fgg.grammar.get_edge_label('p')].weights = [1 - p, p]
         
@@ -51,8 +52,26 @@ class TestSumProduct(unittest.TestCase):
             Example('test/disconnected_node.json', value=torch.tensor([18., 18., 18.]), linear=True),
             Example('test/barhillel.json', value=torch.tensor([[0.1129, 0.0129], [0.0129, 0.1129]])),
             Example('test/test.json', value=torch.tensor([7., 1., 1.]), clean=False),
+            Example('test/linear.json', value=7.5, linear=True),
         ]
         
+
+    def test_autograd(self):
+        import torch
+        torch.set_default_dtype(torch.double)
+        for example in self.examples:
+            if example.slow: continue
+            if not example.clean: continue # not implemented yet
+            with self.subTest(example=str(example)):
+                fgg = example.fgg
+                in_labels = list(fgg.interp.factors.keys())
+                in_values = [torch.tensor(fac.weights, requires_grad=True, dtype=torch.get_default_dtype())
+                             for fac in fgg.interp.factors.values()]
+                out_labels = list(fgg.grammar.nonterminals())
+                def f(*in_values):
+                    opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100}
+                    return SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
+                self.assertTrue(torch.autograd.gradcheck(f, in_values, atol=1e-3))
 
     def test_fixed_point(self):
         for example in self.examples:
@@ -64,6 +83,7 @@ class TestSumProduct(unittest.TestCase):
 
     def test_linear(self):
         for example in self.examples:
+            if not example.clean: continue # not implemented yet
             with self.subTest(example=str(example)):
                 if example.linear:
                     z = sum_product(example.fgg, method='linear')
@@ -115,25 +135,21 @@ class TestSCC(unittest.TestCase):
 class TestMultiTensor(unittest.TestCase):
     def setUp(self):
         self.fgg_1 = load_fgg('test/hmm.json')
+        self.S, self.X = self.fgg_1.grammar.get_edge_label('S'), self.fgg_1.grammar.get_edge_label('X')
         
     def test_basic(self):
-        fgg = self.fgg_1
-        hrg = fgg.grammar
-        mt = MultiTensor.initialize(fgg)
+        mt = MultiTensor.initialize(self.fgg_1)
         self.assertEqual(list(mt.size()), [7])
-        self.assertEqual(list(mt.get(hrg.get_edge_label('S')).size()), [])
-        self.assertEqual(list(mt.get(hrg.get_edge_label('X')).size()), [6])
+        self.assertEqual(list(mt.dict[self.S].size()), [])
+        self.assertEqual(list(mt.dict[self.X].size()), [6])
 
     def test_square(self):
-        fgg = self.fgg_1
-        hrg = fgg.grammar
         mt = MultiTensor.initialize(self.fgg_1, ndim=2)
         self.assertEqual(list(mt.size()), [7, 7])
-        S, X = hrg.get_edge_label('S'), hrg.get_edge_label('X')
-        self.assertEqual(list(mt.get(S, S).size()), [])
-        self.assertEqual(list(mt.get(S, X).size()), [6])
-        self.assertEqual(list(mt.get(X, S).size()), [6])
-        self.assertEqual(list(mt.get(X, X).size()), [6, 6])
+        self.assertEqual(list(mt.dict[self.S, self.S].size()), [])
+        self.assertEqual(list(mt.dict[self.S, self.X].size()), [6])
+        self.assertEqual(list(mt.dict[self.X, self.S].size()), [6])
+        self.assertEqual(list(mt.dict[self.X, self.X].size()), [6, 6])
         
 if __name__ == '__main__':
     unittest.main()
