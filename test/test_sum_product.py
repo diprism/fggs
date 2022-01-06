@@ -150,6 +150,11 @@ class TestMultiTensor(unittest.TestCase):
         self.assertEqual(list(mt.dict[self.S, self.X].size()), [6])
         self.assertEqual(list(mt.dict[self.X, self.S].size()), [6])
         self.assertEqual(list(mt.dict[self.X, self.X].size()), [6, 6])
+
+    def test_ops(self):
+        x = MultiTensor.initialize(self.fgg_1)
+        y = x + 1.
+        self.assertTrue(torch.norm(y - (x._t + 1.)) < 1e-6)
         
 if __name__ == '__main__':
     unittest.main()
