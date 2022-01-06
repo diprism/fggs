@@ -196,10 +196,8 @@ class MultiTensor:
     def __torch_function__(cls, func, types, args=(), kwargs=None):
         if kwargs is None:
             kwargs = {}
-        args = [a._t if hasattr(a, '_t') else a for a in args]
-        metadata = tuple(a.nt_dict if hasattr(a, 'nt_dict') else a for a in args)
-        assert len(metadata) > 0
-        return MultiTensor(func(*args, **kwargs), nt_dict=metadata[0])
+        args = [a._t if isinstance(a, MultiTensor) else a for a in args]
+        return func(*args, **kwargs)
     
 
 def F(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor]) -> MultiTensor:
