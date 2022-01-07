@@ -280,7 +280,7 @@ class HRGRule:
         if self.lhs.is_terminal:
             raise Exception(f"Can't make HRG rule with terminal left-hand side.")
         if (self.lhs.type != self.rhs.type):
-            raise Exception(f"Can't make HRG rule: left-hand side of type ({','.join(l.name for l in lhs.type)}) not compatible with right-hand side of type ({','.join(l.name for l in rhs.type)}).")
+            raise Exception(f"Can't make HRG rule: left-hand side of type ({','.join(l.name for l in self.lhs.type)}) not compatible with right-hand side of type ({','.join(l.name for l in self.rhs.type)}).")
 
     def copy(self):
         """Returns a copy of this HRGRule, whose right-hand side is a copy of the original's."""
