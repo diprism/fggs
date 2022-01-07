@@ -185,7 +185,7 @@ for epoch in range(100):
             # for avoiding z = 0.
             z = fggs.sum_product(fgg, method='newton', kmax=100, tol=1e-30)
 
-            loss = -w + minibatch_size * torch.log(z)
+            loss = -w + len(minibatch) * torch.log(z)
             train_loss += loss.item()
 
             opt.zero_grad()
