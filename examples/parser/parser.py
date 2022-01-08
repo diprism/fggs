@@ -142,7 +142,7 @@ hrg = fggs.factorize(hrg)
 fgg = fggs.FGG(hrg, interp)
 
 print('begin training')
-opt = torch.optim.SGD(params.values(), lr=1e-2)
+opt = torch.optim.Adam(params.values(), lr=1e-1)
 
 def minibatches(iterable, size):
     b = []
