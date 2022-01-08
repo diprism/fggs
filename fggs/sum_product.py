@@ -276,11 +276,8 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
         # If an external node has no edges, einsum will complain, so remove it.
         equation += ''.join(node_to_index[node] for node in ext if node in connected)
 
-        c = torch_semiring_einsum.compile_equation(equation)
-        try:
-            out = torch_semiring_einsum.log_einsum(c, *tensors, block_size=16)
-        except:
-            print(equation)
+        compiled = torch_semiring_einsum.compile_equation(equation)
+        out = torch_semiring_einsum.log_einsum(compiled, *tensors, block_size=16)
     else:
         out = torch.tensor(0.)
 
@@ -440,7 +437,8 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
         w = interp.factors[t].weights
         if not isinstance(w, Tensor):
             w = torch.tensor(w, dtype=torch.get_default_dtype())
-        in_values.append(torch.log(w))
+        #in_values.append(torch.log(w))
+        in_values.append(w)
     out_labels = list(hrg.nonterminals())
     out = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
-    return torch.exp(out[out_labels.index(fgg.grammar.start_symbol)])
+    return out[out_labels.index(fgg.grammar.start_symbol)]

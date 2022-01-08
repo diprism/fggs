@@ -142,7 +142,7 @@ hrg = fggs.factorize(hrg)
 fgg = fggs.FGG(hrg, interp)
 
 print('begin training')
-opt = torch.optim.SGD(params.values(), lr=1e-2)
+opt = torch.optim.Adam(params.values(), lr=0.1)
 
 def minibatches(iterable, size):
     b = []
@@ -176,16 +176,17 @@ for epoch in range(100):
                         else:
                             assert False
 
-            # PyTorch doesn't allow reusing non-leaf nodes,
-            # so we have to recompute exps every time
             for el in params:
-                interp.factors[el].weights = torch.exp(params[el])
+                interp.factors[el].weights = params[el]
                 
             # Newton's method currently works better than fixed-point iteration
             # for avoiding z = 0.
-            z = fggs.sum_product(fgg, method='newton', kmax=100, tol=1e-30)
+            z = fggs.sum_product(fgg, method='fixed-point', kmax=100, tol=1e-30)
 
-            loss = -w + len(minibatch) * torch.log(z)
+            print('w', w)
+            print('z', z)
+
+            loss = -w + len(minibatch) * z
             train_loss += loss.item()
 
             opt.zero_grad()
