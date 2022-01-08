@@ -322,7 +322,10 @@ def tree_decomposition_from_order(graph, order):
         add_node(tree, tnew)
         if tv is not None:
             add_edge(tree, tv, tnew)
-    build(order)
+    if len(order) == 0:
+        add_node(tree, frozenset())
+    else:
+        build(order)
     return tree
     
 def tree_decomposition(graph, method='min_fill'):
