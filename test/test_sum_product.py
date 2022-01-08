@@ -67,10 +67,13 @@ class TestSumProduct(unittest.TestCase):
                 in_labels = list(fgg.interp.factors.keys())
                 in_values = [torch.tensor(fac.weights, requires_grad=True, dtype=torch.get_default_dtype())
                              for fac in fgg.interp.factors.values()]
+                in_values = [torch.log(w) for w in in_values]
                 out_labels = list(fgg.grammar.nonterminals())
                 def f(*in_values):
                     opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100}
-                    return SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
+                    ret = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
+                    # put exp inside f to avoid gradcheck computing -inf - -inf
+                    return tuple(torch.exp(z) for z in ret)
                 self.assertTrue(torch.autograd.gradcheck(f, in_values, atol=1e-3))
 
     def test_fixed_point(self):
