@@ -459,7 +459,7 @@ class Interpretation:
             nls = x.type
         else:
             nls = x.label.type
-        return [self.domains[nl].size() for nl in nls]
+        return tuple(self.domains[nl].size() for nl in nls)
     
 class FactorGraph:
     """A factor graph.
