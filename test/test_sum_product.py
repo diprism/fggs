@@ -1,6 +1,7 @@
 from fggs import sum_product, FGG, Interpretation, CategoricalFactor, json_to_fgg
 from fggs.sum_product import scc, MultiTensor, SumProduct
-import unittest, warnings, torch, random, json
+from fggs.semirings import *
+import unittest, warnings, torch, random, json, copy
 
 def load_fgg(filename):
     with open(filename) as f:
@@ -46,23 +47,22 @@ class TestSumProduct(unittest.TestCase):
         warnings.filterwarnings('ignore', message='.*maximum iteration.*')
 
         self.examples = [
-            Example('test/hmm.json', value=1., linear=True),
-            #PPLExample(0.1), PPLExample(0.5), PPLExample(0.9),
-            #Example('test/simplefgg.json', value=0.25),
-            #Example('test/disconnected_node.json', value=torch.tensor([18., 18., 18.]), linear=True),
-            #Example('test/barhillel.json', value=torch.tensor([[0.1129, 0.0129], [0.0129, 0.1129]])),
-            #Example('test/test.json', value=torch.tensor([7., 1., 1.]), clean=False),
-            #Example('test/linear.json', value=7.5, linear=True),
+            Example('test/hmm.json', value=1., linear=True, clean=False),
+            PPLExample(0.1), PPLExample(0.5), PPLExample(0.9),
+            Example('test/simplefgg.json', value=0.25),
+            Example('test/disconnected_node.json', value=torch.tensor([18., 18., 18.]), linear=True),
+            Example('test/barhillel.json', value=torch.tensor([[0.1129, 0.0129], [0.0129, 0.1129]])),
+            Example('test/test.json', value=torch.tensor([7., 1., 1.]), clean=False),
+            Example('test/linear.json', value=7.5, linear=True),
         ]
 
         for ex in self.examples:
             for fac in ex.fgg.interp.factors.values():
                 if not isinstance(fac.weights, torch.Tensor):
                     fac.weights = torch.tensor(fac.weights, dtype=torch.get_default_dtype())
-                fac.weights = torch.log(fac.weights)
+
 
     def test_autograd(self):
-        import torch
         torch.set_default_dtype(torch.double)
         for example in self.examples:
             if example.slow: continue
@@ -75,6 +75,22 @@ class TestSumProduct(unittest.TestCase):
                 out_labels = list(fgg.grammar.nonterminals())
                 def f(*in_values):
                     opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100}
+                    return SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
+                self.assertTrue(torch.autograd.gradcheck(f, in_values, atol=1e-3))
+
+    def test_autograd_log(self):
+        torch.set_default_dtype(torch.double)
+        for example in self.examples:
+            if example.slow: continue
+            if not example.clean: continue # not implemented yet
+            with self.subTest(example=str(example)):
+                fgg = example.fgg
+                in_labels = list(fgg.interp.factors.keys())
+                in_values = [fac.weights.log().to(torch.double).requires_grad_(True)
+                             for fac in fgg.interp.factors.values()]
+                out_labels = list(fgg.grammar.nonterminals())
+                def f(*in_values):
+                    opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100, 'semiring': LogSemiring}
                     ret = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
                     # put exp inside f to avoid gradcheck computing -inf - -inf
                     return tuple(torch.exp(z) for z in ret)
@@ -83,12 +99,24 @@ class TestSumProduct(unittest.TestCase):
     def test_fixed_point(self):
         for example in self.examples:
             with self.subTest(example=str(example)):
-                z = torch.exp(sum_product(example.fgg, method='fixed-point'))
+                z = sum_product(example.fgg, method='fixed-point')
                 z_exact = example.exact()
                 self.assertTrue(torch.norm(z - z_exact) < 1e-2,
                                 f'{z} != {z_exact}')
 
-    def xtest_linear(self):
+    def test_fixed_point_log(self):
+        for example in self.examples:
+            with self.subTest(example=str(example)):
+                interp = copy.deepcopy(example.fgg.interp)
+                for fac in interp.factors.values():
+                    fac.weights = torch.log(fac.weights)
+                fgg = FGG(example.fgg.grammar, interp)
+                z = torch.exp(sum_product(fgg, method='fixed-point', semiring=LogSemiring))
+                z_exact = example.exact()
+                self.assertTrue(torch.norm(z - z_exact) < 1e-2,
+                                f'{z} != {z_exact}')
+
+    def test_linear(self):
         for example in self.examples:
             if not example.clean: continue # not implemented yet
             with self.subTest(example=str(example)):
@@ -101,22 +129,7 @@ class TestSumProduct(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         _ = sum_product(example.fgg, method='linear')
 
-    def xtest_linear_grad(self):
-        for example in self.examples:
-            if not example.linear: continue
-            with self.subTest(example=str(example)):
-                interp = Interpretation()
-                for nl, dom in example.fgg.interp.domains.items():
-                    interp.add_domain(nl, dom)
-                for el, fac in example.fgg.interp.factors.items():
-                    fac = CategoricalFactor(fac.domains, fac.weights)
-                    fac.weights = torch.tensor(fac.weights, requires_grad=True, dtype=torch.get_default_dtype())
-                    interp.add_factor(el, fac)
-                fgg = FGG(example.fgg.grammar, interp)
-                z = sum_product(fgg, method='linear').sum()
-                z.backward()
-
-    def xtest_newton(self):
+    def test_newton(self):
         for example in self.examples:
             if not example.clean: continue # not implemented yet
             with self.subTest(example=str(example)):
