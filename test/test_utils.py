@@ -2,7 +2,7 @@ import unittest
 from fggs.domains import *
 from fggs.factors import *
 from fggs.fggs import *
-from fggs.fgg_utils import *
+from fggs.utils import *
 
 class TestSingleton(unittest.TestCase):
 
