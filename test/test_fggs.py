@@ -308,17 +308,17 @@ class TestHRG(unittest.TestCase):
         self.graph2.ext = [self.node3]
         self.rule2 = HRGRule(self.el2, self.graph2)
 
-        self.fgg = HRG(self.start)
-        self.fgg.add_node_label(self.nl1)
-        self.fgg.add_node_label(self.nl2)
-        self.fgg.add_edge_label(self.el1)
-        self.fgg.add_edge_label(self.el2)
-        self.fgg.add_edge_label(self.start)
-        self.fgg.add_rule(self.rule)
-        self.fgg.add_rule(self.rule2)
+        self.hrg = HRG(self.start)
+        self.hrg.add_node_label(self.nl1)
+        self.hrg.add_node_label(self.nl2)
+        self.hrg.add_edge_label(self.el1)
+        self.hrg.add_edge_label(self.el2)
+        self.hrg.add_edge_label(self.start)
+        self.hrg.add_rule(self.rule)
+        self.hrg.add_rule(self.rule2)
 
     def test_add_node_label(self):
-        node_labels = self.fgg.node_labels()
+        node_labels = self.hrg.node_labels()
         self.assertEqual(len(node_labels), 2)
         self.assertTrue(self.nl1 in node_labels)
         self.assertTrue(self.nl2 in node_labels)
@@ -326,17 +326,17 @@ class TestHRG(unittest.TestCase):
         # equivalent to an existing node label; code should
         # treat them as the same node label
         nl3 = NodeLabel("nl1")
-        self.fgg.add_node_label(nl3)
-        self.assertEqual(len(self.fgg.node_labels()), 2)
+        self.hrg.add_node_label(nl3)
+        self.assertEqual(len(self.hrg.node_labels()), 2)
     
     def test_nonterminals(self):
-        nonterminals = self.fgg.nonterminals()
+        nonterminals = self.hrg.nonterminals()
         self.assertEqual(len(nonterminals), 2)
         self.assertTrue(self.start in nonterminals)
         self.assertTrue(self.el2 in nonterminals)
         
     def test_terminals(self):
-        terminals = self.fgg.terminals()
+        terminals = self.hrg.terminals()
         self.assertEqual(len(terminals), 1)
         self.assertTrue(self.el1 in terminals)
     
@@ -345,37 +345,37 @@ class TestHRG(unittest.TestCase):
         # nonterminal with nonterminal
         nt = EdgeLabel("el2", (self.nl1, self.nl1), is_nonterminal=True)
         with self.assertRaises(Exception):
-            self.fgg.add_edge_label(nt)
+            self.hrg.add_edge_label(nt)
         
         # terminal with terminal
         t = EdgeLabel("el1", (self.nl1, self.nl1), is_terminal=True)
         with self.assertRaises(Exception):
-            self.fgg.add_edge_label(t)
+            self.hrg.add_edge_label(t)
         
         # nonterminal with terminal
         nt = EdgeLabel("el1", (self.nl1, self.nl1), is_nonterminal=True)
         with self.assertRaises(Exception):
-            self.fgg.add_edge_label(nt)
+            self.hrg.add_edge_label(nt)
         
         # terminal with nonterminal
         t = EdgeLabel("el2", (self.nl1, self.nl1), is_nonterminal=True)
         with self.assertRaises(Exception):
-            self.fgg.add_edge_label(t)
+            self.hrg.add_edge_label(t)
             
         # it should allow you to add the same edge label a second time
-        self.fgg.add_edge_label(self.start)
-        self.fgg.add_edge_label(self.el1)
+        self.hrg.add_edge_label(self.start)
+        self.hrg.add_edge_label(self.el1)
 
     def test_set_start_symbol(self):
-        self.assertEqual(self.fgg.start_symbol, self.start)
+        self.assertEqual(self.hrg.start_symbol, self.start)
 
     def test_add_rule(self):
-        all_rules = self.fgg.all_rules()
+        all_rules = self.hrg.all_rules()
         self.assertEqual(len(all_rules), 2)
         self.assertTrue(self.rule in all_rules)
         self.assertTrue(self.rule2 in all_rules)
         
-        start_rules = self.fgg.rules(self.start)
+        start_rules = self.hrg.rules(self.start)
         self.assertEqual(len(start_rules), 1)
         self.assertTrue(self.rule in start_rules)
 
@@ -394,17 +394,17 @@ class TestHRG(unittest.TestCase):
         new_graph.ext = (new_node1, new_node2)
         new_rule  = HRGRule(new_nt, new_graph)
         
-        self.fgg.add_rule(new_rule)
+        self.hrg.add_rule(new_rule)
         
-        self.assertTrue(new_nl in self.fgg.node_labels())
-        self.assertTrue(new_nt in self.fgg.nonterminals())
-        self.assertTrue(new_t  in self.fgg.terminals())
+        self.assertTrue(new_nl in self.hrg.node_labels())
+        self.assertTrue(new_nt in self.hrg.nonterminals())
+        self.assertTrue(new_t  in self.hrg.terminals())
         
     def test_copy_equal(self):
-        fgg = self.fgg
-        copy = self.fgg.copy()
-        self.assertNotEqual(id(fgg), id(copy))
-        self.assertEqual(fgg, copy)
+        hrg = self.hrg
+        copy = self.hrg.copy()
+        self.assertNotEqual(id(hrg), id(copy))
+        self.assertEqual(hrg, copy)
 
 
 class TestInterpretation(unittest.TestCase):
