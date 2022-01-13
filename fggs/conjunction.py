@@ -17,7 +17,7 @@ def nonterminal_pairs(hrg1, hrg2):
     for el1 in hrg1.nonterminals():
         for el2 in hrg2.nonterminals():
             new_nt_name = f'<{el1.name},{el2.name}>'
-            new_nt_name = utils.unique_edge_label(new_nt_name, labels)
+            new_nt_name = utils.unique_label_name(new_nt_name, labels)
             new_nt = fggs.EdgeLabel(new_nt_name,
                                     node_labels=el1.type,
                                     is_nonterminal=True)

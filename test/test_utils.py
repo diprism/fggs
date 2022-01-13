@@ -11,9 +11,9 @@ class TestUniqueName(unittest.TestCase):
         self.el1 = EdgeLabel("e", [], is_terminal=True)
         self.el2 = EdgeLabel("e_1", [], is_terminal=True)
         
-    def test_unique_edge_label(self):
-        self.assertEqual(unique_edge_label("e", [self.el1, self.el2]), "e_2")
-        self.assertEqual(unique_edge_label("f", [self.el1, self.el2]), "f")
+    def test_unique_label_name(self):
+        self.assertEqual(unique_label_name("e", [self.el1, self.el2]), "e_2")
+        self.assertEqual(unique_label_name("f", [self.el1, self.el2]), "f")
 
 
 class TestSingleton(unittest.TestCase):

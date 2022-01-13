@@ -1,11 +1,11 @@
-from typing import Iterable
+from typing import Iterable, Union
 from fggs.fggs import *
 
 
-def unique_edge_label(name: str, els: Iterable[EdgeLabel]) -> str:
-    """Given an edge label name, modify it until it does not
-    overlap with any existing edge label name."""
-    names = [el.name for el in els]
+def unique_label_name(name: str, labs: Iterable[Union[NodeLabel, EdgeLabel]]) -> str:
+    """Given an name, modify it until it does not overlap with
+    a given set of NodeLabel/EdgeLabel names."""
+    names = [lab.name for lab in labs]
     new_name = name
     i = 1
     while new_name in names:
@@ -19,7 +19,7 @@ def singleton_hrg(graph: Graph) -> HRG:
 
     # Construct a new edge label name which is not already used in the graph
     edge_labels = [edge.label for edge in graph.edges()]
-    start_name = unique_edge_label("<S>", edge_labels)
+    start_name = unique_label_name("<S>", edge_labels)
 
     start   = EdgeLabel(start_name, graph.type, is_nonterminal=True)
     rule    = HRGRule(start, graph)
