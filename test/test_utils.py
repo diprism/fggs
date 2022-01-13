@@ -4,6 +4,18 @@ from fggs.factors import *
 from fggs.fggs import *
 from fggs.utils import *
 
+
+class TestUniqueName(unittest.TestCase):
+    
+    def setUp(self):
+        self.el1 = EdgeLabel("e", [], is_terminal=True)
+        self.el2 = EdgeLabel("e_1", [], is_terminal=True)
+        
+    def test_unique_edge_label(self):
+        self.assertEqual(unique_edge_label("e", [self.el1, self.el2]), "e_2")
+        self.assertEqual(unique_edge_label("f", [self.el1, self.el2]), "f")
+
+
 class TestSingleton(unittest.TestCase):
 
     def setUp(self):
@@ -31,11 +43,8 @@ class TestSingleton(unittest.TestCase):
     
     def test_unique_start_name(self):
         s1_lab  = EdgeLabel("<S>", [], is_terminal=True)
-        s2_lab  = EdgeLabel("<<S>>", [], is_terminal=True)
         s1_edge = Edge(s1_lab, [])
-        s2_edge = Edge(s2_lab, [])
         self.graph.add_edge(s1_edge)
-        self.graph.add_edge(s2_edge)
         
         g = singleton_hrg(self.graph)
-        self.assertEqual(g.start_symbol.name, "<<<S>>>")
+        self.assertEqual(g.start_symbol.name, "<S>_1")
