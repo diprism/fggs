@@ -2,3 +2,4 @@ numpy
 torch
 pydot
 torch-semiring-einsum
+tqdm

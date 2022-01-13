@@ -129,9 +129,7 @@ elif args.method == 'pattern':
             is_terminal=True
         )
         pattern_els[pattern] = el
-        domains = [interp.domains[nl] for nl in el.type]
-        shape = [dom.size() for dom in domains]
-        params[el] = torch.full(shape, fill_value=1., requires_grad=True)
+        params[el] = torch.full(interp.shape(el), fill_value=1., requires_grad=True)
         weights = torch.zeros(shape) # will set weights later
         interp.add_factor(el, fggs.CategoricalFactor(domains, weights)) 
         hrhs.add_edge(fggs.Edge(el, [parent]+children))

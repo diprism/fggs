@@ -1,6 +1,7 @@
 __all__ = ['conjoin_hrgs']
 
 from fggs import fggs
+from fggs import utils
 
 def nonterminal_pairs(hrg1, hrg2):
     """Generate new nonterminal symbols for all possible pairs of nonterminals from hrg1 and hrg2.
@@ -12,20 +13,16 @@ def nonterminal_pairs(hrg1, hrg2):
     """
 
     nt_map = {}
-    names = set([t.name for t in hrg1.terminals()]) | set([t.name for t in hrg2.terminals()])
+    labels = set(hrg1.terminals()) | set(hrg2.terminals())
     for el1 in hrg1.nonterminals():
         for el2 in hrg2.nonterminals():
-            new_nt = fggs.EdgeLabel(name=f'<{el1.name},{el2.name}>',
-                                    is_nonterminal=True,
-                                    node_labels=el1.type)
-            i = 2
-            while new_nt.name in names:
-                new_nt = fggs.EdgeLabel(name=f'<{el1.name},{el2.name}>_{i}',
-                                        is_nonterminal=True,
-                                        node_labels=el1.type)
-                i += 1
+            new_nt_name = f'<{el1.name},{el2.name}>'
+            new_nt_name = utils.unique_label_name(new_nt_name, labels)
+            new_nt = fggs.EdgeLabel(new_nt_name,
+                                    node_labels=el1.type,
+                                    is_nonterminal=True)
             nt_map[el1,el2] = new_nt
-            names.add(new_nt.name)
+            labels.add(new_nt)
     return nt_map
 
 def check_namespace_collisions(hrg1, hrg2):

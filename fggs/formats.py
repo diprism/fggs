@@ -123,7 +123,6 @@ def json_to_interp(j):
         nls = [NodeLabel(nl) for nl in d['type']]
         el = EdgeLabel(name, nls, is_terminal=True)
         if d['function'] == 'categorical':
-            size = [interp.domains[nl].size() for nl in nls]
             weights = d['weights']
             interp.add_factor(el, factors.CategoricalFactor([interp.domains[nl] for nl in nls], weights))
         else:
