@@ -65,7 +65,7 @@ if args.method == 'rule':
                     hrhs.add_edge(fggs.Edge(edgelabel(x), []))
             el = fggs.EdgeLabel(f'{repr(lhs)} -> {" ".join(map(repr, rhs))}', [], is_terminal=True)
             rules[lhs, rhs] = el
-            params[el] = torch.tensor(-5., requires_grad=True)
+            params[el] = torch.tensor(1., requires_grad=True)
             interp.add_factor(el, fggs.CategoricalFactor([], 0.)) # will set weight later
             hrhs.add_edge(fggs.Edge(el, []))
             hrhs.ext = []
@@ -142,7 +142,7 @@ hrg = fggs.factorize(hrg)
 fgg = fggs.FGG(hrg, interp)
 
 print('begin training')
-opt = torch.optim.Adam(params.values(), lr=0.1)
+opt = torch.optim.SGD(params.values(), lr=0.01)
 
 def minibatches(iterable, size):
     b = []
@@ -183,14 +183,12 @@ for epoch in range(100):
             # for avoiding z = 0.
             z = fggs.sum_product(fgg, method='fixed-point', kmax=100, tol=1e-30)
 
-            print('w', w)
-            print('z', z)
-
             loss = -w + len(minibatch) * z
             train_loss += loss.item()
 
             opt.zero_grad()
             loss.backward()
+            torch.nn.utils.clip_grad_value_(params.values(), 100.)
             opt.step()
 
             progress.update(len(minibatch))

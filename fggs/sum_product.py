@@ -13,6 +13,11 @@ def _formatwarning(message, category, filename=None, lineno=None, file=None, lin
 warnings.formatwarning = _formatwarning
 Tensor = torch.Tensor; Function = Callable[[Tensor], Tensor]
 
+def tensordot(a, b, n):
+    # https://github.com/pytorch/pytorch/issues/61096 (PyTorch 1.9.0)
+    return torch.tensordot(a, b, n) if n > 0 \
+        else a.reshape(a.size() + (1,) * b.dim()) * b
+
 def scc(g: HRG) -> List[HRG]:
     """Decompose an HRG into a its strongly-connected components using Tarjan's algorithm.
 
@@ -169,6 +174,9 @@ class MultiTensor:
     def size(self):
         return self._t.size()
 
+    def __str__(self):
+        return str(self._t)
+
     @property
     def dict(self):
         return MultiTensorDict(self)
@@ -199,9 +207,9 @@ class MultiTensor:
             kwargs = {}
         args = [a._t if isinstance(a, MultiTensor) else a for a in args]
         return func(*args, **kwargs)
-    
 
-def F(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor]) -> MultiTensor:
+
+def F_log(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor]) -> MultiTensor:
     hrg, interp = fgg.grammar, fgg.interp
     Fx = MultiTensor.initialize(fgg, fill_value=-torch.inf)
     for n in hrg.nonterminals():
@@ -223,6 +231,48 @@ def J(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor]) -> MultiTensor:
                 tau_edge = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, x.dict, inputs)
                 Jx.dict[n, edge.label] = torch.logaddexp(Jx.dict[n, edge.label], tau_edge)
     return Jx
+
+
+def smooth_log_softmax(a, dim):
+    # Clip large logits to a large, but not huge, number. This
+    # treats all large numbers as equal, which "smooths" the
+    # softmax and helps gradient to flow to all rules.
+    a = torch.min(a, torch.tensor(1000.))
+    return a.log_softmax(dim=dim).nan_to_num()
+
+
+def J_log(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor], include_terminals=False) -> MultiTensor:
+    """The Jacobian of F_log."""
+    hrg, interp = fgg.grammar, fgg.interp
+    Jx = MultiTensor.initialize(fgg, ndim=2)
+    Jx_terminals = {}
+    for n in hrg.nonterminals():
+        rules = list(hrg.rules(n))
+        tau_rules = []
+        for rule in rules:
+            tau_rule = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x.dict, inputs)
+            tau_rules.append(tau_rule)
+        tau_rules = torch.stack(tau_rules, dim=0)
+        tau_rules = smooth_log_softmax(tau_rules, dim=0)
+        for rule, tau_rule in zip(rules, tau_rules):
+            for edge in rule.rhs.edges():
+                if edge.label.is_terminal and not include_terminals: continue
+                ext = rule.rhs.ext + edge.nodes
+                tau_edge = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), ext, x.dict, inputs)
+                tau_edge_size = tau_edge.size()
+                tau_edge = tau_edge.reshape(tau_rule.size() + (-1,))
+                tau_edge = smooth_log_softmax(tau_edge, dim=-1)
+                tau_edge += tau_rule.unsqueeze(-1)
+                tau_edge = tau_edge.reshape(tau_edge_size)
+                if edge.label.is_terminal:
+                    Jx_terminals.setdefault((n, edge.label), 0.)
+                    Jx_terminals[n, edge.label] += torch.exp(tau_edge)
+                else:
+                    Jx.dict[n, edge.label] += torch.exp(tau_edge)
+    if include_terminals:
+        return Jx, Jx_terminals
+    else:
+        return Jx
 
 def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iterable[Edge], ext: Tuple[Node], *inputses: Iterable[Dict[EdgeLabel, Tensor]]) -> Tensor:
     """Compute the sum-product of a set of edges.
@@ -294,7 +344,7 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
             mul *= interp.domains[n.label].size()
     if mul > 1:
         out = out + torch.log(torch.tensor(mul))
-        
+
     return out
 
 
@@ -363,7 +413,7 @@ class SumProduct(torch.autograd.Function):
             x0 = MultiTensor.initialize(fgg, fill_value=-torch.inf)
 
             if opts['method'] == 'fixed-point':
-                fixed_point(lambda x: F(fgg, x, inputs), x0, tol=opts['tol'], kmax=opts['kmax'])
+                fixed_point(lambda x: F_log(fgg, x, inputs), x0, tol=opts['tol'], kmax=opts['kmax'])
             elif opts['method'] == 'newton':
                 newton(lambda x: F(fgg, x, inputs) - x, lambda x: J(fgg, x, inputs) - torch.eye(x.size()[0]), x0, tol=opts['tol'], kmax=opts['kmax'])
             elif opts['method'] == 'broyden':
@@ -380,44 +430,38 @@ class SumProduct(torch.autograd.Function):
     @staticmethod
     def backward(ctx, *grad_out):
         inputs = dict(zip(ctx.in_labels, ctx.saved_tensors))
-
         hrg, interp = ctx.fgg.grammar, ctx.fgg.interp
 
-        jf = J(ctx.fgg, ctx.out_values, inputs)
-        jf = torch.exp(jf._t + ctx.out_values._t - ctx.out_values._t.unsqueeze(1))
-        jf = torch.nan_to_num(jf, 0.) # wherever original jf was -inf
-
-        # Compute F(0) of adjoint grammar
+        jf, jf_terminals = J_log(ctx.fgg, ctx.out_values, inputs, include_terminals=True)
         f = MultiTensor.initialize(ctx.fgg)
         for x, grad_x in zip(ctx.out_labels, grad_out):
             f.dict[x] += grad_x
 
         # Solve linear system of equations
         grad_nt = MultiTensor.initialize(ctx.fgg)
-        grad_nt._t[...] = torch.linalg.solve(torch.eye(jf.size()[0])-jf.T, f._t)
-
-        # Compute gradients of factors
-        grad_t = {}
-        for el in ctx.in_labels:
-            if el.is_terminal:
-                grad_t[el] = 0.
-
-        for rule in hrg.all_rules():
-            grad_y = grad_nt.dict[rule.lhs]
-            for edge in rule.rhs.edges():
-                if edge.label in grad_t:
-                    ext = rule.rhs.ext + edge.nodes
-                    edges = set(rule.rhs.edges()) - {edge}
-                    j = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, ctx.out_values.dict, inputs)
-                    z_lhs = ctx.out_values.dict[rule.lhs]
-                    j = torch.exp(j - z_lhs.reshape(z_lhs.size()+(1,)*edge.label.arity
-) + inputs[edge.label])
-                    j = torch.nan_to_num(j, 0.) # wherever original j was -inf
+        try:
+            assert torch.all(f._t >= 0.)
+            grad_nt._t[...] = torch.linalg.solve(torch.eye(jf.size()[0])-jf._t.T, f._t)
+            failed = not torch.all(grad_nt._t >= 0.) # negative or NaN
+        except RuntimeError:
+            failed = True
+        if failed:
+            warnings.warn('SumProduct.backward(): torch.linalg.solve failed; using fixed-point iteration')
+            grad_nt._t[...] = 0.
+            fixed_point(lambda g: torch.nan_to_num(f._t + jf._t.T @ g),
+                        grad_nt._t,
+                        tol=ctx.opts.get('tol', 1e-6),
+                        kmax=ctx.opts.get('kmax', 1000))
                     
-                    #grad_t[edge.label] += torch.tensordot(grad_y, j, len(rule.rhs.ext)
-                    grad_t[edge.label] += grad_y.reshape(-1) @ j.reshape(-1, *z_lhs.size())
+        # Compute gradients of factors
+        grad_t = {t:0. for t in hrg.terminals()}
+        for y, t in jf_terminals:
+            delta_grad_t = tensordot(grad_nt.dict[y], jf_terminals[y,t], y.arity)
+            delta_grad_t = delta_grad_t.nan_to_num() # needed when grad_nt[y] = inf, jf[y,t] = 0
+            grad_t[t] += delta_grad_t
 
         grad_in = tuple(grad_t[el] if el.is_terminal else grad_nt[el] for el in ctx.in_labels)
+        
         return (None, None, None, None) + grad_in
 
 
@@ -437,7 +481,6 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
         w = interp.factors[t].weights
         if not isinstance(w, Tensor):
             w = torch.tensor(w, dtype=torch.get_default_dtype())
-        #in_values.append(torch.log(w))
         in_values.append(w)
     out_labels = list(hrg.nonterminals())
     out = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
