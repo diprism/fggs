@@ -115,8 +115,13 @@ elif args.method == 'pattern':
         hrhs.add_node(parent)
         children = []
         for is_nonterminal in pattern:
-            child = fggs.Node(nonterminal_nl if is_nonterminal else terminal_nl)
-            hrhs.add_node(child)
+            if is_nonterminal:
+                child = fggs.Node(nonterminal_nl)
+                hrhs.add_node(child)
+                hrhs.add_edge(fggs.Edge(subtree_el, [child]))
+            else:
+                child = fggs.Node(terminal_nl)
+                hrhs.add_node(child)
             children.append(child)
         el = fggs.EdgeLabel(
             ' '.join(child.label.name for child in children),
@@ -126,7 +131,7 @@ elif args.method == 'pattern':
         pattern_els[pattern] = el
         domains = [interp.domains[nl] for nl in el.type]
         shape = [dom.size() for dom in domains]
-        params[el] = torch.full(shape, fill_value=-1., requires_grad=True)
+        params[el] = torch.full(shape, fill_value=1., requires_grad=True)
         weights = torch.zeros(shape) # will set weights later
         interp.add_factor(el, fggs.CategoricalFactor(domains, weights)) 
         hrhs.add_edge(fggs.Edge(el, [parent]+children))
@@ -179,8 +184,6 @@ for epoch in range(100):
             for el in params:
                 interp.factors[el].weights = params[el]
                 
-            # Newton's method currently works better than fixed-point iteration
-            # for avoiding z = 0.
             z = fggs.sum_product(fgg, method='fixed-point', kmax=100, tol=1e-30)
 
             loss = -w + len(minibatch) * z
