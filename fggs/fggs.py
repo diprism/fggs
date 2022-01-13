@@ -445,16 +445,21 @@ class Interpretation:
                 raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} != Domain {self.domains[nl]})')
         self.factors[el] = fac
 
-    def shape(self, e: Union[EdgeLabel, Edge]):
+    def shape(self, x: Union[Iterable[NodeLabel], Iterable[Node], EdgeLabel, Edge]):
         """Return the 'shape' of an Edge or EdgeLabel; that is, 
         the shape a tensor would need to be in order to be a
         factor for that Edge or EdgeLabel.
         """
-        if isinstance(e, Edge):
-            e = e.label
-        domains = [self.domains[nl] for nl in e.type]
-        shape = [dom.size() for dom in domains]
-        return shape
+        if isinstance(x, Iterable):
+            if len(x) > 0 and isinstance(x[0], Node):
+                nls = [node.label for node in x]
+            else:
+                nls = x
+        elif isinstance(x, EdgeLabel):
+            nls = x.type
+        else:
+            nls = x.label.type
+        return [self.domains[nl].size() for nl in nls]
     
 class FactorGraph:
     """A factor graph.

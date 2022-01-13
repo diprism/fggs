@@ -477,8 +477,13 @@ class TestInterpretation(unittest.TestCase):
         interp = Interpretation()
         interp.add_domain(self.nl1, self.dom1)
         interp.add_domain(self.nl2, self.dom2)
+        # Test all formats of input to the function
+        self.assertEqual(interp.shape([self.nl1, self.nl1, self.nl2]), [3, 3, 4])
+        self.assertEqual(interp.shape([self.node2, self.node1, self.node2]), [4, 3, 4])
         self.assertEqual(interp.shape(self.el1), [3, 4])
-        self.assertEqual(interp.shape(self.edge2), [4]) 
+        self.assertEqual(interp.shape(self.edge2), [4])
+        # Test that empty input has correct shape
+        self.assertEqual(interp.shape([]), [])
         
 if __name__ == "__main__":
     unittest.main()
