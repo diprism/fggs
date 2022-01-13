@@ -472,6 +472,13 @@ class TestInterpretation(unittest.TestCase):
         with self.assertRaises(ValueError):
             interp.add_factor(self.el2, self.fac2)
         self.assertTrue(interp.can_interpret(self.fgg))
+
+    def test_shape(self):
+        interp = Interpretation()
+        interp.add_domain(self.nl1, self.dom1)
+        interp.add_domain(self.nl2, self.dom2)
+        self.assertEqual(interp.shape(self.el1), [3, 4])
+        self.assertEqual(interp.shape(self.edge2), [4]) 
         
 if __name__ == "__main__":
     unittest.main()
