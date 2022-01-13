@@ -1,6 +1,6 @@
 __all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 'Interpretation', 'FactorGraph', 'FGG']
 
-from typing import Optional, Iterable, Tuple
+from typing import Optional, Iterable, Tuple, Union
 from dataclasses import dataclass, field
 from fggs.domains import Domain
 from fggs.factors import Factor
@@ -444,7 +444,22 @@ class Interpretation:
             elif dom != self.domains[nl]:
                 raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} != Domain {self.domains[nl]})')
         self.factors[el] = fac
-        
+
+    def shape(self, x: Union[Iterable[NodeLabel], Iterable[Node], EdgeLabel, Edge]):
+        """Return the 'shape' of an Edge or EdgeLabel; that is, 
+        the shape a tensor would need to be in order to be a
+        factor for that Edge or EdgeLabel.
+        """
+        if isinstance(x, Iterable):
+            if len(x) > 0 and isinstance(x[0], Node):
+                nls = [node.label for node in x]
+            else:
+                nls = x
+        elif isinstance(x, EdgeLabel):
+            nls = x.type
+        else:
+            nls = x.label.type
+        return tuple(self.domains[nl].size() for nl in nls)
     
 class FactorGraph:
     """A factor graph.

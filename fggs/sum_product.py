@@ -156,7 +156,7 @@ class MultiTensor:
         hrg, interp = fgg.grammar, fgg.interp
         n, nt_dict = 0, dict()
         for nonterminal in hrg.nonterminals():
-            shape = tuple(interp.domains[label].size() for label in nonterminal.node_labels)
+            shape = tuple(interp.shape(nonterminal))
             k = n + (reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1)
             nt_dict[nonterminal] = ((n, k), shape) # TODO namedtuple(range=(n, k), shape=shape)
             n = k
@@ -290,7 +290,7 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
     # Restore any external nodes that were removed.
     if out.ndim < len(ext):
         vshape = [interp.domains[n.label].size() if n in connected else 1 for n in ext]
-        eshape = [interp.domains[n.label].size() for n in ext]
+        eshape = interp.shape(ext)
         out = out.view(*vshape).expand(*eshape)
 
     # Multiply in any disconnected internal nodes.
@@ -403,7 +403,7 @@ class SumProduct(torch.autograd.Function):
         grad_t = {}
         for el in ctx.in_labels:
             if el.is_terminal:
-                grad_t[el] = torch.zeros([interp.domains[nl].size() for nl in el.type])
+                grad_t[el] = torch.zeros(interp.shape(el))
 
         for rule in hrg.all_rules():
             grad_y = grad_nt.dict[rule.lhs]
