@@ -182,7 +182,7 @@ for epoch in range(100):
             for el in params:
                 interp.factors[el].weights = params[el]
                 
-            z = fggs.sum_product(fgg, method='fixed-point', kmax=100, tol=1e-30)
+            z = fggs.sum_product(fgg, method='fixed-point', semiring=fggs.LogSemiring, kmax=100, tol=1e-30)
 
             loss = -w + len(minibatch) * z
             train_loss += loss.item()
