@@ -116,6 +116,18 @@ class TestSumProduct(unittest.TestCase):
                 self.assertTrue(torch.norm(z - z_exact) < 1e-2,
                                 f'{z} != {z_exact}')
 
+    def test_fixed_point_bool(self):
+        for example in self.examples:
+            with self.subTest(example=str(example)):
+                interp = copy.deepcopy(example.fgg.interp)
+                for fac in interp.factors.values():
+                    fac.weights = fac.weights > 0.
+                fgg = FGG(example.fgg.grammar, interp)
+                z = sum_product(fgg, method='fixed-point', semiring=BoolSemiring, tol=0)
+                z_exact = example.exact() > 0.
+                self.assertTrue(torch.all(z == z_exact),
+                                f'{z} != {z_exact}')
+
     def test_linear(self):
         for example in self.examples:
             if not example.clean: continue # not implemented yet

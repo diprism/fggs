@@ -1,5 +1,6 @@
 numpy
 torch
 pydot
-torch-semiring-einsum
+#torch-semiring-einsum
+-e git+https://github.com/bdusell/semiring-einsum#egg=pytorch-semiring-einsum
 tqdm

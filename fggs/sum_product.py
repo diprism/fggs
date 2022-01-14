@@ -73,7 +73,7 @@ def scc(g: HRG) -> List[HRG]:
 
 def fixed_point(F: Function, x0: Tensor, *, tol: float, kmax: int) -> None:
     k, x1 = 0, F(x0)
-    while any(torch.abs(x1 - x0) > tol) and k <= kmax:
+    while (tol == 0 and x1 != x0 or tol > 0 and any(torch.abs(x1 - x0) > tol)) and k <= kmax:
         x0[...], x1[...] = x1, F(x1)
         k += 1
     if k > kmax:

@@ -24,4 +24,4 @@ class BoolSemiring:
     add = torch.logical_or
     mul = torch.logical_and
     einsum = torch_semiring_einsum.einsum
-    from_int = lambda n: n > 0
+    from_int = lambda n: (n if isinstance(n, torch.Tensor) else torch.tensor(n)) > 0
