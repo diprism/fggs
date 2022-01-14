@@ -5,23 +5,31 @@ import operator
 class RealSemiring:
     zero = 0.
     one = 1.
-    add = operator.add
-    mul = operator.mul
-    einsum = torch_semiring_einsum.einsum
-    from_int = lambda n: n
+    add = staticmethod(operator.add)
+    mul = staticmethod(operator.mul)
+    einsum = staticmethod(torch_semiring_einsum.einsum)
+    from_int = staticmethod(lambda n: n)
 
 class LogSemiring:
     zero = -torch.inf
     one = 0.
-    add = torch.logaddexp
-    mul = operator.add
-    einsum = torch_semiring_einsum.log_einsum
-    from_int = lambda n: torch.log(n if isinstance(n, torch.Tensor) else torch.tensor(n, dtype=torch.get_default_dtype()))
+    add = staticmethod(torch.logaddexp)
+    mul = staticmethod(operator.add)
+    einsum = staticmethod(torch_semiring_einsum.log_einsum)
+    @staticmethod
+    def from_int(n):
+        if not isinstance(n, torch.Tensor):
+            n = torch.tensor(n, dtype=torch.get_default_dtype())
+        return torch.log(n)
     
 class BoolSemiring:
-    zero = False
-    one = True
-    add = torch.logical_or
-    mul = torch.logical_and
-    einsum = torch_semiring_einsum.einsum
-    from_int = lambda n: (n if isinstance(n, torch.Tensor) else torch.tensor(n)) > 0
+    zero = staticmethod(False)
+    one = staticmethod(True)
+    add = staticmethod(torch.logical_or)
+    mul = staticmethod(torch.logical_and)
+    einsum = staticmethod(torch_semiring_einsum.einsum)
+    @staticmethod
+    def from_int(n):
+        if not isinstance(n, torch.Tensor):
+            n = torch.tensor(n)
+        return n > 0

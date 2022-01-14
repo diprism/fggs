@@ -407,6 +407,8 @@ class SumProduct(torch.autograd.Function):
         opts.setdefault('semiring', RealSemiring)
         opts.setdefault('tol',      1e-6)
         opts.setdefault('kmax',     1000)
+        if opts['semiring'] is BoolSemiring:
+            opts['tol'] = 0
         ctx.opts = opts
         ctx.in_labels = in_labels
         ctx.out_labels = out_labels

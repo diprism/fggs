@@ -123,7 +123,7 @@ class TestSumProduct(unittest.TestCase):
                 for fac in interp.factors.values():
                     fac.weights = fac.weights > 0.
                 fgg = FGG(example.fgg.grammar, interp)
-                z = sum_product(fgg, method='fixed-point', semiring=BoolSemiring, tol=0)
+                z = sum_product(fgg, method='fixed-point', semiring=BoolSemiring)
                 z_exact = example.exact() > 0.
                 self.assertTrue(torch.all(z == z_exact),
                                 f'{z} != {z_exact}')
