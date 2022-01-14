@@ -407,8 +407,10 @@ class SumProduct(torch.autograd.Function):
         opts.setdefault('semiring', RealSemiring)
         opts.setdefault('tol',      1e-6)
         opts.setdefault('kmax',     1000)
-        if opts['semiring'] is BoolSemiring:
+        method, semiring = opts['method'], opts['semiring']
+        if semiring is BoolSemiring:
             opts['tol'] = 0
+        
         ctx.opts = opts
         ctx.in_labels = in_labels
         ctx.out_labels = out_labels
@@ -416,22 +418,28 @@ class SumProduct(torch.autograd.Function):
 
         inputs = dict(zip(in_labels, in_values))
 
-        if opts['method'] == 'linear':
+        if method == 'linear':
             # To do: make linear() not use custom backward function, and raise an exception here
+            if semiring is not RealSemiring:
+                raise NotImplementedError()
             out = linear(fgg, inputs)
         else:
-            x0 = MultiTensor.initialize(fgg, fill_value=opts['semiring'].zero)
+            x0 = MultiTensor.initialize(fgg, fill_value=semiring.zero)
 
-            if opts['method'] == 'fixed-point':
-                fixed_point(lambda x: F(fgg, x, inputs, opts['semiring']),
+            if method == 'fixed-point':
+                fixed_point(lambda x: F(fgg, x, inputs, semiring),
                             x0, tol=opts['tol'], kmax=opts['kmax'])
-            elif opts['method'] == 'newton':
+            elif method == 'newton':
+                if semiring is not RealSemiring:
+                    raise NotImplementedError()
                 newton(lambda x: F(fgg, x, inputs, RealSemiring) - x,
                        lambda x: J(fgg, x, inputs) - torch.eye(x.size()[0]),
                        x0, tol=opts['tol'], kmax=opts['kmax'])
-            elif opts['method'] == 'broyden':
-                broyden(lambda x: F(fgg, x, inputs) - x,
-                        -torch.eye(x.size()[0]),
+            elif method == 'broyden':
+                if semiring is not RealSemiring:
+                    raise NotImplementedError()
+                broyden(lambda x: F(fgg, x, inputs, RealSemiring) - x,
+                        -torch.eye(x0.size()[0]),
                         x0, tol=opts['tol'], kmax=opts['kmax'])
             else:
                 raise ValueError('unsupported method for computing sum-product')

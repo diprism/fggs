@@ -150,7 +150,7 @@ class TestSumProduct(unittest.TestCase):
                 self.assertTrue(torch.norm(z - z_exact) < 1e-2,
                                 f'{z} != {z_exact}')
                 
-    def xtest_broyden(self):
+    def test_broyden(self):
         for example in self.examples:
             with self.subTest(example=str(example)):
                 z = sum_product(example.fgg, method='broyden')
