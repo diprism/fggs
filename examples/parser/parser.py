@@ -166,7 +166,7 @@ for epoch in range(100):
     train_loss = 0.
     with tqdm.tqdm(total=len(traintrees)) as progress:
         for minibatch in minibatches(traintrees, minibatch_size):
-            w = 0.
+            w = torch.tensor(0.)
             for tree in minibatch:
                 for node in tree.bottomup():
                     if len(node.children) > 0:
@@ -191,7 +191,7 @@ for epoch in range(100):
             # for avoiding z = 0.
             z = fggs.sum_product(fgg, method='newton', kmax=100, tol=1e-30)
 
-            loss = -w + len(minibatch) * torch.log(z)
+            loss = -w + len(minibatch) * torch.log(z) # type: ignore
             train_loss += loss.item()
 
             opt.zero_grad()
