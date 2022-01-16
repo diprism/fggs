@@ -130,7 +130,8 @@ elif args.method == 'pattern':
             is_terminal=True
         )
         pattern_els[pattern] = el
-        params[el] = torch.full(interp.shape(el), fill_value=1., requires_grad=True)
+        shape = interp.shape(el)
+        params[el] = torch.full(shape, fill_value=1., requires_grad=True)
         weights = torch.zeros(shape) # will set weights later
         domains = [interp.domains[nl] for nl in el.type]
         interp.add_factor(el, fggs.CategoricalFactor(domains, weights)) 
@@ -186,11 +187,7 @@ for epoch in range(100):
                 
             z = fggs.sum_product(fgg, method='fixed-point', semiring=fggs.LogSemiring, kmax=100, tol=1e-30)
 
-<<<<<<< HEAD
-            loss = -w + len(minibatch) * z
-=======
-            loss = -w + len(minibatch) * torch.log(z) # type: ignore
->>>>>>> main
+            loss = -w + len(minibatch) * z # type: ignore
             train_loss += loss.item()
 
             opt.zero_grad()
