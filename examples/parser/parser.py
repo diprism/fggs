@@ -66,7 +66,7 @@ if args.method == 'rule':
                     hrhs.add_edge(fggs.Edge(edgelabel(x), []))
             el = fggs.EdgeLabel(f'{repr(lhs)} -> {" ".join(map(repr, rhs))}', [], is_terminal=True)
             rules[lhs, rhs] = el
-            params[el] = torch.tensor(1., requires_grad=True)
+            params[el] = torch.tensor(0., requires_grad=True)
             interp.add_factor(el, fggs.CategoricalFactor([], 0.)) # will set weight later
             hrhs.add_edge(fggs.Edge(el, []))
             hrhs.ext = []
@@ -131,7 +131,7 @@ elif args.method == 'pattern':
         )
         pattern_els[pattern] = el
         shape = interp.shape(el)
-        params[el] = torch.full(shape, fill_value=1., requires_grad=True)
+        params[el] = torch.zeros(shape, requires_grad=True)
         weights = torch.zeros(shape) # will set weights later
         domains = [interp.domains[nl] for nl in el.type]
         interp.add_factor(el, fggs.CategoricalFactor(domains, weights)) 

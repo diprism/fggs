@@ -231,14 +231,6 @@ def J(fgg: FGG, x: MultiTensor, inputs: Mapping[EdgeLabel, Tensor],
     return Jx
 
 
-def smooth_log_softmax(a, dim):
-    # Clip large logits to a large, but not huge, number. This
-    # treats all large numbers as equal, which "smooths" the
-    # softmax and helps gradient to flow to all rules.
-    a = torch.min(a, torch.tensor(1000.))
-    return a.log_softmax(dim=dim).nan_to_num()
-
-
 def J_log(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor],
           J_terminals: Optional[Dict[Tuple[EdgeLabel,EdgeLabel],Tensor]] = None) -> MultiTensor:
     """The Jacobian of F(semiring=LogSemiring)."""
@@ -252,7 +244,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor],
             tau_rule = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x.dict, inputs, semiring=LogSemiring)
             tau_rules.append(tau_rule)
         tau_rules = torch.stack(tau_rules, dim=0)
-        tau_rules = smooth_log_softmax(tau_rules, dim=0)
+        tau_rules = torch.log_softmax(tau_rules, dim=0).nan_to_num()
         for rule, tau_rule in zip(rules, tau_rules):
             for edge in rule.rhs.edges():
                 if edge.label.is_terminal and J_terminals is None: continue
@@ -260,7 +252,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor],
                 tau_edge = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), ext, x.dict, inputs, semiring=LogSemiring)
                 tau_edge_size = tau_edge.size()
                 tau_edge = tau_edge.reshape(tau_rule.size() + (-1,))
-                tau_edge = smooth_log_softmax(tau_edge, dim=-1)
+                tau_edge = torch.log_softmax(tau_edge, dim=-1).nan_to_num()
                 tau_edge += tau_rule.unsqueeze(-1)
                 tau_edge = tau_edge.reshape(tau_edge_size)
                 if edge.label.is_terminal:
