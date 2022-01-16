@@ -1,9 +1,10 @@
+import sys
 import torch
 import fggs
 import trees
 import argparse
 import collections
-import tqdm
+import tqdm # type: ignore
 
 ap = argparse.ArgumentParser()
 ap.add_argument('trainfile')
@@ -132,6 +133,7 @@ elif args.method == 'pattern':
         shape = interp.shape(el)
         params[el] = torch.full(shape, fill_value=-10., requires_grad=True)
         weights = torch.zeros(shape) # will set weights later
+        domains = [interp.domains[nl] for nl in el.type]
         interp.add_factor(el, fggs.CategoricalFactor(domains, weights)) 
         hrhs.add_edge(fggs.Edge(el, [parent]+children))
         hrhs.ext = [parent]

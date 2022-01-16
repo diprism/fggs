@@ -5,7 +5,7 @@ from fggs.factors import CategoricalFactor
 from typing import Callable, Dict, Mapping, Sequence, Iterable, Tuple, List, Set, Union, cast
 from functools import reduce
 import warnings
-import torch # type: ignore
+import torch
 from torch import Tensor
 Function = Callable[[Tensor], Tensor]
 
@@ -82,7 +82,7 @@ def newton(F: Function, J: Function, x0: Tensor, *, tol: float, kmax: int) -> No
     n = x0.size()[0]
     while any(torch.abs(F0) > tol) and k <= kmax:
         JF = J(x0)
-        dX = torch.linalg.solve(JF, -F0) if n > 1 else (-F0/JF).reshape(n)
+        dX = torch.linalg.solve(JF, -F0) if n > 1 else (-F0/JF).reshape(n) # type: ignore
         x1.copy_(x0 + dX)
         x0.copy_(x1)
         F0 = F(x1)
@@ -94,7 +94,7 @@ def broyden(F: Function, invJ: Tensor, x0: Tensor, *, tol: float, kmax: int) -> 
     k, x1 = 0, x0.clone()
     F0 = F(x0)
     while any(torch.abs(F0) > tol) and k <= kmax:
-        dX = torch.matmul(-invJ, F0)
+        dX = torch.matmul(-invJ, F0) # type: ignore
         x1.copy_(x0 + dX)
         F1 = F(x1)
         dX, dF = x1 - x0, F1 - F0
@@ -364,7 +364,7 @@ class SumProduct(torch.autograd.Function):
                        x0, tol=opts['tol'], kmax=opts['kmax'])
             elif opts['method'] == 'broyden':
                 broyden(lambda x: F(fgg, cast(MultiTensor, x), inputs) - x,
-                        -torch.eye(n),
+                        -torch.eye(n), # type: ignore
                         x0, tol=opts['tol'], kmax=opts['kmax'])
             else:
                 raise ValueError('unsupported method for computing sum-product')
