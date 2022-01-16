@@ -2,15 +2,17 @@ __all__ = ['sum_product']
 
 from fggs.fggs import FGG, HRG, HRGRule, Interpretation, EdgeLabel, Edge, Node
 from fggs.factors import CategoricalFactor
-from typing import Callable, Dict, Sequence, Iterable, Tuple, List
+from typing import Callable, Dict, Mapping, Sequence, Iterable, Tuple, List, Set, Union, cast
 from functools import reduce
-import collections.abc
-import warnings, torch
+import warnings
+import torch
+from torch import Tensor
+Function = Callable[[Tensor], Tensor]
+
 
 def _formatwarning(message, category, filename=None, lineno=None, file=None, line=None):
     return '%s:%s: %s: %s' % (filename, lineno, category.__name__, message)
-warnings.formatwarning = _formatwarning
-Tensor = torch.Tensor; Function = Callable[[Tensor], Tensor]
+warnings.formatwarning = _formatwarning # type: ignore
 
 def scc(g: HRG) -> List[HRG]:
     """Decompose an HRG into a its strongly-connected components using Tarjan's algorithm.
@@ -64,10 +66,12 @@ def scc(g: HRG) -> List[HRG]:
 
     return comps
 
+    
 def fixed_point(F: Function, x0: Tensor, *, tol: float, kmax: int) -> None:
     k, x1 = 0, F(x0)
     while any(torch.abs(x1 - x0) > tol) and k <= kmax:
-        x0[...], x1[...] = x1, F(x1)
+        x0.copy_(x1)
+        x1.copy_(F(x1))
         k += 1
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
@@ -75,11 +79,13 @@ def fixed_point(F: Function, x0: Tensor, *, tol: float, kmax: int) -> None:
 def newton(F: Function, J: Function, x0: Tensor, *, tol: float, kmax: int) -> None:
     k, x1 = 0, x0.clone()
     F0 = F(x0)
+    n = x0.size()[0]
     while any(torch.abs(F0) > tol) and k <= kmax:
         JF = J(x0)
-        dX = torch.linalg.solve(JF, -F0) if JF.size()[0] > 1 else -F0/JF
-        x1[...] = x0 + dX
-        x0[...], F0 = x1, F(x1)
+        dX = torch.linalg.solve(JF, -F0) if n > 1 else (-F0/JF).reshape(n) # type: ignore
+        x1.copy_(x0 + dX)
+        x0.copy_(x1)
+        F0 = F(x1)
         k += 1
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
@@ -88,13 +94,14 @@ def broyden(F: Function, invJ: Tensor, x0: Tensor, *, tol: float, kmax: int) -> 
     k, x1 = 0, x0.clone()
     F0 = F(x0)
     while any(torch.abs(F0) > tol) and k <= kmax:
-        dX = torch.matmul(-invJ, F0)
-        x1[...] = x0 + dX
+        dX = torch.matmul(-invJ, F0) # type: ignore
+        x1.copy_(x0 + dX)
         F1 = F(x1)
         dX, dF = x1 - x0, F1 - F0
         u = (dX - torch.matmul(invJ, dF))/torch.dot(dF, dF)
         invJ += torch.outer(u, dF)
-        x0[...], F0 = x1, F1
+        x0.copy_(x1)
+        F0 = F1
         k += 1
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
@@ -121,15 +128,15 @@ def broyden(F: Function, invJ: Tensor, x0: Tensor, *, tol: float, kmax: int) -> 
 #         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
 
-class MultiTensorDict(collections.abc.Mapping):
+class MultiTensorDict(Mapping[EdgeLabel, Tensor]):
     """Proxy object returned by MultiTensor.dict."""
     def __init__(self, mt):
         self.mt = mt
     def __iter__(self):
         return iter(self.mt.nt_dict)
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.mt.nt_dict)
-    def __getitem__(self, keys):
+    def __getitem__(self, keys: Union[EdgeLabel, Tuple[EdgeLabel]]) -> Tensor:
         if not isinstance(keys, tuple):
             keys = (keys,)
         slices, shapes = [], []
@@ -137,18 +144,19 @@ class MultiTensorDict(collections.abc.Mapping):
             (n, k), shape = self.mt.nt_dict[key]
             slices.append(slice(n, k))
             shapes.extend(shape)
-        return self.mt._t[slices].reshape(shapes)
-    def __setitem__(self, key, val):
-        self[key][...] = val
+        return self.mt[slices].reshape(shapes)
+    def __setitem__(self, key: Union[EdgeLabel, Tuple[EdgeLabel]], val: Tensor):
+        self[key].copy_(val)
     
     
-class MultiTensor:
+class MultiTensor(Tensor):
     """Tensor-like object that concatenates multiple tensors into one."""
     
     # https://pytorch.org/docs/stable/notes/extending.html
 
+    def __new__(cls, data: Iterable, nt_dict: Dict = None, **kwargs):
+        return super().__new__(cls, data, **kwargs) # type: ignore
     def __init__(self, data: Iterable, nt_dict: Dict = None, **kwargs):
-        self._t = torch.as_tensor(data, **kwargs)
         self.nt_dict = nt_dict
 
     @staticmethod
@@ -162,56 +170,34 @@ class MultiTensor:
             n = k
         return MultiTensor(torch.full(ndim * [n], fill_value=fill_value), nt_dict)
 
-    def clone(self):
-        return MultiTensor(self._t.clone(), self.nt_dict)
-
-    def size(self):
-        return self._t.size()
-
     @property
-    def dict(self):
+    def dict(self) -> MultiTensorDict:
         return MultiTensorDict(self)
-
-    def __getitem__(self, key):
-        return self._t[key]
-    def __setitem__(self, key, value):
-        if isinstance(value, MultiTensor):
-            value = value._t
-        self._t[key] = value
-
-    def __add__(self, other):
-        return torch.add(self, other)
-    def __sub__(self, other):
-        return torch.sub(self, other)
-    def __mul__(self, other):
-        return torch.mul(self, other)
-    def __neg__(self):
-        return torch.neg(self)
-    def __truediv__(self, other):
-        return torch.div(self, other)
-    def __gt__(self, other):
-        return torch.ge(self, other)
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
         if kwargs is None:
             kwargs = {}
-        args = [a._t if isinstance(a, MultiTensor) else a for a in args]
-        return func(*args, **kwargs)
-    
+        res = super().__torch_function__(func, types, args, kwargs)
+        # Setting res.nt_dict is difficult in general,
+        # but we only need to do it correctly for copy_() and clone().
+        if func is Tensor.clone and hasattr(args[0], 'nt_dict'):
+            res.nt_dict = args[0].nt_dict
+        elif isinstance(res, MultiTensor) and not hasattr(res, 'nt_dict'):
+            res.nt_dict = None
+        return res
 
-def F(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor]) -> MultiTensor:
+    
+def F(fgg: FGG, x: MultiTensor, inputs: Mapping[EdgeLabel, Tensor]) -> MultiTensor:
     hrg, interp = fgg.grammar, fgg.interp
-    Fx = x.clone()
+    Fx = MultiTensor.initialize(fgg)
     for n in hrg.nonterminals():
-        tau_R = []
         for rule in hrg.rules(n):
-            tau_R.append(sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x.dict, inputs))
-        Fx.dict[n] = sum(tau_R)
+            Fx.dict[n] += sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x.dict, inputs)
     return Fx
 
 
-def J(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor]) -> MultiTensor:
+def J(fgg: FGG, x: MultiTensor, inputs: Mapping[EdgeLabel, Tensor]) -> MultiTensor:
     hrg, interp = fgg.grammar, fgg.interp
     Jx = MultiTensor.initialize(fgg, ndim=2)
     for n in hrg.nonterminals():
@@ -225,7 +211,7 @@ def J(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor]) -> MultiTensor:
                 Jx.dict[n, edge.label] += tau_edge
     return Jx
 
-def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iterable[Edge], ext: Tuple[Node], *inputses: Iterable[Dict[EdgeLabel, Tensor]]) -> Tensor:
+def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iterable[Edge], ext: Sequence[Node], *inputses: Mapping[EdgeLabel, Tensor]) -> Tensor:
     """Compute the sum-product of a set of edges.
 
     Parameters:
@@ -239,8 +225,9 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
     Return: the tensor of sum-products
     """
 
-    connected = set()
-    indexing, tensors = [], []
+    connected: Set[Node] = set()
+    indexing: List[Iterable[Node]] = []
+    tensors: List[Tensor] = []
     
     # Derivatives can sometimes produce duplicate external nodes.
     # Rename them apart and add identity factors between them.
@@ -304,7 +291,7 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
     return out
 
 
-def linear(fgg: FGG, inputs: Dict[EdgeLabel, Tensor] = {}) -> MultiTensor:
+def linear(fgg: FGG, inputs: Mapping[EdgeLabel, Tensor] = {}) -> MultiTensor:
     """Compute the sum-product of the nonterminals of `fgg`, which is
     linearly recursive given that each nonterminal `x` in `inputs` is
     treated as a terminal with weight `inputs[x]`.
@@ -326,7 +313,7 @@ def linear(fgg: FGG, inputs: Dict[EdgeLabel, Tensor] = {}) -> MultiTensor:
     x = MultiTensor.initialize(fgg)
     Jx = J(fgg, x, inputs)
 
-    x._t[...] = torch.linalg.solve(torch.eye(Jx.size()[0])-Jx._t, Fx._t)
+    x.copy_(torch.linalg.solve(torch.eye(Jx.size()[0])-Jx, Fx))
     return x
 
 
@@ -349,7 +336,7 @@ class SumProduct(torch.autograd.Function):
     """
     
     @staticmethod
-    def forward(ctx, fgg: FGG, opts: Dict, in_labels: Sequence[EdgeLabel], out_labels: Sequence[EdgeLabel], *in_values: Tensor) -> Tuple[Tensor]:
+    def forward(ctx, fgg: FGG, opts: Dict, in_labels: Sequence[EdgeLabel], out_labels: Sequence[EdgeLabel], *in_values: Tensor) -> Tuple[Tensor, ...]: # type: ignore
         ctx.fgg = fgg
         opts.setdefault('method', 'fixed-point')
         opts.setdefault('tol',    1e-6)
@@ -366,15 +353,19 @@ class SumProduct(torch.autograd.Function):
             out = linear(fgg, inputs)
         else:
             x0 = MultiTensor.initialize(fgg)
+            n = x0.size()[0]
 
             if opts['method'] == 'fixed-point':
-                fixed_point(lambda x: F(fgg, x, inputs), x0, tol=opts['tol'], kmax=opts['kmax'])
+                fixed_point(lambda x: F(fgg, cast(MultiTensor, x), inputs),
+                            x0, tol=opts['tol'], kmax=opts['kmax'])
             elif opts['method'] == 'newton':
-                newton(lambda x: F(fgg, x, inputs) - x, lambda x: J(fgg, x, inputs) - torch.eye(x.size()[0]), x0, tol=opts['tol'], kmax=opts['kmax'])
+                newton(lambda x: F(fgg, cast(MultiTensor, x), inputs) - x,
+                       lambda x: J(fgg, cast(MultiTensor, x), inputs) - torch.eye(n),
+                       x0, tol=opts['tol'], kmax=opts['kmax'])
             elif opts['method'] == 'broyden':
-                n = x0.size()[0]
-                invJ = -torch.eye(n, n)
-                broyden(lambda x: F(fgg, x, inputs) - x, invJ, x0, tol=opts['tol'], kmax=opts['kmax'])
+                broyden(lambda x: F(fgg, cast(MultiTensor, x), inputs) - x,
+                        -torch.eye(n), # type: ignore
+                        x0, tol=opts['tol'], kmax=opts['kmax'])
             else:
                 raise ValueError('unsupported method for computing sum-product')
             out = x0
@@ -397,7 +388,7 @@ class SumProduct(torch.autograd.Function):
 
         # Solve linear system of equations
         grad_nt = MultiTensor.initialize(ctx.fgg)
-        grad_nt._t[...] = torch.linalg.solve(torch.eye(grad_nt.size()[0])-jf._t.T, f._t)
+        grad_nt.copy_(torch.linalg.solve(torch.eye(grad_nt.size()[0])-jf.T, f))
 
         # Compute gradients of factors
         grad_t = {}
@@ -434,10 +425,8 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
     in_values = []
     for t in in_labels:
         w = interp.factors[t].weights
-        if isinstance(w, Tensor):
-            in_values.append(w)
-        else:
-            in_values.append(torch.tensor(w, dtype=torch.get_default_dtype()))
+        w = torch.as_tensor(w, dtype=torch.get_default_dtype())
+        in_values.append(w)
     out_labels = list(hrg.nonterminals())
     out = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
     return out[out_labels.index(fgg.grammar.start_symbol)]

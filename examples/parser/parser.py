@@ -1,9 +1,10 @@
+import sys
 import torch
 import fggs
 import trees
 import argparse
 import collections
-import tqdm
+import tqdm # type: ignore
 
 ap = argparse.ArgumentParser()
 ap.add_argument('trainfile')
@@ -132,6 +133,7 @@ elif args.method == 'pattern':
         shape = interp.shape(el)
         params[el] = torch.full(shape, fill_value=-10., requires_grad=True)
         weights = torch.zeros(shape) # will set weights later
+        domains = [interp.domains[nl] for nl in el.type]
         interp.add_factor(el, fggs.CategoricalFactor(domains, weights)) 
         hrhs.add_edge(fggs.Edge(el, [parent]+children))
         hrhs.ext = [parent]
@@ -164,7 +166,7 @@ for epoch in range(100):
     train_loss = 0.
     with tqdm.tqdm(total=len(traintrees)) as progress:
         for minibatch in minibatches(traintrees, minibatch_size):
-            w = 0.
+            w = torch.tensor(0.)
             for tree in minibatch:
                 for node in tree.bottomup():
                     if len(node.children) > 0:
@@ -189,7 +191,7 @@ for epoch in range(100):
             # for avoiding z = 0.
             z = fggs.sum_product(fgg, method='newton', kmax=100, tol=1e-30)
 
-            loss = -w + len(minibatch) * torch.log(z)
+            loss = -w + len(minibatch) * torch.log(z) # type: ignore
             train_loss += loss.item()
 
             opt.zero_grad()

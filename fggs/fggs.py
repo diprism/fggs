@@ -1,6 +1,6 @@
 __all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 'Interpretation', 'FactorGraph', 'FGG']
 
-from typing import Optional, Iterable, Tuple, Union
+from typing import Optional, Iterable, Tuple, Union, Dict, Sequence, List, cast
 from dataclasses import dataclass, field
 from fggs.domains import Domain
 from fggs.factors import Factor
@@ -79,8 +79,8 @@ class EdgeLabel:
 class Node:
     """A node of a Graph."""
     
-    label: NodeLabel #: The node's label
-    id: str = None   #: The node's id, which must be unique. If not supplied, a random one is chosen.
+    label: NodeLabel         #: The node's label
+    id: Optional[str] = None #: The node's id, which must be unique. If not supplied, a random one is chosen.
     persist_id: bool = field(init=False, default=False) #: Whether the id should be saved with the Node
 
     def __post_init__(self):
@@ -103,9 +103,9 @@ class Node:
 class Edge:
     """A hyperedge of a Graph."""
 
-    label: EdgeLabel           #: The edge's label
-    nodes: Iterable[NodeLabel] #: The edge's attachment nodes
-    id: str = None             #: The edge's id, which must be unique. If not supplied, a random one is chosen.
+    label: EdgeLabel         #: The edge's label
+    nodes: Iterable[Node]    #: The edge's attachment nodes
+    id: Optional[str] = None #: The edge's id, which must be unique. If not supplied, a random one is chosen.
     persist_id: bool = field(init=False, default=False) #: Whether the id should be saved with the Node
 
     def __post_init__(self):
@@ -171,6 +171,14 @@ class Graph:
         """Tuple of external nodes."""
         return self._ext
 
+    @ext.setter
+    def ext(self, nodes: Iterable[Node]):
+        """Sets the external nodes. If they are not already in the hypergraph, they are added."""
+        for node in nodes:
+            if node not in self._nodes:
+                self.add_node(node)
+        self._ext = tuple(nodes)
+    
     @property
     def arity(self):
         """Returns the number of external nodes."""
@@ -220,14 +228,6 @@ class Graph:
         self._edges.remove(edge)
         self._edge_ids.remove(edge.id)
 
-    @ext.setter
-    def ext(self, nodes: Iterable[Node]):
-        """Sets the external nodes. If they are not already in the hypergraph, they are added."""
-        for node in nodes:
-            if node not in self._nodes:
-                self.add_node(node)
-        self._ext = tuple(nodes)
-    
     def copy(self):
         """Returns a copy of this Graph."""
         copy = Graph()
@@ -299,10 +299,10 @@ class HRG:
     """A hyperedge replacement graph grammar."""
     
     def __init__(self, start: EdgeLabel):
-        self._node_labels  = dict()    # map from names to NodeLabels
-        self._edge_labels  = dict()    # map from names to EdgeLabels
-        self._rules        = dict()    # one list of rules for each nonterminal edge label
-        self.start_symbol  = start     # start symbol, a nonterminal EdgeLabel
+        self._node_labels: Dict[str, NodeLabel] = dict()
+        self._edge_labels: Dict[str, EdgeLabel] = dict()
+        self._rules: Dict[EdgeLabel, List[HRGRule]] = dict()
+        self.start_symbol: EdgeLabel = start
 
     def add_node_label(self, label: NodeLabel):
         self._node_labels[label.name] = label
@@ -341,7 +341,7 @@ class HRG:
         return [el for el in self._edge_labels.values() if el.is_terminal]
 
     @property
-    def start_symbol(self):
+    def start_symbol(self) -> EdgeLabel:
         """The start nonterminal symbol."""
         return self._start
 
@@ -445,15 +445,18 @@ class Interpretation:
                 raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} != Domain {self.domains[nl]})')
         self.factors[el] = fac
 
-    def shape(self, x: Union[Iterable[NodeLabel], Iterable[Node], EdgeLabel, Edge]):
+    def shape(self, x: Union[Sequence[NodeLabel], Sequence[Node], EdgeLabel, Edge]):
         """Return the 'shape' of an Edge or EdgeLabel; that is, 
         the shape a tensor would need to be in order to be a
         factor for that Edge or EdgeLabel.
         """
-        if isinstance(x, Iterable):
+        nls: Sequence[NodeLabel]
+        if isinstance(x, Sequence):
             if len(x) > 0 and isinstance(x[0], Node):
+                x = cast(Sequence[Node], x)
                 nls = [node.label for node in x]
             else:
+                x = cast(Sequence[NodeLabel], x)
                 nls = x
         elif isinstance(x, EdgeLabel):
             nls = x.type

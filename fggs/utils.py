@@ -29,4 +29,4 @@ def singleton_hrg(graph: Graph) -> HRG:
 
 def singleton_fgg(fac_graph: FactorGraph) -> FGG:
     """Return an FGG which generates just one factor graph, `fac_graph`."""
-    return FGG(singleton_HRG(fac_graph.graph), fac_graph.interp)
+    return FGG(singleton_hrg(fac_graph.graph), fac_graph.interp)

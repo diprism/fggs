@@ -186,7 +186,7 @@ def graph_to_dot(g: Graph, factor_formats=None, lhs=None):
     - a symbolic name
     """
     
-    import pydot
+    import pydot # type: ignore
 
     dot = pydot.Dot(graph_type='graph', rankdir='LR')
     for v in g.nodes():
