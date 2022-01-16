@@ -186,7 +186,7 @@ class TestMultiTensor(unittest.TestCase):
     def test_ops(self):
         x = MultiTensor.initialize(self.fgg_1)
         y = x + 1.
-        self.assertTrue(torch.norm(y - (x._t + 1.)) < 1e-6)
+        self.assertTrue(torch.norm(y - (x + 1.)) < 1e-6)
         
 if __name__ == '__main__':
     unittest.main()

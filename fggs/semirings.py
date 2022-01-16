@@ -1,5 +1,5 @@
 import torch
-import torch_semiring_einsum
+import torch_semiring_einsum # type: ignore
 import operator
 
 class RealSemiring:
@@ -23,8 +23,8 @@ class LogSemiring:
         return torch.log(n)
     
 class BoolSemiring:
-    zero = staticmethod(False)
-    one = staticmethod(True)
+    zero = False
+    one = True
     add = staticmethod(torch.logical_or)
     mul = staticmethod(torch.logical_and)
     einsum = staticmethod(torch_semiring_einsum.einsum)
