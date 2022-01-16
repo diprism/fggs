@@ -175,7 +175,8 @@ class MultiTensor(Tensor):
             k = n + (reduce(lambda a, b: a * b, shape) if len(shape) > 0 else 1)
             nt_dict[nonterminal] = ((n, k), shape) # TODO namedtuple(range=(n, k), shape=shape)
             n = k
-        mt = torch.full(ndim * [n], fill_value=fill_value).as_subclass(MultiTensor)
+        mt: MultiTensor
+        mt = torch.full(ndim * [n], fill_value=fill_value).as_subclass(MultiTensor) # type: ignore
         mt.nt_dict = nt_dict
         return mt
 
