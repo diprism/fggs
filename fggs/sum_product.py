@@ -76,7 +76,7 @@ def scc(g: HRG) -> List[HRG]:
     
 def fixed_point(F: Function, x0: Tensor, *, tol: float, kmax: int) -> None:
     k, x1 = 0, F(x0)
-    while (tol == 0 and x1 != x0 or tol > 0 and any(torch.abs(x1 - x0) > tol)) and k <= kmax:
+    while (tol == 0 and torch.any(x1 != x0) or tol > 0 and torch.any(torch.abs(x1 - x0) > tol)) and k <= kmax:
         x0.copy_(x1)
         x1.copy_(F(x1))
         k += 1
@@ -87,7 +87,7 @@ def newton(F: Function, J: Function, x0: Tensor, *, tol: float, kmax: int) -> No
     k, x1 = 0, x0.clone()
     F0 = F(x0)
     n = x0.size()[0]
-    while any(torch.abs(F0) > tol) and k <= kmax:
+    while torch.any(torch.abs(F0) > tol) and k <= kmax:
         JF = J(x0)
         dX = torch.linalg.solve(JF, -F0) if n > 1 else (-F0/JF).reshape(n) # type: ignore
         x1.copy_(x0 + dX)
@@ -100,7 +100,7 @@ def newton(F: Function, J: Function, x0: Tensor, *, tol: float, kmax: int) -> No
 def broyden(F: Function, invJ: Tensor, x0: Tensor, *, tol: float, kmax: int) -> None:
     k, x1 = 0, x0.clone()
     F0 = F(x0)
-    while any(torch.abs(F0) > tol) and k <= kmax:
+    while torch.any(torch.abs(F0) > tol) and k <= kmax:
         dX = torch.matmul(-invJ, F0) # type: ignore
         x1.copy_(x0 + dX)
         F1 = F(x1)
@@ -289,7 +289,7 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
     connected: Set[Node] = set()
     indexing: List[Iterable[Node]] = []
     tensors: List[Tensor] = []
-    
+
     # Derivatives can sometimes produce duplicate external nodes.
     # Rename them apart and add identity factors between them.
     ext_orig = ext
@@ -500,7 +500,8 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
     in_values = []
     for t in in_labels:
         w = interp.factors[t].weights
-        w = torch.as_tensor(w, dtype=torch.get_default_dtype())
+        if not isinstance(w, Tensor):
+            w = torch.tensor(w, dtype=torch.get_default_dtype())
         in_values.append(w)
     out_labels = list(hrg.nonterminals())
     out = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
