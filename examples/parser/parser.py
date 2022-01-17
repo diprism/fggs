@@ -66,7 +66,7 @@ if args.method == 'rule':
                     hrhs.add_edge(fggs.Edge(edgelabel(x), []))
             el = fggs.EdgeLabel(f'{repr(lhs)} -> {" ".join(map(repr, rhs))}', [], is_terminal=True)
             rules[lhs, rhs] = el
-            params[el] = torch.tensor(-5., requires_grad=True)
+            params[el] = torch.tensor(0., requires_grad=True)
             interp.add_factor(el, fggs.CategoricalFactor([], 0.)) # will set weight later
             hrhs.add_edge(fggs.Edge(el, []))
             hrhs.ext = []
@@ -131,7 +131,7 @@ elif args.method == 'pattern':
         )
         pattern_els[pattern] = el
         shape = interp.shape(el)
-        params[el] = torch.full(shape, fill_value=-10., requires_grad=True)
+        params[el] = torch.zeros(shape, requires_grad=True)
         weights = torch.zeros(shape) # will set weights later
         domains = [interp.domains[nl] for nl in el.type]
         interp.add_factor(el, fggs.CategoricalFactor(domains, weights)) 
@@ -148,7 +148,7 @@ hrg = fggs.factorize(hrg)
 fgg = fggs.FGG(hrg, interp)
 
 print('begin training')
-opt = torch.optim.Adam(params.values(), lr=1e-1)
+opt = torch.optim.SGD(params.values(), lr=0.01)
 
 def minibatches(iterable, size):
     b = []
@@ -182,20 +182,17 @@ for epoch in range(100):
                         else:
                             assert False
 
-            # PyTorch doesn't allow reusing non-leaf nodes,
-            # so we have to recompute exps every time
             for el in params:
-                interp.factors[el].weights = torch.exp(params[el])
+                interp.factors[el].weights = params[el]
                 
-            # Newton's method currently works better than fixed-point iteration
-            # for avoiding z = 0.
-            z = fggs.sum_product(fgg, method='newton', kmax=100, tol=1e-30)
+            z = fggs.sum_product(fgg, method='fixed-point', semiring=fggs.LogSemiring, kmax=100, tol=1e-30)
 
-            loss = -w + len(minibatch) * torch.log(z) # type: ignore
+            loss = -w + len(minibatch) * z # type: ignore
             train_loss += loss.item()
 
             opt.zero_grad()
             loss.backward()
+            torch.nn.utils.clip_grad_value_(params.values(), 100.)
             opt.step()
 
             progress.update(len(minibatch))
