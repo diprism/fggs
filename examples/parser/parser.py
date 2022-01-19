@@ -148,7 +148,8 @@ hrg = fggs.factorize(hrg)
 fgg = fggs.FGG(hrg, interp)
 
 print('begin training')
-opt = torch.optim.SGD(params.values(), lr=0.01)
+# The learning rate should be set low enough that we don't easily jump out of the region where Z is finite.
+opt = torch.optim.SGD(params.values(), lr=1e-3)
 
 def minibatches(iterable, size):
     b = []
@@ -185,14 +186,17 @@ for epoch in range(100):
             for el in params:
                 interp.factors[el].weights = params[el]
                 
-            z = fggs.sum_product(fgg, method='fixed-point', semiring=fggs.LogSemiring, kmax=100, tol=1e-30)
+            z = fggs.sum_product(fgg, method='fixed-point', semiring=fggs.LogSemiring)
 
             loss = -w + len(minibatch) * z # type: ignore
             train_loss += loss.item()
 
             opt.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_value_(params.values(), 100.)
+            # Gradient clipping is crucial, since the gradient can have infinite components.
+            # The clipping value should be high enough to quickly exit the region where Z is infinite.
+            # The reciprocal of the learning rate seems to be a reasonable choice.
+            torch.nn.utils.clip_grad_value_(params.values(), 1000.)
             opt.step()
 
             progress.update(len(minibatch))
