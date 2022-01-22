@@ -294,7 +294,8 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
             ext.append(ncopy)
             connected.update([n, ncopy])
             indexing.append([n, ncopy])
-            tensors.append(semiring.from_int(torch.eye(interp.domains[n.label].size())))
+            nsize = interp.domains[n.label].size()
+            tensors.append(semiring.from_int(torch.eye(nsize, dtype=semiring.dtype, device=semiring.device)))
         else:
             ext.append(n)
 
@@ -363,7 +364,7 @@ def linear(fgg: FGG, inputs: Mapping[EdgeLabel, Tensor], semiring: Semiring) -> 
     x = MultiTensor.initialize(fgg, semiring)
     Jx = J(fgg, x, inputs, semiring)
 
-    x.copy_(torch.linalg.solve(torch.eye(Jx.size()[0])-Jx, Fx))
+    x.copy_(torch.linalg.solve(torch.eye(Jx.size()[0], dtype=semiring.dtype, device=semiring.device)-Jx, Fx))
     return x
 
 
@@ -419,13 +420,13 @@ class SumProduct(torch.autograd.Function):
                 if not isinstance(semiring, RealSemiring):
                     raise NotImplementedError()
                 newton(lambda x: F(fgg, cast(MultiTensor, x), inputs, semiring) - x,
-                       lambda x: J(fgg, cast(MultiTensor, x), inputs, semiring) - torch.eye(n),
+                       lambda x: J(fgg, cast(MultiTensor, x), inputs, semiring) - torch.eye(n, dtype=semiring.dtype, device=semiring.device),
                        x0, tol=opts['tol'], kmax=opts['kmax'])
             elif method == 'broyden':
                 if not isinstance(semiring, RealSemiring):
                     raise NotImplementedError()
                 broyden(lambda x: F(fgg, cast(MultiTensor, x), inputs, semiring) - x,
-                        -torch.eye(n), # type: ignore
+                        -torch.eye(n, dtype=semiring.dtype, device=semiring.device), # type: ignore
                         x0, tol=opts['tol'], kmax=opts['kmax'])
             else:
                 raise ValueError('unsupported method for computing sum-product')
@@ -458,7 +459,7 @@ class SumProduct(torch.autograd.Function):
         grad_nt.fill_(0.) # override semiring zero
         try:
             assert torch.all(f >= 0.)
-            grad_nt[...] = torch.linalg.solve(torch.eye(jf.size()[0])-jf.T, f)
+            grad_nt[...] = torch.linalg.solve(torch.eye(jf.size()[0], dtype=semiring.dtype, device=semiring.device)-jf.T, f)
             failed = not torch.all(grad_nt >= 0.) # negative or NaN
         except RuntimeError:
             failed = True
