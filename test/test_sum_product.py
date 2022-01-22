@@ -63,7 +63,6 @@ class TestSumProduct(unittest.TestCase):
 
 
     def test_autograd(self):
-        torch.set_default_dtype(torch.double)
         for example in self.examples:
             if example.slow: continue
             if not example.clean: continue # not implemented yet
@@ -74,12 +73,11 @@ class TestSumProduct(unittest.TestCase):
                              for fac in fgg.interp.factors.values()]
                 out_labels = list(fgg.grammar.nonterminals())
                 def f(*in_values):
-                    opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100}
+                    opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100, 'semiring': RealSemiring(dtype=torch.double)}
                     return SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
                 self.assertTrue(torch.autograd.gradcheck(f, in_values, atol=1e-3))
 
     def test_autograd_log(self):
-        torch.set_default_dtype(torch.double)
         for example in self.examples:
             if example.slow: continue
             if not example.clean: continue # not implemented yet
@@ -90,7 +88,7 @@ class TestSumProduct(unittest.TestCase):
                              for fac in fgg.interp.factors.values()]
                 out_labels = list(fgg.grammar.nonterminals())
                 def f(*in_values):
-                    opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100, 'semiring': LogSemiring}
+                    opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100, 'semiring': LogSemiring(dtype=torch.double)}
                     ret = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
                     # put exp inside f to avoid gradcheck computing -inf - -inf
                     return tuple(torch.exp(z) for z in ret)
@@ -111,7 +109,7 @@ class TestSumProduct(unittest.TestCase):
                 for fac in interp.factors.values():
                     fac.weights = torch.log(fac.weights)
                 fgg = FGG(example.fgg.grammar, interp)
-                z = torch.exp(sum_product(fgg, method='fixed-point', semiring=LogSemiring))
+                z = torch.exp(sum_product(fgg, method='fixed-point', semiring=LogSemiring()))
                 z_exact = example.exact()
                 self.assertTrue(torch.norm(z - z_exact) < 1e-2,
                                 f'{z} != {z_exact}')
@@ -123,7 +121,7 @@ class TestSumProduct(unittest.TestCase):
                 for fac in interp.factors.values():
                     fac.weights = fac.weights > 0.
                 fgg = FGG(example.fgg.grammar, interp)
-                z = sum_product(fgg, method='fixed-point', semiring=BoolSemiring)
+                z = sum_product(fgg, method='fixed-point', semiring=BoolSemiring())
                 z_exact = example.exact() > 0.
                 self.assertTrue(torch.all(z == z_exact),
                                 f'{z} != {z_exact}')
@@ -168,15 +166,16 @@ class TestMultiTensor(unittest.TestCase):
     def setUp(self):
         self.fgg_1 = load_fgg('test/hmm.json')
         self.S, self.X = self.fgg_1.grammar.get_edge_label('S'), self.fgg_1.grammar.get_edge_label('X')
+        self.semiring = RealSemiring()
         
     def test_basic(self):
-        mt = MultiTensor.initialize(self.fgg_1)
+        mt = MultiTensor.initialize(self.fgg_1, self.semiring)
         self.assertEqual(list(mt.size()), [7])
         self.assertEqual(list(mt.dict[self.S].size()), [])
         self.assertEqual(list(mt.dict[self.X].size()), [6])
 
     def test_square(self):
-        mt = MultiTensor.initialize(self.fgg_1, ndim=2)
+        mt = MultiTensor.initialize(self.fgg_1, self.semiring, ndim=2)
         self.assertEqual(list(mt.size()), [7, 7])
         self.assertEqual(list(mt.dict[self.S, self.S].size()), [])
         self.assertEqual(list(mt.dict[self.S, self.X].size()), [6])
@@ -184,7 +183,7 @@ class TestMultiTensor(unittest.TestCase):
         self.assertEqual(list(mt.dict[self.X, self.X].size()), [6, 6])
 
     def test_ops(self):
-        x = MultiTensor.initialize(self.fgg_1)
+        x = MultiTensor.initialize(self.fgg_1, self.semiring)
         y = x + 1.
         self.assertTrue(torch.norm(y - (x + 1.)) < 1e-6)
         

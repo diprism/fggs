@@ -3,7 +3,7 @@
 import json
 import sys
 import argparse
-
+import torch
 import fggs
 
 if __name__ == '__main__':
@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
     for name, weights in args.weights:
         el = fgg.grammar.get_edge_label(name)
-        weights = json.loads(weights)
+        weights = torch.tensor(json.loads(weights), dtype=torch.get_default_dtype())
         if el not in fgg.interp.factors:
             doms = [fgg.interp.domains[nl] for nl in el.type()]
             fgg.interp.add_factor(el, fggs.CategoricalFactor(doms, weights))
