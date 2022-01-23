@@ -114,6 +114,22 @@ class TestSumProduct(unittest.TestCase):
                 self.assertTrue(torch.norm(z - z_exact) < 1e-2,
                                 f'{z} != {z_exact}')
 
+    def test_fixed_point_viterbi(self):
+        for example in self.examples:
+            with self.subTest(example=str(example)):
+                interp = copy.deepcopy(example.fgg.interp)
+                for fac in interp.factors.values():
+                    fac.weights = torch.log(fac.weights)
+                fgg = FGG(example.fgg.grammar, interp)
+                z = torch.exp(sum_product(fgg, method='fixed-point', semiring=ViterbiSemiring()))
+
+                temp = 1/1000
+                for fac in interp.factors.values():
+                    fac.weights /= temp
+                z_expected = torch.exp(temp * sum_product(fgg, method='fixed-point', semiring=LogSemiring()))
+                self.assertTrue(torch.norm(z - z_expected) < 1e-2,
+                                f'{z} != {z_expected}')
+
     def test_fixed_point_bool(self):
         for example in self.examples:
             with self.subTest(example=str(example)):
