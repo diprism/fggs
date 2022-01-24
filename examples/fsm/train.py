@@ -1,4 +1,5 @@
 import torch
+import torch_semiring_einsum
 import fggs
 import collections
 import tqdm
@@ -11,28 +12,20 @@ import json
 import copy
 from fggs import factorize, json_to_hrg, json_to_fgg, hrg_to_json
 
-DEFAULT_SEED = 567
-DEFAULT_VOCAB_SIZE = 100
-DEFAULT_NUM_STATES = 100
-DEFAULT_NUM_EPOCHS = 100
 COMPILER_EXE="./compiler.exe"
 UNK = '_UNK_'
 
 def parse_args():
     ap = argparse.ArgumentParser()
-    #ap.add_argument('-train-src', dest="train_src", help="Train source file")
-    #ap.add_argument('-dev-src', dest="dev_src", help="Dev source file")
-    #ap.add_argument('-test-src', dest="test_src", help="Test source file")
     ap.add_argument('--compiler', dest='compiler', help="Location of compiler executable")
     ap.add_argument('--train-tgt', dest="train_tgt", help="Train target file")
     ap.add_argument('--dev-tgt', dest="dev_tgt", help="Dev target file")
     ap.add_argument('--test-tgt', dest="test_tgt", help="Test target file")
-    ap.add_argument('--seed', dest="seed", default=DEFAULT_SEED, type=int, help="Random seed")
-    #ap.add_argument('-src-size', dest="src_size", default=DEFAULT_VOCAB_SIZE, type=int, help="Source vocabulary size")
-    ap.add_argument('--tgt-size', dest="tgt_size", default=DEFAULT_VOCAB_SIZE, type=int, help="Target vocabulary size")
-    #ap.add_argument('-num-src-states', dest="num_src_states", default=DEFAULT_NUM_STATES, type=int, help="Number of source FSM states")
-    ap.add_argument('--num-tgt-states', dest="num_tgt_states", default=DEFAULT_NUM_STATES, type=int, help="Number of target FSM states")
-    ap.add_argument('--num-epochs', dest="num_epochs", default=DEFAULT_NUM_EPOCHS, type=int, help="Number of epochs")
+    ap.add_argument('--seed', dest="seed", default=None, type=int, help="Random seed")
+    ap.add_argument('--tgt-size', dest="tgt_size", type=int, help="Target vocabulary size")
+    ap.add_argument('--num-tgt-states', dest="num_tgt_states", type=int, help="Number of target FSM states")
+    ap.add_argument('--num-epochs', dest="num_epochs", type=int, help="Number of epochs")
+    ap.add_argument('--batch-size', dest="batch_size", type=int, help="Minibatch size")
     return ap.parse_args()
 
 def read_file(fp):
@@ -42,16 +35,15 @@ def read_file(fp):
 
 def make_vocab(data, k):
     # First, create a dict mapping words to their frequency
-    vocab = {UNK: float('inf')}
+    vocab = collections.Counter()
+    vocab[UNK] += float('inf')
     for line in data:
         for word in line:
-            if word in vocab:
-                vocab[word] += 1
-            else:
-                vocab[word] = 1
+            vocab[word] += 1
 
     # Now trim down to top-k most frequent words
-    sorted_vocab = sorted(vocab.items(), key=(lambda wo: wo[1]), reverse=True)[:k]
+    #sorted_vocab = sorted(vocab.items(), key=(lambda wo: wo[1]), reverse=True)[:k]
+    sorted_vocab = vocab.most_common(k)
     word_to_tok = {w: i for i, (w, _) in enumerate(sorted_vocab)}
     tok_to_word = [w for w, _ in sorted_vocab]
     return word_to_tok, tok_to_word
@@ -69,9 +61,6 @@ class Dataset:
         self.train_data_raw = read_file(train_file)
         self.dev_data_raw = read_file(dev_file)
         self.test_data_raw = read_file(test_file)
-        #self.train_length = len(self.train_data_raw)
-        #self.dev_length = len(self.dev_data_raw)
-        #self.test_length = len(self.test_data_raw)
         self.word_to_tok, self.tok_to_word = make_vocab(self.train_data_raw, vocab_size)
         self.train_data = [self.forward_translate(line) for line in self.train_data_raw]
         self.dev_data = [self.forward_translate(line) for line in self.dev_data_raw]
@@ -180,24 +169,23 @@ def convert_json_to_fgg(fgg_json, delta_weights, num_states, vocab_size):
     fgg_ = fggs.json_to_fgg(fgg_json)
     grammar, interp = fgg_.grammar, fgg_.interp
 
-    maybe_dom = fggs.FiniteDomain(set(f'mdom{i}' for i in range(num_states * vocab_size + 1))) # Doesn't really matter what these are named, right?
-    delta_fac = fggs.CategoricalFactor([maybe_dom, maybe_dom], torch.exp(delta_weights))
+    #maybe_dom = fggs.FiniteDomain(set(f'mdom{i}' for i in range(num_states * vocab_size + 1))) # Doesn't really matter what these are named, right?
     maybe_nl = fggs.NodeLabel('Maybe')
+    maybe_dom = interp.domains[maybe_nl]
+    delta_fac = fggs.CategoricalFactor([maybe_dom, maybe_dom], torch.exp(delta_weights))
     el = fggs.EdgeLabel('0', [maybe_nl, maybe_nl], is_terminal=True)
     interp.factors[el] = delta_fac
     return fggs.FGG(grammar, interp)
 
-def get_fgg(input_str, delta_weights, num_states, vocab_size, compiler):
-    fgg_json = communicate_fgg(get_fgg_str(num_states, vocab_size, input_str), compiler)
-    fgg_json_total = communicate_fgg(get_fgg_str(num_states, vocab_size), compiler)
-    return (convert_json_to_fgg(fgg_json, delta_weights, num_states, vocab_size),
-            convert_json_to_fgg(fgg_json_total, delta_weights, num_states, vocab_size))
+def get_fgg(delta_weights, num_states, vocab_size, compiler, input_str=None):
+    fgg_json = communicate_fgg(get_fgg_str(num_states, vocab_size, line=input_str), compiler)
+    return convert_json_to_fgg(fgg_json, delta_weights, num_states, vocab_size)
 
-def clip_grad_nans(parameters):
-    if isinstance(parameters, torch.Tensor):
-        parameters = [parameters]
-    for p in filter(lambda p: p.grad is not None, parameters):
-        p.grad.data[torch.isnan(p.grad.data)] = 0.0
+#def clip_grad_nans(parameters):
+#    if isinstance(parameters, torch.Tensor):
+#        parameters = [parameters]
+#    for p in filter(lambda p: p.grad is not None, parameters):
+#        p.grad.data[torch.isnan(p.grad.data)] = 0.0
 
 if __name__ == '__main__':
     args = parse_args()
@@ -206,35 +194,41 @@ if __name__ == '__main__':
         random.seed(args.seed)
         torch.manual_seed(args.seed)
 
-    tgt_data = Dataset(args.train_tgt, args.dev_tgt, args.test_tgt, args.tgt_size)
+    tgt_data = Dataset(args.train_tgt, args.dev_tgt, args.test_tgt, args.tgt_size, args.batch_size)
     maybe_dom_size = args.num_tgt_states * args.tgt_size + 1
     tgt_delta_params = init_param_tensor([maybe_dom_size, maybe_dom_size])
     
     print('begin training')
     opt = torch.optim.Adam([tgt_delta_params], lr=1e-1)
+    semiring = fggs.RealSemiring # fggs.RealSemiring, fggs.LogSemiring, fggs.BoolSemiring(?)
+    method = 'fixed-point' # 'newton', 'fixed-point', 'broyden'
+    
+    def get_specific_fgg(line):
+        return get_fgg(tgt_delta_params, args.num_tgt_states, args.tgt_size, args.compiler, line)
+    def get_total_fgg():
+        return get_fgg(tgt_delta_params, args.num_tgt_states, args.tgt_size, args.compiler)
+
+    def run_sum_product(fgg):
+        return fggs.sum_product(fgg, method=method, kmax=100, tol=1e-30, semiring=semiring)
     
     for epoch in range(args.num_epochs):
         train_loss = 0.0
         with tqdm.tqdm(total=len(tgt_data.train_data)) as progress:
-            #for src_line, tgt_line in zip(src_data.train_batches(), tgt_data.train_batches()):
-            for tgt_line in tgt_data.train_batches():
-                specific_fgg, total_fgg = get_fgg(tgt_line, tgt_delta_params, args.num_tgt_states, args.tgt_size, args.compiler)
-                # Newton's method currently works better than fixed-point iteration
-                # for avoiding z = 0.
-                z1 = fggs.sum_product(specific_fgg, method='newton', kmax=100, tol=1e-30)
-                z2 = fggs.sum_product(total_fgg, method='newton', kmax=100, tol=1e-30)
-                z = z1/z2
-    
-                loss = torch.log(z)
+            for minibatch in tgt_data.train_batches():
+                loss_num = sum(run_sum_product(get_specific_fgg(line)) for line in minibatch)
+
+                total_fgg = get_total_fgg() # TODO: Could just get fgg just once, then re-set the delta weights each time
+                loss_den = run_sum_product(total_fgg)
+                    
+                loss = torch.log(loss_num/loss_den/len(minibatch))
+                print(loss)
                 train_loss += loss.item()
-                
-                print(loss.item())
     
                 opt.zero_grad()
                 loss.backward()
-                clip_grad_nans(tgt_delta_params)
+                #clip_grad_nans(tgt_delta_params)
                 opt.step()
-    
-                progress.update(1)
-        print(tgt_delta_params)
+
+                progress.update(len(minibatch))
+        print(torch.exp(tgt_delta_params))
         print(f'epoch={epoch+1} train_loss={train_loss}')
