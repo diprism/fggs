@@ -1,6 +1,6 @@
 __all__ = ['factorize_rule', 'factorize']
 
-from fggs import fggs
+from fggs import fggs, utils
 import copy
 
 def add_node(graph, v):
@@ -340,11 +340,20 @@ def tree_decomposition(graph, method='min_fill'):
     else:
         raise ValueError("unknown method '{method}'")
 
-def factorize_rule(rule, method='min_fill'):
+def factorize_rule(rule, method='min_fill', labels=None):
     """Factorize a rule into one or more smaller rules, hopefully with
     lower maximum treewidth.
+
+    Arguments:
+    - rule: the HRGRule to factorize
+    - method: tree decomposition method
+    - labels: The set of EdgeLabel names to avoid. New EdgeLabels are added to the set.
     """
     rhs = rule.rhs
+    if labels is None:
+        labels = set()
+    labels.add(rule.lhs)
+    labels.update(rule.rhs.nonterminals())
     
     # Find tree decomposition of rhs
     g = {}
@@ -368,10 +377,8 @@ def factorize_rule(rule, method='min_fill'):
         assert False, "There must be a bag containing all external nodes"
 
     newrules = []
-    i = 0
     
     def visit(bag, parent):
-        nonlocal i
 
         # lhs and external nodes
         if parent is None:
@@ -379,10 +386,10 @@ def factorize_rule(rule, method='min_fill'):
             lhs = rule.lhs
         else:
             ext = list(bag & parent)
-            lhs = fggs.EdgeLabel(f'{id(rule)}_{i}',
+            lhs = fggs.EdgeLabel(utils.unique_label_name(rule.lhs.name, labels),
                                  is_nonterminal=True,
                                  node_labels=tuple([v.label for v in ext]))
-            i += 1
+            labels.add(lhs)
         
         # rhs
         rhs = fggs.Graph()
@@ -415,7 +422,8 @@ def factorize(g, method='min_fill'):
     lower maximum treewidth.
     """
     gnew = fggs.HRG(g.start_symbol)
+    labels = set(g.edge_labels())
     for r in g.all_rules():
-        for rnew in factorize_rule(r, method=method):
+        for rnew in factorize_rule(r, method=method, labels=labels):
             gnew.add_rule(rnew)
     return gnew

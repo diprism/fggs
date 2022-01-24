@@ -3,7 +3,7 @@ from fggs.fggs import *
 
 
 def unique_label_name(name: str, labs: Iterable[Union[NodeLabel, EdgeLabel]]) -> str:
-    """Given an name, modify it until it does not overlap with
+    """Given a name, modify it until it does not overlap with
     a given set of NodeLabel/EdgeLabel names."""
     names = [lab.name for lab in labs]
     new_name = name
@@ -18,7 +18,7 @@ def singleton_hrg(graph: Graph) -> HRG:
     """Return an HRG which generates just one graph, `graph`."""
 
     # Construct a new edge label name which is not already used in the graph
-    edge_labels = [edge.label for edge in graph.edges()]
+    edge_labels = graph.edge_labels()
     start_name = unique_label_name("<S>", edge_labels)
 
     start   = EdgeLabel(start_name, graph.type, is_nonterminal=True)

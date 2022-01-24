@@ -13,7 +13,7 @@ def nonterminal_pairs(hrg1, hrg2):
     """
 
     nt_map = {}
-    labels = set(hrg1.terminals()) | set(hrg2.terminals())
+    labels = set(hrg1.edge_labels()) | set(hrg2.edge_labels())
     for el1 in hrg1.nonterminals():
         for el2 in hrg2.nonterminals():
             new_nt_name = f'<{el1.name},{el2.name}>'
