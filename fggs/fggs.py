@@ -118,7 +118,7 @@ class Edge:
                 raise TypeError('explicit Edge ids must be strings')
 
         if self.label.type != tuple([node.label for node in self.nodes]):
-            raise ValueError(f"Can't use edge label {self.label.name} with this set of nodes.")
+            raise ValueError(f"Can't use edge label {self.label.name} with nodes labeled ({','.join(node.label.name for node in self.nodes)}).")
         if not isinstance(self.nodes, tuple):
             object.__setattr__(self, 'nodes', tuple(self.nodes))
     

@@ -9,29 +9,11 @@ import tqdm # type: ignore
 ap = argparse.ArgumentParser()
 ap.add_argument('trainfile')
 ap.add_argument('-m', dest="method", default="rule", help="Method for converting CFG to FGG ('rule' or 'pattern')")
-ap.add_argument('-b', dest="binarize", default=False, action="store_true", help="Binarize trees")
 args = ap.parse_args()
-
-if args.method == 'pattern':
-    args.binarize = True
 
 # Read in training data
 print('read training data')
 traintrees = [trees.Tree.from_str(line) for line in open(args.trainfile)]
-
-def binarize(node):
-    children = [binarize(child) for child in node.children]
-    if len(children) <= 2:
-        return trees.Node(node.label, children)
-    new = children[-1]
-    for child in reversed(children[1:-1]):
-        new = trees.Node(f'{child.label}+{new.label}', [child, new])
-
-    return trees.Node(node.label, [children[0], new])
-
-if args.binarize:
-    for tree in traintrees:
-        tree.root = binarize(tree.root)
 
 # Extract CFG rules from trees. We don't do any binarization or removal of unary rules.
 print('extract CFG')
@@ -97,7 +79,13 @@ elif args.method == 'pattern':
     
     tree_el = fggs.EdgeLabel('tree', [], is_nonterminal=True)
     subtree_el = fggs.EdgeLabel('subtree', [nonterminal_nl], is_nonterminal=True)
-    pattern_els = {}
+    bigram_els = {
+        (None, False) : fggs.EdgeLabel('start terminal', [nonterminal_nl, terminal_nl], is_terminal=True),
+        (False, None) : fggs.EdgeLabel('terminal stop', [nonterminal_nl, terminal_nl], is_terminal=True),
+        (None, True) : fggs.EdgeLabel('start nonterminal', [nonterminal_nl, nonterminal_nl], is_terminal=True),
+        (True, True) : fggs.EdgeLabel('nonterminal nonterminal', [nonterminal_nl, nonterminal_nl, nonterminal_nl], is_terminal=True),
+        (True, None) : fggs.EdgeLabel('nonterminal stop', [nonterminal_nl, nonterminal_nl], is_terminal=True),
+    }
 
     hrg = fggs.HRG(tree_el)
     hrhs = fggs.Graph()
@@ -124,22 +112,21 @@ elif args.method == 'pattern':
                 child = fggs.Node(terminal_nl)
                 hrhs.add_node(child)
             children.append(child)
-        el = fggs.EdgeLabel(
-            ' '.join(child.label.name for child in children),
-            [parent.label]+[child.label for child in children],
-            is_terminal=True
-        )
-        pattern_els[pattern] = el
-        shape = interp.shape(el)
-        params[el] = torch.zeros(shape, requires_grad=True)
-        weights = torch.zeros(shape) # will set weights later
-        domains = [interp.domains[nl] for nl in el.type]
-        interp.add_factor(el, fggs.CategoricalFactor(domains, weights)) 
-        hrhs.add_edge(fggs.Edge(el, [parent]+children))
-        hrhs.ext = [parent]
 
+        # One edge for each bigram of nodes (including START and STOP)
+        hrhs.add_edge(fggs.Edge(bigram_els[None, pattern[0]], [parent, children[0]]))
+        for i in range(len(pattern)-1):
+            hrhs.add_edge(fggs.Edge(bigram_els[pattern[i], pattern[i+1]], [parent, children[i], children[i+1]]))
+        hrhs.add_edge(fggs.Edge(bigram_els[pattern[-1], None], [parent, children[-1]]))
+        
+        hrhs.ext = [parent]
         hrg.add_rule(fggs.HRGRule(subtree_el, hrhs))
 
+    for el in bigram_els.values():
+        params[el] = torch.zeros(interp.shape(el), requires_grad=True)
+        domains = [interp.domains[nl] for nl in el.type]
+        interp.add_factor(el, fggs.CategoricalFactor(domains, params[el]))
+        
 else:
     print(f'unknown method: {args.method}', file=sys.stderr)
     exit(1)
@@ -179,7 +166,11 @@ for epoch in range(100):
                             pattern = tuple(isinstance(x, Nonterminal) for x in rhs)
                             lhs_index = nonterminal_dom.numberize(lhs)
                             rhs_indices = tuple(nonterminal_dom.numberize(x) if isinstance(x, Nonterminal) else terminal_dom.numberize(x) for x in rhs)
-                            w += params[pattern_els[pattern]][(lhs_index,)+rhs_indices]
+                            w += params[bigram_els[None, pattern[0]]][lhs_index, rhs_indices[0]]
+                            for i in range(len(rhs)-1):
+                                w += params[bigram_els[pattern[i], pattern[i+1]]][lhs_index, rhs_indices[i], rhs_indices[i+1]]
+                            w += params[bigram_els[pattern[-1], None]][lhs_index, rhs_indices[-1]]
+
                         else:
                             assert False
 
