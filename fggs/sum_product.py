@@ -167,7 +167,7 @@ class MultiTensor(Tensor):
         self.nt_dict = nt_dict
 
     @staticmethod
-    def initialize(fgg: FGG, fill_value: float = 0., ndim: int = 1):
+    def initialize(fgg: FGG, semiring: Semiring, ndim: int = 1):
         hrg, interp = fgg.grammar, fgg.interp
         n, nt_dict = 0, dict()
         for nonterminal in hrg.nonterminals():
@@ -176,7 +176,7 @@ class MultiTensor(Tensor):
             nt_dict[nonterminal] = ((n, k), shape) # TODO namedtuple(range=(n, k), shape=shape)
             n = k
         mt: MultiTensor
-        mt = torch.full(ndim * [n], fill_value=fill_value).as_subclass(MultiTensor) # type: ignore
+        mt = torch.full(ndim * (n,), fill_value=semiring.from_int(0), dtype=semiring.dtype, device=semiring.device).as_subclass(MultiTensor) # type: ignore
         mt.nt_dict = nt_dict
         return mt
 
@@ -198,9 +198,9 @@ class MultiTensor(Tensor):
             res.nt_dict = None
         return res
 
-def F(fgg: FGG, x: MultiTensor, inputs: Mapping[EdgeLabel, Tensor], semiring) -> MultiTensor:
+def F(fgg: FGG, x: MultiTensor, inputs: Mapping[EdgeLabel, Tensor], semiring: Semiring) -> MultiTensor:
     hrg, interp = fgg.grammar, fgg.interp
-    Fx = MultiTensor.initialize(fgg, fill_value=semiring.zero)
+    Fx = MultiTensor.initialize(fgg, semiring)
     for n in hrg.nonterminals():
         for rule in hrg.rules(n):
             tau_rule = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x.dict, inputs, semiring=semiring)
@@ -208,18 +208,18 @@ def F(fgg: FGG, x: MultiTensor, inputs: Mapping[EdgeLabel, Tensor], semiring) ->
     return Fx
 
 
-def J(fgg: FGG, x: MultiTensor, inputs: Mapping[EdgeLabel, Tensor],
+def J(fgg: FGG, x: MultiTensor, inputs: Mapping[EdgeLabel, Tensor], semiring: Semiring,
       J_terminals: Optional[Dict[Tuple[EdgeLabel,EdgeLabel],Tensor]] = None) -> MultiTensor:
     """The Jacobian of F(semiring=RealSemiring)."""
     hrg, interp = fgg.grammar, fgg.interp
-    Jx = MultiTensor.initialize(fgg, ndim=2)
+    Jx = MultiTensor.initialize(fgg, semiring, ndim=2)
     for n in hrg.nonterminals():
         for rule in hrg.rules(n):
             for edge in rule.rhs.edges():
                 if edge.label.is_terminal and J_terminals is None: continue
                 ext = rule.rhs.ext + edge.nodes
                 edges = set(rule.rhs.edges()) - {edge}
-                tau_edge = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, x.dict, inputs, semiring=RealSemiring)
+                tau_edge = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, x.dict, inputs, semiring=semiring)
                 if edge.label.is_terminal:
                     assert J_terminals is not None
                     if (n, edge.label) in J_terminals:
@@ -231,17 +231,18 @@ def J(fgg: FGG, x: MultiTensor, inputs: Mapping[EdgeLabel, Tensor],
     return Jx
 
 
-def J_log(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor],
+def J_log(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor], semiring: Semiring,
           J_terminals: Optional[Dict[Tuple[EdgeLabel,EdgeLabel],Tensor]] = None) -> MultiTensor:
-    """The Jacobian of F(semiring=LogSemiring)."""
+    """The Jacobian of F(semiring=LogSemiring), computed in the real semiring."""
     hrg, interp = fgg.grammar, fgg.interp
-    Jx = MultiTensor.initialize(fgg, ndim=2)
+    Jx = MultiTensor.initialize(fgg, semiring, ndim=2)
+    Jx.fill_(0.) # override with real semiring zero
     for n in hrg.nonterminals():
         rules = list(hrg.rules(n))
         tau_rules: Union[List[Tensor], Tensor]
         tau_rules = []
         for rule in rules:
-            tau_rule = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x.dict, inputs, semiring=LogSemiring)
+            tau_rule = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x.dict, inputs, semiring=semiring)
             tau_rules.append(tau_rule)
         tau_rules = torch.stack(tau_rules, dim=0)
         tau_rules = torch.log_softmax(tau_rules, dim=0).nan_to_num()
@@ -249,7 +250,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor],
             for edge in rule.rhs.edges():
                 if edge.label.is_terminal and J_terminals is None: continue
                 ext = rule.rhs.ext + edge.nodes
-                tau_edge = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), ext, x.dict, inputs, semiring=LogSemiring)
+                tau_edge = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), ext, x.dict, inputs, semiring=semiring)
                 tau_edge_size = tau_edge.size()
                 tau_edge = tau_edge.reshape(tau_rule.size() + (-1,))
                 tau_edge = torch.log_softmax(tau_edge, dim=-1).nan_to_num()
@@ -265,7 +266,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: Dict[EdgeLabel, Tensor],
                     Jx.dict[n, edge.label] += torch.exp(tau_edge)
     return Jx
 
-def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iterable[Edge], ext: Sequence[Node], *inputses: Mapping[EdgeLabel, Tensor], semiring) -> Tensor:
+def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iterable[Edge], ext: Sequence[Node], *inputses: Mapping[EdgeLabel, Tensor], semiring: Semiring) -> Tensor:
     """Compute the sum-product of a set of edges.
 
     Parameters:
@@ -293,7 +294,8 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
             ext.append(ncopy)
             connected.update([n, ncopy])
             indexing.append([n, ncopy])
-            tensors.append(semiring.from_int(torch.eye(interp.domains[n.label].size())))
+            nsize = interp.domains[n.label].size()
+            tensors.append(semiring.from_int(torch.eye(nsize, dtype=semiring.dtype, device=semiring.device)))
         else:
             ext.append(n)
 
@@ -321,7 +323,7 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
         compiled = torch_semiring_einsum.compile_equation(equation)
         out = semiring.einsum(compiled, *tensors, block_size=16)
     else:
-        out = torch.tensor(semiring.one)
+        out = semiring.from_int(1)
 
     # Restore any external nodes that were removed.
     if out.ndim < len(ext):
@@ -330,7 +332,7 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
         out = out.view(*vshape).expand(*eshape)
 
     # Multiply in any disconnected internal nodes.
-    mul = 1.
+    mul = 1
     for n in nodes:
         if n not in connected and n not in ext:
             mul *= interp.domains[n.label].size()
@@ -340,7 +342,7 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
     return out
 
 
-def linear(fgg: FGG, inputs: Mapping[EdgeLabel, Tensor] = {}) -> MultiTensor:
+def linear(fgg: FGG, inputs: Mapping[EdgeLabel, Tensor], semiring: Semiring) -> MultiTensor:
     """Compute the sum-product of the nonterminals of `fgg`, which is
     linearly recursive given that each nonterminal `x` in `inputs` is
     treated as a terminal with weight `inputs[x]`.
@@ -348,21 +350,21 @@ def linear(fgg: FGG, inputs: Mapping[EdgeLabel, Tensor] = {}) -> MultiTensor:
     hrg, interp = fgg.grammar, fgg.interp
 
     # Check linearity and compute F(0)
-    Fx = MultiTensor.initialize(fgg)
+    Fx = MultiTensor.initialize(fgg, semiring)
     for n in hrg.nonterminals():
         if n in inputs:
             continue
         for rule in hrg.rules(n):
             edges = [e for e in rule.rhs.edges() if e.label.is_nonterminal and e.label not in inputs]
             if len(edges) == 0:
-                Fx.dict[n] += sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, inputs, semiring=RealSemiring)
+                Fx.dict[n] += sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, inputs, semiring=semiring)
             elif len(edges) > 1:
                 raise ValueError('FGG is not linearly recursive')
 
-    x = MultiTensor.initialize(fgg)
-    Jx = J(fgg, x, inputs)
+    x = MultiTensor.initialize(fgg, semiring)
+    Jx = J(fgg, x, inputs, semiring)
 
-    x.copy_(torch.linalg.solve(torch.eye(Jx.size()[0])-Jx, Fx))
+    x.copy_(torch.linalg.solve(torch.eye(Jx.size()[0], dtype=semiring.dtype, device=semiring.device)-Jx, Fx))
     return x
 
 
@@ -388,11 +390,11 @@ class SumProduct(torch.autograd.Function):
     def forward(ctx, fgg: FGG, opts: Dict, in_labels: Sequence[EdgeLabel], out_labels: Sequence[EdgeLabel], *in_values: Tensor) -> Tuple[Tensor, ...]: # type: ignore
         ctx.fgg = fgg
         opts.setdefault('method',   'fixed-point')
-        opts.setdefault('semiring', RealSemiring)
+        opts.setdefault('semiring', RealSemiring())
         opts.setdefault('tol',      1e-6)
         opts.setdefault('kmax',     1000)
         method, semiring = opts['method'], opts['semiring']
-        if semiring is BoolSemiring:
+        if isinstance(semiring, BoolSemiring):
             opts['tol'] = 0
         
         ctx.opts = opts
@@ -404,27 +406,27 @@ class SumProduct(torch.autograd.Function):
 
         if method == 'linear':
             # To do: make linear() not use custom backward function, and raise an exception here
-            if semiring is not RealSemiring:
+            if not isinstance(semiring, RealSemiring):
                 raise NotImplementedError()
-            out = linear(fgg, inputs)
+            out = linear(fgg, inputs, semiring)
         else:
-            x0 = MultiTensor.initialize(fgg, fill_value=semiring.zero)
+            x0 = MultiTensor.initialize(fgg, semiring)
             n = x0.size()[0]
 
             if method == 'fixed-point':
                 fixed_point(lambda x: F(fgg, cast(MultiTensor, x), inputs, semiring),
                             x0, tol=opts['tol'], kmax=opts['kmax'])
             elif method == 'newton':
-                if semiring is not RealSemiring:
+                if not isinstance(semiring, RealSemiring):
                     raise NotImplementedError()
-                newton(lambda x: F(fgg, cast(MultiTensor, x), inputs, RealSemiring) - x,
-                       lambda x: J(fgg, cast(MultiTensor, x), inputs) - torch.eye(n),
+                newton(lambda x: F(fgg, cast(MultiTensor, x), inputs, semiring) - x,
+                       lambda x: J(fgg, cast(MultiTensor, x), inputs, semiring) - torch.eye(n, dtype=semiring.dtype, device=semiring.device),
                        x0, tol=opts['tol'], kmax=opts['kmax'])
             elif method == 'broyden':
-                if semiring is not RealSemiring:
+                if not isinstance(semiring, RealSemiring):
                     raise NotImplementedError()
-                broyden(lambda x: F(fgg, cast(MultiTensor, x), inputs, RealSemiring) - x,
-                        -torch.eye(n), # type: ignore
+                broyden(lambda x: F(fgg, cast(MultiTensor, x), inputs, semiring) - x,
+                        -torch.eye(n, dtype=semiring.dtype, device=semiring.device), # type: ignore
                         x0, tol=opts['tol'], kmax=opts['kmax'])
             else:
                 raise ValueError('unsupported method for computing sum-product')
@@ -440,22 +442,24 @@ class SumProduct(torch.autograd.Function):
         semiring = ctx.opts['semiring']
 
         jf_terminals: Dict[Tuple[EdgeLabel,EdgeLabel],Tensor] = {}
-        if semiring is RealSemiring:
-            jf = J(ctx.fgg, ctx.out_values, inputs, jf_terminals)
-        elif semiring is LogSemiring:
-            jf = J_log(ctx.fgg, ctx.out_values, inputs, jf_terminals)
+        if isinstance(semiring, RealSemiring):
+            jf = J(ctx.fgg, ctx.out_values, inputs, semiring, jf_terminals)
+        elif isinstance(semiring, LogSemiring):
+            jf = J_log(ctx.fgg, ctx.out_values, inputs, semiring, jf_terminals)
         else:
             raise ValueError(f'invalid semiring: {semiring}')
         
-        f = MultiTensor.initialize(ctx.fgg)
+        f = MultiTensor.initialize(ctx.fgg, semiring)
+        f.fill_(0.) # override semiring zero, because gradients are always in real semiring
         for x, grad_x in zip(ctx.out_labels, grad_out):
             f.dict[x] += grad_x
 
         # Solve linear system of equations
-        grad_nt = MultiTensor.initialize(ctx.fgg)
+        grad_nt = MultiTensor.initialize(ctx.fgg, semiring)
+        grad_nt.fill_(0.) # override semiring zero
         try:
             assert torch.all(f >= 0.)
-            grad_nt[...] = torch.linalg.solve(torch.eye(jf.size()[0])-jf.T, f)
+            grad_nt[...] = torch.linalg.solve(torch.eye(jf.size()[0], dtype=semiring.dtype, device=semiring.device)-jf.T, f)
             failed = not torch.all(grad_nt >= 0.) # negative or NaN
         except RuntimeError:
             failed = True
@@ -493,8 +497,6 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
     in_values = []
     for t in in_labels:
         w = interp.factors[t].weights
-        if not isinstance(w, Tensor):
-            w = torch.tensor(w, dtype=torch.get_default_dtype())
         in_values.append(w)
     out_labels = list(hrg.nonterminals())
     out = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
