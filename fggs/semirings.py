@@ -31,8 +31,8 @@ class RealSemiring(Semiring):
     add = staticmethod(torch.add) # type: ignore
     mul = staticmethod(torch.mul) # type: ignore
     einsum = staticmethod(torch_semiring_einsum.einsum) # type: ignore
-    
 
+    
 class LogSemiring(Semiring):
     def from_int(self, n):
         return torch.log(super().from_int(n))
@@ -40,7 +40,7 @@ class LogSemiring(Semiring):
     mul = staticmethod(torch.add) # type: ignore
     einsum = staticmethod(torch_semiring_einsum.log_einsum) # type: ignore
 
-
+    
 class ViterbiSemiring(Semiring):
     def from_int(self, n):
         return torch.where(torch.as_tensor(n, device=self.device) > 0, 0., -torch.inf)
