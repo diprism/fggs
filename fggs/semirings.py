@@ -48,11 +48,7 @@ class ViterbiSemiring(Semiring):
     mul = staticmethod(torch.add) # type: ignore
     @staticmethod
     def einsum(*args, **kwargs):
-        try:
-            val, ind = torch_semiring_einsum.log_viterbi_einsum_forward(*args, **kwargs)
-        except:
-            import pdb
-            pdb.set_trace()
+        val, ind = torch_semiring_einsum.log_viterbi_einsum_forward(*args, **kwargs)
         return val
 
     
