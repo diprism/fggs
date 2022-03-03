@@ -157,6 +157,10 @@ class Graph:
     def edges(self):
         """Returns a copy of the list of hyperedges in the hypergraph."""
         return list(self._edges)
+
+    def edge_labels(self):
+        """Returns a view of the edge labels used in the hypergraph."""
+        return self._edge_labels.values()
     
     def nonterminals(self):
         """Returns a copy of the list of nonterminals used in the hypergraph."""
