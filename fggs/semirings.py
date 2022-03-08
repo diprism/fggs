@@ -93,14 +93,14 @@ class LogSemiring(Semiring):
     
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        z = -torch.relu((x-y).nan_to_num()) # minimum(0, y-x)
-        return x + torch.log1p(-torch.exp(z))
+        z = -torch.relu((x-y).nan_to_num()) # type: ignore # minimum(0, y-x)
+        return x + torch.log1p(-torch.exp(z)) # type: ignore
     
     mul = staticmethod(torch.add) # type: ignore
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
-        return -torch.log1p(-torch.torch.exp(x)).nan_to_num(nan=-torch.inf)
+        return -torch.log1p(-torch.exp(x)).nan_to_num(nan=-torch.inf) # type: ignore
     
     einsum = staticmethod(torch_semiring_einsum.log_einsum) # type: ignore
     
