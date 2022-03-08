@@ -37,10 +37,26 @@ class Semiring(ABC):
     def einsum(self, equation, *args: torch.Tensor, block_size: int) -> torch.Tensor:
         pass
 
-    @abstractmethod
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        """Find the least nonnegative solution of x = ax+b. Equivalently, compute ∑ aⁿb."""
-        pass
+        """Find the least nonnegative solution of x = ax+b. Equivalently, compute ∑ aⁿb.
+
+        This is the semiring version of Gauss-Jordan elimination /
+        Floyd-Warshall transitive closure..
+
+        Daniel Lehmann. Algebraic structures for transitive
+        closure. Theoretical Computer Science, 4(1), 1977, pages
+        59-76. https://doi.org/10.1016/0304-3975(77)90056-1
+
+        Thanks to Ryan Cotterell for pointing this out)
+
+        """
+        a = a.clone()
+        x = b.clone()
+        for k in range(a.shape[0]):
+            a[:,k]    = self.mul(a[:,k], self.star(a[k,k]))
+            a[:,k+1:] = self.add(a[:,k+1:], self.mul(a[:,k,None], a[k,k+1:]))
+            x[:]      = self.add(x,         self.mul(a[:,k],      x[k]))
+        return x
 
 class RealSemiring(Semiring):
     
@@ -88,22 +104,6 @@ class LogSemiring(Semiring):
     
     einsum = staticmethod(torch_semiring_einsum.log_einsum) # type: ignore
     
-    def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        """Gauss-Jordan elimination / Floyd-Warshall algorithm 
-
-        Daniel Lehmann. Algebraic structures for transitive
-        closure. Theoretical Computer Science, 4(1), 1977, pages
-        59-76. https://doi.org/10.1016/0304-3975(77)90056-1
-
-        Thanks to Ryan Cotterell for pointing this out)
-        """
-        a = a.clone()
-        x = b.clone()
-        for k in range(a.shape[0]):
-            a[:,k] += self.star(a[k,k])
-            torch.logaddexp(a[:,k+1:], a[:,k,None] + a[k,k+1:], out=a[:,k+1:])
-            torch.logaddexp(x,         a[:,k]      + x[k],      out=x)
-        return x
     
 class ViterbiSemiring(Semiring):
     
@@ -119,13 +119,8 @@ class ViterbiSemiring(Semiring):
     
     mul = staticmethod(torch.add) # type: ignore
     
-    @staticmethod
-    def star(x: torch.Tensor) -> torch.Tensor:
-        # Can't use torch.where until this is merged:
-        # https://github.com/pytorch/pytorch/pull/62084
-        y = x.clone()
-        y.masked_fill_(x >= 0, torch.inf)
-        return y
+    def star(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.where(x >= 0, torch.inf, 0.).to(self.dtype)
     
     @staticmethod
     def einsum(*args, **kwargs):
@@ -134,13 +129,6 @@ class ViterbiSemiring(Semiring):
 
     mv_equation = torch_semiring_einsum.compile_equation('ij,j->i')
     
-    @staticmethod
-    def solve(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        x = b.clone()
-        for k in range(a.shape[0]):
-            ax = ViterbiSemiring.einsum(ViterbiSemiring.mv_equation, a, x, block_size=10)
-            torch.maximum(x, ax, out=x)
-        return x
     
 class BoolSemiring(Semiring):
     
@@ -161,16 +149,8 @@ class BoolSemiring(Semiring):
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
-        return x
+        return torch.full_like(x, True)
 
     @staticmethod
     def einsum(equation, *args: torch.Tensor, block_size: int) -> torch.Tensor:
         return torch_semiring_einsum.einsum(equation, *args, block_size=block_size) > 0
-    
-    @staticmethod
-    def solve(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        a = a.to(int)
-        x = b.to(int)
-        for k in range(a.shape[0]):
-            torch.add(x, a @ x, out=x)
-        return x > 0
