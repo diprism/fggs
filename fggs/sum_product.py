@@ -3,7 +3,7 @@ __all__ = ['sum_product']
 from fggs.fggs import FGG, HRG, HRGRule, Interpretation, EdgeLabel, Edge, Node
 from fggs.factors import CategoricalFactor
 from fggs.semirings import *
-from typing import Callable, Dict, Mapping, Sequence, Iterable, Tuple, List, Set, Union, cast, Optional
+from typing import Callable, Dict, Mapping, MutableMapping, Sequence, Iterable, Tuple, List, Set, Union, cast, Optional
 from functools import reduce
 import torch_semiring_einsum # type: ignore
 import warnings
@@ -139,6 +139,50 @@ def broyden(F: Function, invJ: Tensor, x0: Tensor, *, tol: float, kmax: int) -> 
 #     if itc >= maxit:
 #         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
+NTVector = Dict[EdgeLabel, Tensor]
+NTMatrix = Dict[Tuple[EdgeLabel, EdgeLabel], Tensor]
+
+def add_value(d: Dict, k, v: Tensor):
+    if k in d:
+        d[k] += v # eventually this needs to know semiring
+    else:
+        d[k] = v
+
+def solve_sparse(a: NTMatrix, b: NTVector) -> NTVector:
+    """Solve x = ax + b for x. Assumes the real semiring."""
+    order = set(b.keys())
+    for x,y in a.keys():
+        order.add(x)
+        order.add(y)
+    order = list(order)
+    n = len(order)
+    for k,z in enumerate(order):
+        if (z,z) in a:
+            # to do: semiring interface doesn't provide inv
+            # alternatives:
+            # - let solve take a list of b's
+            # - concatenate all the b's
+            # - let semiring interface provide LU
+
+            azz_star = torch.linalg.inv(torch.eye(*a[z,z].shape)-a[z,z])
+            for x in order[k+1:]:
+                if (x,z) in a:
+                    a[x,z].copy_(a[x,z] @ azz_star)
+        for x in order[k+1:]:
+            if (x,z) in a:
+                for y in order[k+1:]:
+                    if (z,y) in a:
+                        add_value(a, (x,y), a[x,z] @ a[z,y])
+                if z in b:
+                    add_value(b, x, a[x,z] @ b[z])
+    for k,z in reversed(list(enumerate(order))):
+        if (z,z) in a and z in b:
+            b[z].copy_(torch.linalg.solve(torch.eye(*a[z,z].shape)-a[z,z], b[z]))
+        for x in reversed(order[:k]):
+            if (x,z) in a and z in b:
+                add_value(b, x, a[x,z] @ b[z])
+    return b
+
 
 class MultiTensorDict(Mapping[EdgeLabel, Tensor]):
     """Proxy object returned by MultiTensor.dict."""
@@ -203,6 +247,7 @@ class MultiTensor(Tensor):
             res.nt_dict = None
         return res
 
+    
 def F(fgg: FGG, x: MultiTensor, inputs: Mapping[EdgeLabel, Tensor], semiring: Semiring) -> MultiTensor:
     hrg, interp = fgg.grammar, fgg.interp
     Fx = MultiTensor.initialize(fgg, semiring)
@@ -210,6 +255,15 @@ def F(fgg: FGG, x: MultiTensor, inputs: Mapping[EdgeLabel, Tensor], semiring: Se
         for rule in hrg.rules(n):
             tau_rule = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x.dict, inputs, semiring=semiring)
             Fx.dict[n] = semiring.add(Fx.dict[n], tau_rule)
+    return Fx
+
+def F_sparse(fgg: FGG, x: NTVector, inputs: NTVector, semiring: Semiring) -> NTVector:
+    hrg, interp = fgg.grammar, fgg.interp
+    Fx = {}
+    for n in hrg.nonterminals():
+        for rule in hrg.rules(n):
+            tau_rule = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x.dict, inputs, semiring=semiring)
+            Fx[n] = semiring.add(Fx[n], tau_rule)
     return Fx
 
 
@@ -233,6 +287,25 @@ def J(fgg: FGG, x: MultiTensor, inputs: Mapping[EdgeLabel, Tensor], semiring: Se
                         J_terminals[n, edge.label] = tau_edge
                 else:
                     Jx.dict[n, edge.label] = semiring.add(Jx.dict[n, edge.label], tau_edge)
+    return Jx
+
+def J_sparse(fgg: FGG, x: NTVector, inputs: NTVector, semiring: Semiring,
+             J_terminals: Optional[NTMatrix] = None) -> NTMatrix:
+    """The Jacobian of F(semiring=RealSemiring)."""
+    hrg, interp = fgg.grammar, fgg.interp
+    Jx = {}
+    for n in hrg.nonterminals():
+        for rule in hrg.rules(n):
+            for edge in rule.rhs.edges():
+                if edge.label.is_terminal and J_terminals is None: continue
+                ext = rule.rhs.ext + edge.nodes
+                edges = set(rule.rhs.edges()) - {edge}
+                tau_edge = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, x, inputs, semiring=semiring)
+                if edge.label.is_terminal:
+                    assert J_terminals is not None
+                    add_value(J_terminals, (n, edge.label), tau_edge)
+                else:
+                    add_value(Jx, (n, edge.label), tau_edge)
     return Jx
 
 
@@ -352,6 +425,9 @@ def linear(fgg: FGG, inputs: Mapping[EdgeLabel, Tensor], semiring: Semiring) -> 
     linearly recursive given that each nonterminal `x` in `inputs` is
     treated as a terminal with weight `inputs[x]`.
     """
+    if isinstance(semiring, RealSemiring):
+        return linear_sparse(fgg, inputs, semiring)
+    
     hrg, interp = fgg.grammar, fgg.interp
 
     # Check linearity and compute F(0)
@@ -369,6 +445,45 @@ def linear(fgg: FGG, inputs: Mapping[EdgeLabel, Tensor], semiring: Semiring) -> 
     x = MultiTensor.initialize(fgg, semiring)
     Jx = J(fgg, x, inputs, semiring)
     x.copy_(semiring.solve(Jx, Fx))
+    return x
+
+def linear_sparse(fgg: FGG, inputs: NTVector, semiring: Semiring) -> NTVector:
+    """Compute the sum-product of the nonterminals of `fgg`, which is
+    linearly recursive given that each nonterminal `x` in `inputs` is
+    treated as a terminal with weight `inputs[x]`.
+    """
+    hrg, interp = fgg.grammar, fgg.interp
+    if not isinstance(semiring, RealSemiring): raise NotImplementedError()
+
+    # Check linearity and compute F(0)
+    F0 = {}
+    for n in hrg.nonterminals():
+        if n in inputs:
+            continue
+        for rule in hrg.rules(n):
+            edges = [e for e in rule.rhs.edges() if e.label.is_nonterminal and e.label not in inputs]
+            if len(edges) == 0:
+                add_value(F0, n, sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, inputs, semiring=semiring))
+            elif len(edges) > 1:
+                raise ValueError('FGG is not linearly recursive')
+
+    J0 = J_sparse(fgg, {}, inputs, semiring)
+
+    # Flatten J0 and F0
+    F0_flat = {el: t.flatten() for (el, t) in F0.items()}
+    J0_flat = {}
+    for (el1, el2), t in J0.items():
+        t = t.flatten(0, el1.arity)
+        t = t.flatten(1) if el2.arity > 0 else t.unsqueeze(-1)
+        J0_flat[el1, el2] = t
+    
+    solve_sparse(J0_flat, F0_flat)
+
+    # Unflatten F0
+    x = MultiTensor.initialize(fgg, semiring)
+    for el, t in F0_flat.items():
+        x.dict[el].view(-1).copy_(t)
+    
     return x
 
 
