@@ -1,5 +1,5 @@
 __all__ = ['MultiTensor', 'MultiShape', 'multi_mv', 'multi_solve']
-from typing import Union, Tuple, TypeVar, Dict, Mapping, MutableMapping, Optional
+from typing import Union, Tuple, TypeVar, Iterator, Dict, Mapping, MutableMapping, Optional
 from fggs.semirings import Semiring
 import torch
 from torch import Tensor, Size
@@ -10,6 +10,7 @@ MultiTensorKey = Union[T, Tuple[T,...]]
 MultiShape = Mapping[MultiTensorKey, Size]
 
 class MultiTensor(MutableMapping[MultiTensorKey, Tensor]):
+    """A mapping from keys to Tensors that supports some vector and matrix operations."""
     def __init__(self, shapes: Union[MultiShape, Tuple[MultiShape,...]], semiring: Semiring):
         if not isinstance(shapes, tuple):
             shapes = (shapes,)
@@ -17,15 +18,16 @@ class MultiTensor(MutableMapping[MultiTensorKey, Tensor]):
         self.semiring = semiring
         self._dict: Dict[MultiTensorKey, Tensor] = {}
 
-    def __getitem__(self, key: MultiTensorKey):              return self._dict[key]
+    def __getitem__(self, key: MultiTensorKey) -> Tensor:    return self._dict[key]
     def __setitem__(self, key: MultiTensorKey, val: Tensor): self._dict[key] = val
     def __delitem__(self, key: MultiTensorKey):              del self._dict[key]
-    def __iter__(self):                                      return iter(self._dict)
-    def __len__(self):                                       return len(self._dict)
-    def __str__(self):                                       return str(self._dict)
-    def __repr__(self):                                      return repr(self._dict)
+    def __iter__(self) -> Iterator[MultiTensorKey]:          return iter(self._dict)
+    def __len__(self) -> int:                                return len(self._dict)
+    def __str__(self) -> str:                                return str(self._dict)
+    def __repr__(self) -> str:                               return repr(self._dict)
 
-    def allclose(self, other: 'MultiTensor', tol: float):
+    def allclose(self, other: 'MultiTensor', tol: float) -> bool:
+        """Returns true if all elements of self and other are within tol of each other."""
         if self.keys() != other.keys():
             return False # bug: missing values and zero should compare equal
         if tol == 0:
@@ -39,39 +41,47 @@ class MultiTensor(MutableMapping[MultiTensorKey, Tensor]):
         return True
 
     def copy_(self, other: 'MultiTensor'):
+        """Copy all elements from other to self."""
         for k in self:
             if k not in other:
-                del self[k] # or set to zero?
+                del self[k]
         for k in other:
             if k in self:
                 self[k].copy_(other[k])
             else:
                 self[k] = other[k].clone()
 
-    def clone(self):
+    def clone(self) -> 'MultiTensor':
         c = MultiTensor(self.shapes, self.semiring)
         c.copy_(self)
         return c
 
     def add_single(self, k: MultiTensorKey, v: Tensor):
+        """Add v to self[k]. If self[k] does not exist, it is initialized to zero."""
         if k in self:
             self[k] = self.semiring.add(self[k], v)
         else:
             self[k] = v
 
-    def __add__(self, other: 'MultiTensor'):
+    def __add__(self, other: 'MultiTensor') -> 'MultiTensor':
         result = self.clone()
         for x, t in other.items():
             result.add_single(x, t)
         return result
     
-    def __sub__(self, other: 'MultiTensor'):
+    def __sub__(self, other: 'MultiTensor') -> 'MultiTensor':
         result = self.clone()
         for x, t in other.items():
             result[x] = self.semiring.sub(result[x], t)
         return result
 
 def multi_mv(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> MultiTensor:
+    """Compute the product a @ b, where the elements of a are flattened into
+    matrices and the elements of b are flattened into vectors.
+
+    Arguments:
+    - transpose: compute a.T @ b = b @ a instead.
+    """
     ishapes, jshapes = a.shapes
     # assert b.shapes == (jshapes,)
     flat_ishapes = {x:Size((ishapes[x].numel(),)) for x in ishapes}
@@ -92,10 +102,11 @@ def multi_mv(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> MultiTe
     return c
 
 def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> MultiTensor:
-    """Solve x = ax + b for x.
+    """Solve x = a @ x + b for x, where the elements of a are flattened into
+    matrices and the elements of b are flattened into vectors.
     
     Arguments:
-    - transpose: solve x = a^T x + b instead.
+    - transpose: solve x = a.T @ x + b (or x = x @ a + b) instead.
     """
 
     semiring = a.semiring

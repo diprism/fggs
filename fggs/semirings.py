@@ -13,6 +13,11 @@ class Semiring(ABC):
         """Map 0 to the semiring's zero element, 1 to the semiring's one element,
         2 to 1 + 1, and so on."""
         pass
+
+    def eye(self, n: int) -> torch.Tensor:
+        return self.from_int(torch.eye(n, dtype=self.dtype, device=self.device))
+    def zeros(self, shape: torch.Size) -> torch.Tensor:
+        return self.from_int(torch.zeros(shape, dtype=self.dtype, device=self.device))
     
     @abstractmethod
     def add(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -36,9 +41,11 @@ class Semiring(ABC):
     @abstractmethod
     def einsum(self, equation, *args: torch.Tensor) -> torch.Tensor:
         pass
+    
     mm_equation = torch_semiring_einsum.compile_equation('ij,jk->ik')
     def mm(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         return self.einsum(Semiring.mm_equation, a, b)
+    
     mv_equation = torch_semiring_einsum.compile_equation('ij,j->i')
     def mv(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         return self.einsum(Semiring.mv_equation, a, b)
@@ -110,7 +117,6 @@ class LogSemiring(Semiring):
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
         return -torch.log1p(-torch.exp(x)).nan_to_num(nan=-torch.inf) # type: ignore
-
 
     @staticmethod
     def einsum(equation, *args):

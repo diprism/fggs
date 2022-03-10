@@ -5,7 +5,7 @@ from fggs.factors import CategoricalFactor
 from fggs.semirings import *
 from fggs.multi import *
 
-from typing import Callable, Dict, Mapping, Sequence, Iterable, Tuple, List, Set, Union, cast, Optional
+from typing import Callable, Dict, Mapping, Sequence, Iterable, Tuple, List, Set, Union, Optional
 import warnings
 
 import torch
@@ -77,6 +77,7 @@ def scc(g: HRG) -> List[HRG]:
 
 
 class FGGMultiShape(MultiShape):
+    """A virtual Multishape for the nonterminals or terminals of an FGG."""
     def __init__(self, fgg, els):
         self.fgg = fgg
         self.els = list(els)
@@ -89,6 +90,7 @@ class FGGMultiShape(MultiShape):
 
     
 def fixed_point(F: Function, x0: MultiTensor, *, tol: float, kmax: int) -> None:
+    """Fixed-point iteration method for solving x = F(x)."""
     k, x1 = 0, F(x0)
     while not x0.allclose(x1, tol) and k <= kmax:
         x0.copy_(x1)
@@ -114,7 +116,7 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
-# to do: change x and inputs to inputses
+
 def F(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring) -> MultiTensor:
     hrg, interp = fgg.grammar, fgg.interp
     Fx = MultiTensor(x.shapes, x.semiring)
@@ -127,7 +129,7 @@ def F(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring) -> Mult
 
 def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
       J_terminals: Optional[MultiTensor] = None) -> MultiTensor:
-    """The Jacobian of F(semiring=RealSemiring)."""
+    """The Jacobian of F."""
     hrg, interp = fgg.grammar, fgg.interp
     Jx = MultiTensor(x.shapes+x.shapes, semiring)
     for n in hrg.nonterminals():
@@ -206,7 +208,7 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
             connected.update([n, ncopy])
             indexing.append([n, ncopy])
             nsize = interp.domains[n.label].size()
-            tensors.append(semiring.from_int(torch.eye(nsize, dtype=semiring.dtype, device=semiring.device)))
+            tensors.append(semiring.eye(nsize))
         else:
             ext.append(n)
 
@@ -220,7 +222,7 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
         else:
             if edge.label.is_nonterminal:
                 # One argument to einsum will be the zero tensor, so just return zero
-                return semiring.from_int(torch.zeros(interp.shape(ext), dtype=semiring.dtype, device=semiring.device))
+                return semiring.zeros(interp.shape(ext))
             else:
                 raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
 
@@ -264,8 +266,9 @@ def linear(fgg: FGG, inputs: MultiTensor, semiring: Semiring) -> MultiTensor:
     hrg, interp = fgg.grammar, fgg.interp
     shapes = FGGMultiShape(fgg, hrg.nonterminals())
 
-    # Check linearity and compute F(0)
+    # Check linearity and compute F(0) and J(0)
     F0 = MultiTensor(shapes, semiring)
+    J0 = MultiTensor((shapes, shapes), semiring)
     for n in hrg.nonterminals():
         if n in inputs:
             continue
@@ -273,16 +276,13 @@ def linear(fgg: FGG, inputs: MultiTensor, semiring: Semiring) -> MultiTensor:
             edges = [e for e in rule.rhs.edges() if e.label.is_nonterminal and e.label not in inputs]
             if len(edges) == 0:
                 F0.add_single(n, sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, inputs, semiring=semiring))
-            elif len(edges) > 1:
+            elif len(edges) == 1:
+                [edge] = edges
+                J0.add_single((n, edge.label), sum_product_edges(interp, rule.rhs.nodes(), set(rule.rhs.edges()) - {edge}, rule.rhs.ext + edge.nodes, inputs, semiring=semiring))
+            else:
                 raise ValueError('FGG is not linearly recursive')
 
-    J0 = J(fgg, MultiTensor((shapes, shapes), semiring), inputs, semiring)
-    
-    x = multi_solve(J0, F0)
-    for el, t in x.items():
-        x[el] = x[el].reshape(interp.shape(el))
-    
-    return x
+    return multi_solve(J0, F0)
 
 
 class SumProduct(torch.autograd.Function):
@@ -337,8 +337,7 @@ class SumProduct(torch.autograd.Function):
             out = x0
 
         ctx.out_values = out
-        return tuple(out[nt] if nt in out
-                     else semiring.from_int(torch.zeros(fgg.interp.shape(nt), dtype=semiring.dtype, device=semiring.device)) # to do: semiring.zeros, semiring.eye
+        return tuple(out[nt] if nt in out else semiring.zeros(fgg.interp.shape(nt))
                      for nt in out_labels)
 
     @staticmethod
@@ -351,6 +350,8 @@ class SumProduct(torch.autograd.Function):
         real_semiring = RealSemiring(dtype=semiring.dtype, device=semiring.device)
 
         # Construct and solve linear system of equations
+        f = dict(zip(ctx.out_labels, grad_out))
+            
         jf_terminals = MultiTensor((shapes, FGGMultiShape(ctx.fgg, hrg.terminals())), real_semiring)
         if isinstance(semiring, RealSemiring):
             jf = J(ctx.fgg, ctx.out_values, inputs, semiring, jf_terminals)
@@ -358,9 +359,7 @@ class SumProduct(torch.autograd.Function):
             jf = J_log(ctx.fgg, ctx.out_values, inputs, semiring, jf_terminals)
         else:
             raise ValueError(f'invalid semiring: {semiring}')
-        f = MultiTensor(shapes, real_semiring)
-        for x, grad_x in zip(ctx.out_labels, grad_out):
-            f.add_single(x, grad_x)
+        
         grad_nt = multi_solve(jf, f, transpose=True)
 
         # Change infs to very large numbers
@@ -386,10 +385,7 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
 
     hrg, interp = fgg.grammar, fgg.interp
     in_labels = list(hrg.terminals())
-    in_values = []
-    for t in in_labels:
-        w = interp.factors[t].weights
-        in_values.append(w)
+    in_values = [interp.factors[t].weights for t in in_labels]
     out_labels = list(hrg.nonterminals())
     out = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
     return out[out_labels.index(fgg.grammar.start_symbol)]
