@@ -1,5 +1,5 @@
 from fggs import sum_product, FGG, Interpretation, CategoricalFactor, json_to_fgg
-from fggs.sum_product import scc, MultiTensor, SumProduct
+from fggs.sum_product import scc, SumProduct
 from fggs.semirings import *
 import unittest, warnings, torch, random, json, copy
 
@@ -54,6 +54,7 @@ class TestSumProduct(unittest.TestCase):
             Example('test/barhillel.json', value=torch.tensor([[0.1129, 0.0129], [0.0129, 0.1129]])),
             Example('test/test.json', value=torch.tensor([7., 1., 1.]), clean=False),
             Example('test/linear.json', value=7.5, linear=True),
+            Example('test/cycle.json', value=1-0.5**10, linear=True),
         ]
 
         for ex in self.examples:
@@ -141,44 +142,12 @@ class TestSumProduct(unittest.TestCase):
                                 self.assertTrue(torch.all(z == z_exact),
                                                 f'{z} != {z_exact}')
 
-    def test_broyden(self):
-        for example in self.examples:
-            with self.subTest(example=str(example)):
-                z = sum_product(example.fgg, method='broyden')
-                z_exact = example.exact()
-                self.assertTrue(torch.norm(z - z_exact) < 1e-2,
-                                f'{z} != {z_exact}')
-
                 
 class TestSCC(unittest.TestCase):
     def test_scc(self):
         g = load_fgg('test/hmm.json').grammar
         self.assertEqual(scc(g), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])
 
-class TestMultiTensor(unittest.TestCase):
-    def setUp(self):
-        self.fgg_1 = load_fgg('test/hmm.json')
-        self.S, self.X = self.fgg_1.grammar.get_edge_label('S'), self.fgg_1.grammar.get_edge_label('X')
-        self.semiring = RealSemiring()
-        
-    def test_basic(self):
-        mt = MultiTensor.initialize(self.fgg_1, self.semiring)
-        self.assertEqual(list(mt.size()), [7])
-        self.assertEqual(list(mt.dict[self.S].size()), [])
-        self.assertEqual(list(mt.dict[self.X].size()), [6])
 
-    def test_square(self):
-        mt = MultiTensor.initialize(self.fgg_1, self.semiring, ndim=2)
-        self.assertEqual(list(mt.size()), [7, 7])
-        self.assertEqual(list(mt.dict[self.S, self.S].size()), [])
-        self.assertEqual(list(mt.dict[self.S, self.X].size()), [6])
-        self.assertEqual(list(mt.dict[self.X, self.S].size()), [6])
-        self.assertEqual(list(mt.dict[self.X, self.X].size()), [6, 6])
-
-    def test_ops(self):
-        x = MultiTensor.initialize(self.fgg_1, self.semiring)
-        y = x + 1.
-        self.assertTrue(torch.norm(y - (x + 1.)) < 1e-6)
-        
 if __name__ == '__main__':
     unittest.main()

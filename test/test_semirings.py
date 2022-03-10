@@ -108,7 +108,7 @@ class TestSemirings(unittest.TestCase):
         for semiring, _ in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 self.assertAlmostEqual(
-                    semiring.einsum(e, semiring.from_int(a), semiring.from_int(b), block_size=1),
+                    semiring.einsum(e, semiring.from_int(a), semiring.from_int(b)),
                     semiring.from_int(c)
                 )
 

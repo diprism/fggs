@@ -34,8 +34,14 @@ class Semiring(ABC):
         pass
     
     @abstractmethod
-    def einsum(self, equation, *args: torch.Tensor, block_size: int) -> torch.Tensor:
+    def einsum(self, equation, *args: torch.Tensor) -> torch.Tensor:
         pass
+    mm_equation = torch_semiring_einsum.compile_equation('ij,jk->ik')
+    def mm(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+        return self.einsum(Semiring.mm_equation, a, b)
+    mv_equation = torch_semiring_einsum.compile_equation('ij,j->i')
+    def mv(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+        return self.einsum(Semiring.mv_equation, a, b)
 
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         """Find the least nonnegative solution of x = ax+b. Equivalently, compute ∑ aⁿb.
@@ -58,6 +64,7 @@ class Semiring(ABC):
             x[:]      = self.add(x,         self.mul(a[:,k],      x[k]))
         return x
 
+
 class RealSemiring(Semiring):
     
     def from_int(self, n: Union[int, torch.Tensor]):
@@ -78,7 +85,9 @@ class RealSemiring(Semiring):
         y.masked_fill_(x >= 1, torch.inf)
         return y
         
-    einsum = staticmethod(torch_semiring_einsum.einsum) # type: ignore
+    @staticmethod
+    def einsum(equation, *args):
+        return torch_semiring_einsum.real_einsum_forward(equation, *args, block_size=1)
     
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         return torch.linalg.solve(torch.eye(*a.shape, dtype=self.dtype, device=self.device)-a, b)
@@ -101,8 +110,11 @@ class LogSemiring(Semiring):
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
         return -torch.log1p(-torch.exp(x)).nan_to_num(nan=-torch.inf) # type: ignore
-    
-    einsum = staticmethod(torch_semiring_einsum.log_einsum) # type: ignore
+
+
+    @staticmethod
+    def einsum(equation, *args):
+        return torch_semiring_einsum.log_einsum_forward(equation, *args, block_size=1)
     
     
 class ViterbiSemiring(Semiring):
@@ -123,8 +135,8 @@ class ViterbiSemiring(Semiring):
         return torch.where(x >= 0, torch.inf, 0.).to(self.dtype)
     
     @staticmethod
-    def einsum(*args, **kwargs):
-        val, ind = torch_semiring_einsum.log_viterbi_einsum_forward(*args, **kwargs)
+    def einsum(equation, *args):
+        val, ind = torch_semiring_einsum.log_viterbi_einsum_forward(equation, *args, block_size=1)
         return val
 
     mv_equation = torch_semiring_einsum.compile_equation('ij,j->i')
@@ -152,5 +164,5 @@ class BoolSemiring(Semiring):
         return torch.full_like(x, True)
 
     @staticmethod
-    def einsum(equation, *args: torch.Tensor, block_size: int) -> torch.Tensor:
-        return torch_semiring_einsum.einsum(equation, *args, block_size=block_size) > 0
+    def einsum(equation, *args: torch.Tensor) -> torch.Tensor:
+        return torch_semiring_einsum.einsum(equation, *args, block_size=1) > 0

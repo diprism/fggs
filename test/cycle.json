@@ -1,0 +1,151 @@
+{
+    "grammar": {
+        "terminals": {
+            "a": { "type": [] }
+        },
+        "nonterminals": {
+            "X0": { "type" : [] },
+            "X1": { "type" : [] },
+            "X2": { "type" : [] },
+            "X3": { "type" : [] },
+            "X4": { "type" : [] },
+            "X5": { "type" : [] },
+            "X6": { "type" : [] },
+            "X7": { "type" : [] },
+            "X8": { "type" : [] },
+            "X9": { "type" : [] }
+        },
+        "start": "X0",
+        "rules": [
+            {
+                "lhs": "X0",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [
+                        { "attachments": [], "label": "X1" },
+                        { "attachments": [], "label": "a" }
+                    ],
+                    "externals": []
+                }
+            },
+            {
+                "lhs": "X1",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [
+                        { "attachments": [], "label": "X2" },
+                        { "attachments": [], "label": "a" }
+                    ],
+                    "externals": []
+                }
+            },
+            {
+                "lhs": "X2",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [
+                        { "attachments": [], "label": "X3" },
+                        { "attachments": [], "label": "a" }
+                    ],
+                    "externals": []
+                }
+            },
+            {
+                "lhs": "X3",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [
+                        { "attachments": [], "label": "X4" },
+                        { "attachments": [], "label": "a" }
+                    ],
+                    "externals": []
+                }
+            },
+            {
+                "lhs": "X4",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [
+                        { "attachments": [], "label": "X5" },
+                        { "attachments": [], "label": "a" }
+                    ],
+                    "externals": []
+                }
+            },
+            {
+                "lhs": "X5",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [
+                        { "attachments": [], "label": "X6" },
+                        { "attachments": [], "label": "a" }
+                    ],
+                    "externals": []
+                }
+            },
+            {
+                "lhs": "X6",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [
+                        { "attachments": [], "label": "X7" },
+                        { "attachments": [], "label": "a" }
+                    ],
+                    "externals": []
+                }
+            },
+            {
+                "lhs": "X7",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [
+                        { "attachments": [], "label": "X8" },
+                        { "attachments": [], "label": "a" }
+                    ],
+                    "externals": []
+                }
+            },
+            {
+                "lhs": "X8",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [
+                        { "attachments": [], "label": "X9" },
+                        { "attachments": [], "label": "a" }
+                    ],
+                    "externals": []
+                }
+            },
+            {
+                "lhs": "X9",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [
+                        { "attachments": [], "label": "X0" },
+                        { "attachments": [], "label": "a" }
+                    ],
+                    "externals": []
+                }
+            },
+            {
+                "lhs": "X0",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [],
+                    "externals": []
+                }
+            }
+        ]
+    },
+    "interpretation": {
+        "domains": {},
+        "factors": {
+            "a": {
+                "function": "categorical",
+                "type": [],
+                "weights": 0.5
+            }
+        }
+    }
+}
+
