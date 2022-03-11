@@ -337,8 +337,6 @@ class TestHRG(unittest.TestCase):
         self.hrg.add_rule(self.rule)
         self.hrg.add_rule(self.rule2)
 
-        print(self.hrg)
-
     def test_add_node_label(self):
         node_labels = self.hrg.node_labels()
         self.assertEqual(len(node_labels), 2)
