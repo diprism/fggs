@@ -87,7 +87,6 @@ class RealSemiring(Semiring):
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
-        # Can't use torch.where until this is merged:
         y = 1/(1-x)
         y.masked_fill_(x >= 1, torch.inf)
         return y
@@ -110,18 +109,19 @@ class LogSemiring(Semiring):
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         z = -torch.relu((x-y).nan_to_num()) # type: ignore # minimum(0, y-x)
-        return x + torch.log1p(-torch.exp(z)) # type: ignore
+        return x - LogSemiring.star(z)
     
     mul = staticmethod(torch.add) # type: ignore
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
-        return -torch.log1p(-torch.exp(x)).nan_to_num(nan=-torch.inf) # type: ignore
+        return -torch.where(x < -1,
+                            torch.log1p(-torch.exp(x)),
+                            torch.log(-torch.expm1(x))).nan_to_num(nan=-torch.inf) # type: ignore
 
     @staticmethod
     def einsum(equation, *args):
         return torch_semiring_einsum.log_einsum_forward(equation, *args, block_size=1)
-    
     
 class ViterbiSemiring(Semiring):
     
