@@ -368,7 +368,6 @@ class SumProduct(torch.autograd.Function):
                     
         # Compute gradients of factors
         grad_t = multi_mv(jf_terminals, grad_nt, transpose=True)
-            
         grad_in = tuple(grad_t[el] if el.is_terminal else grad_nt[el] for el in ctx.in_labels)
         
         return (None, None, None, None) + grad_in

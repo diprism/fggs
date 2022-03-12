@@ -48,7 +48,7 @@ class Semiring(ABC):
     
     mv_equation = torch_semiring_einsum.compile_equation('ij,j->i')
     def mv(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        return self.einsum(Semiring.mv_equation, a, b)
+        return self.einsum(Semiring.mv_equation, a.nan_to_num(), b.nan_to_num())
 
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         """Find the least nonnegative solution of x = ax+b. Equivalently, compute ∑ aⁿb.
