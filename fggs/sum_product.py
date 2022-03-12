@@ -342,7 +342,6 @@ class SumProduct(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, *grad_out):
-        inputs = dict(zip(ctx.in_labels, ctx.saved_tensors))
         hrg, interp = ctx.fgg.grammar, ctx.fgg.interp
         shapes = FGGMultiShape(ctx.fgg, hrg.nonterminals())
         semiring = ctx.opts['semiring']
@@ -350,6 +349,7 @@ class SumProduct(torch.autograd.Function):
         real_semiring = RealSemiring(dtype=semiring.dtype, device=semiring.device)
 
         # Construct and solve linear system of equations
+        inputs = dict(zip(ctx.in_labels, ctx.saved_tensors))
         f = dict(zip(ctx.out_labels, grad_out))
             
         jf_terminals = MultiTensor((shapes, FGGMultiShape(ctx.fgg, hrg.terminals())), real_semiring)
@@ -359,7 +359,7 @@ class SumProduct(torch.autograd.Function):
             jf = J_log(ctx.fgg, ctx.out_values, inputs, semiring, jf_terminals)
         else:
             raise ValueError(f'invalid semiring: {semiring}')
-        
+
         grad_nt = multi_solve(jf, f, transpose=True)
 
         # Change infs to very large numbers

@@ -82,8 +82,10 @@ class RealSemiring(Semiring):
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return torch.relu(x - y) # maximum(0, x-y)
-    
-    mul = staticmethod(torch.mul) # type: ignore
+
+    @staticmethod
+    def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return torch.mul(x, y).nan_to_num()
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
@@ -96,14 +98,22 @@ class RealSemiring(Semiring):
         return torch_semiring_einsum.real_einsum_forward(equation, *args, block_size=1)
     
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        x = torch.linalg.solve(torch.eye(*a.shape, dtype=self.dtype, device=self.device)-a, b)
-        # We want to find the least nonnegative solution of (I-a)x = b, so check
-        # that all components are nonnegative.
-        if torch.any(x < 0) or torch.any(x.isnan()):
-            # There is no (finite) solution. Fall back to Semiring.solve, which can return inf.
-            x = Semiring.solve(self, a, b)
-        return x
-    
+        # We want the least nonnegative solution of (I-a)x = b, and
+        # want to use torch.linalg.solve if we can, but there are a
+        # number of things that can go wrong:
+        # - If a has an eigenvalue = 1, torch.linalg.solve raises RuntimeError.
+        # - If a has an eigenvalue > 1, the solution will have negative components.
+        # - If a has an eigenvalue = inf, the solution will have -0.0 components.
+        # In these cases, we have to fall back to Semiring.solve.
+        try:
+            x = torch.linalg.solve(self.eye(a.shape[0])-a, b)
+            if torch.all(torch.copysign(torch.tensor(1.), x) > 0.): # catches -0.0
+                return x
+        except RuntimeError:
+            pass
+        return Semiring.solve(self, a, b)
+
+
 class LogSemiring(Semiring):
     
     def from_int(self, n):

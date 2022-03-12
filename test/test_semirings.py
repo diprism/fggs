@@ -15,7 +15,7 @@ class TestSemirings(unittest.TestCase):
         if x.dtype is torch.bool:
             self.assertTrue(torch.all(x == y), (x, y))
         else:
-            self.assertTrue(torch.allclose(x, y), (x, y))
+            self.assertTrue(torch.allclose(x.nan_to_num(), y.nan_to_num()), (x, y))
     
     def test_from_int(self):
         for semiring, values in examples:
