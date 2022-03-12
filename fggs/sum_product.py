@@ -10,7 +10,7 @@ import warnings
 
 import torch
 from torch import Tensor
-import torch_semiring_einsum # type: ignore
+import torch_semiring_einsum
 
 Function = Callable[[MultiTensor], MultiTensor]
 

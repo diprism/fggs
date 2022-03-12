@@ -1,5 +1,5 @@
 import torch
-import torch_semiring_einsum # type: ignore
+import torch_semiring_einsum
 from abc import ABC, abstractmethod
 from typing import Union
 

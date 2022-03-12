@@ -3,7 +3,6 @@ from typing import Union, Tuple, TypeVar, Iterator, Dict, Mapping, MutableMappin
 from fggs.semirings import Semiring
 import torch
 from torch import Tensor, Size
-import torch_semiring_einsum # type: ignore
 
 T = TypeVar('T')
 MultiTensorKey = Union[T, Tuple[T,...]]
