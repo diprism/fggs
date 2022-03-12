@@ -22,6 +22,10 @@ class Semiring(ABC):
     @abstractmethod
     def add(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         pass
+
+    @abstractmethod
+    def sum(self, x: torch.Tensor, dim: int) -> torch.Tensor:
+        pass
     
     @abstractmethod
     def sub(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -42,25 +46,29 @@ class Semiring(ABC):
     def einsum(self, equation, *args: torch.Tensor) -> torch.Tensor:
         pass
     
-    mm_equation = torch_semiring_einsum.compile_equation('ij,jk->ik')
     def mm(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        return self.einsum(Semiring.mm_equation, a, b)
+        a = a.nan_to_num().unsqueeze(-1)
+        b = b.nan_to_num()
+        block_size = 10
+        out = self.sum(self.mul(a[:,:block_size], b[:block_size]), dim=1)
+        for j in range(block_size, a.shape[1], block_size):
+            out = self.add(out, self.sum(self.mul(a[:,j:j+block_size], b[j:j+block_size]), dim=1))
+        return out
     
-    mv_equation = torch_semiring_einsum.compile_equation('ij,j->i')
     def mv(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        return self.einsum(Semiring.mv_equation, a.nan_to_num(), b.nan_to_num())
+        return self.sum(self.mul(a.nan_to_num(), b.nan_to_num()), dim=1)
 
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         """Find the least nonnegative solution of x = ax+b. Equivalently, compute ∑ aⁿb.
 
         This is the semiring version of Gauss-Jordan elimination /
-        Floyd-Warshall transitive closure..
+        Floyd-Warshall transitive closure.
 
         Daniel Lehmann. Algebraic structures for transitive
         closure. Theoretical Computer Science, 4(1), 1977, pages
         59-76. https://doi.org/10.1016/0304-3975(77)90056-1
 
-        Thanks to Ryan Cotterell for pointing this out)
+        Thanks to Ryan Cotterell for pointing this out.
 
         """
         a = a.clone()
@@ -78,6 +86,7 @@ class RealSemiring(Semiring):
         return torch.as_tensor(n, dtype=self.dtype, device=self.device)
     
     add = staticmethod(torch.add) # type: ignore
+    sum = staticmethod(torch.sum) # type: ignore
     
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -121,6 +130,7 @@ class LogSemiring(Semiring):
         return torch.log(n)
     
     add = staticmethod(torch.logaddexp) # type: ignore
+    sum = staticmethod(torch.logsumexp) # type: ignore
     
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -131,14 +141,15 @@ class LogSemiring(Semiring):
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
-        return -torch.where(x < -1,
-                            torch.log1p(-torch.exp(x)),
+        return -torch.where(x < -1, # type: ignore
+                            torch.log1p(-torch.exp(x)), # type: ignore
                             torch.log(-torch.expm1(x))).nan_to_num(nan=-torch.inf) # type: ignore
 
     @staticmethod
     def einsum(equation, *args):
         return torch_semiring_einsum.log_einsum_forward(equation, *args, block_size=1)
-    
+
+
 class ViterbiSemiring(Semiring):
     
     def from_int(self, n):
@@ -146,6 +157,9 @@ class ViterbiSemiring(Semiring):
         return torch.where(n > 0, 0., -torch.inf).to(self.dtype)
     
     add = staticmethod(torch.maximum) # type: ignore
+    @staticmethod
+    def sum(x: torch.Tensor, dim: int) -> torch.Tensor:
+        return torch.max(x, dim=dim)[0]
     
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -174,6 +188,7 @@ class BoolSemiring(Semiring):
         return n > 0
     
     add = staticmethod(torch.logical_or) # type: ignore
+    sum = staticmethod(torch.any) # type: ignore
     
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
