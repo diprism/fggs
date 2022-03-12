@@ -80,7 +80,13 @@ class RealSemiring(Semiring):
     einsum = staticmethod(torch_semiring_einsum.einsum) # type: ignore
     
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        return torch.linalg.solve(torch.eye(*a.shape, dtype=self.dtype, device=self.device)-a, b)
+        x = torch.linalg.solve(torch.eye(*a.shape, dtype=self.dtype, device=self.device)-a, b)
+        # We want to find the least nonnegative solution of (I-a)x = b, so check
+        # that all components are nonnegative.
+        if any(x < 0) or any(x.isnan()):
+            # There is no (finite) solution. Fall back to Semiring.solve, which can return inf.
+            x = Semiring.solve(self, a, b)
+        return x
     
 class LogSemiring(Semiring):
     
