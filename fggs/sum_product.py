@@ -100,7 +100,6 @@ def fixed_point(F: Function, x0: MultiTensor, *, tol: float, kmax: int) -> None:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
 
-@profile
 def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) -> None:
     """Newton's method for solving x = F(x) in a commutative semiring.
 
