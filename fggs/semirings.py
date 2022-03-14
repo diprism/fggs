@@ -76,7 +76,10 @@ class Semiring(ABC):
         for k in range(a.shape[0]):
             a[:,k]    = self.mul(a[:,k], self.star(a[k,k]))
             a[:,k+1:] = self.add(a[:,k+1:], self.mul(a[:,k,None], a[k,k+1:]))
-            x[:]      = self.add(x,         self.mul(a[:,k],      x[k]))
+            if x.ndim == 1:
+                x[:]  = self.add(x,         self.mul(a[:,k],      x[k]))
+            elif x.ndim == 2:
+                x[:]  = self.add(x,         self.mul(a[:,k,None], x[k]))
         return x
 
 
