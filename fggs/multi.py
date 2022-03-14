@@ -133,10 +133,8 @@ def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> Mult
     # LU decomposition
     for k,z in enumerate(order):
         if (z,z) in a:
-            # to do: this repeats some work
             for x in order[k+1:]:
                 if (x,z) in a:
-                    y = semiring.solve(a[z,z].T, a[x,z].T)
                     a[x,z].T.copy_(semiring.solve(a[z,z].T, a[x,z].T))
         for x in order[k+1:]:
             if (x,z) in a:
