@@ -177,13 +177,14 @@ for epoch in range(100):
             for el in params:
                 interp.factors[el].weights = params[el]
                 
-            z = fggs.sum_product(fgg, method='fixed-point', semiring=fggs.LogSemiring)
+            z = fggs.sum_product(fgg, method='newton', semiring=fggs.LogSemiring())
 
             loss = -w + len(minibatch) * z # type: ignore
             train_loss += loss.item()
 
             opt.zero_grad()
             loss.backward()
+
             # Gradient clipping is crucial, since the gradient can have infinite components.
             # The clipping value should be high enough to quickly exit the region where Z is infinite.
             # The reciprocal of the learning rate seems to be a reasonable choice.

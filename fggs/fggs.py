@@ -62,16 +62,18 @@ class EdgeLabel:
 
     def __str__(self):
         return self.to_string(0)
-    def to_string(self, indent):
-        string = "\t"*indent
+    def to_string(self, indent=0, verbose=True):
+        string = ""
+        if verbose:
+            string += "  "*indent
         if self.is_terminal:
-            string += f"Terminal EdgeLabel {self.name} with arity {self.arity}"
+            string += f"Terminal EdgeLabel {self.name}"
         else:
-            string += f"Nonterminal EdgeLabel {self.name} with arity {self.arity}"
-        if self.arity != 0:
-            string += " and endpoints of type:"
+            string += f"Nonterminal EdgeLabel {self.name}"
+        if verbose and self.arity != 0:
+            string += " with type:"
             for i, node_label in enumerate(self.type):
-                string += "\n\t" + "\t"*indent + f"{i+1}. NodeLabel {node_label.name}"
+                string += "\n  " + "  "*indent + f"{node_label}"
         return string
     
 
@@ -96,7 +98,7 @@ class Node:
                 raise TypeError('explicit Node ids must be strings')
 
     def __str__(self):
-        return f"Node {self.id} with NodeLabel {self.label}"
+        return f"Node {self.id} with {self.label}"
 
 
 @dataclass(frozen=True)
@@ -123,19 +125,15 @@ class Edge:
             object.__setattr__(self, 'nodes', tuple(self.nodes))
     
     def __str__(self):
-        return self.to_string(0, True)
-    def to_string(self, indent, verbose):
-        arity = len(self.nodes)
-        string = "\t"*indent
-        string += f"Edge {self.id} with EdgeLabel {self.label}, connecting to {arity} nodes"
-        if arity > 0:
-            string += ":"
+        return self.to_string(0)
+    def to_string(self, indent):
+        string = "  "*indent
+        string += f"Edge {self.id} with {self.label.to_string(verbose=False)}"
+        if len(self.nodes) > 0:
+            string += " connecting to:"
             for node in self.nodes:
-                string += "\n\t" + "\t"*indent
-                if verbose:
-                    string += f"{node}"
-                else:
-                    string += f"Node {node.id}"
+                string += "\n  " + "  "*indent
+                string += f"{node}"
         return string
 
 
@@ -200,6 +198,12 @@ class Graph:
         self._nodes.add(node)
         self._node_ids.add(node.id)
 
+    def new_node(self, name: str, id: Optional[str] = None) -> Node:
+        """Convenience function for creating and adding a Node at the same time."""
+        node = Node(NodeLabel(name), id=id)
+        self.add_node(node)
+        return node
+
     def remove_node(self, node: Node):
         """Removes a node from the hypergraph."""
         if node not in self._nodes:
@@ -224,6 +228,18 @@ class Graph:
         self._edges.add(edge)
         self._edge_ids.add(edge.id)
         self._edge_labels[edge.label.name] = edge.label
+
+    def new_edge(self, name: str, nodes: Sequence[Node],
+                 *,
+                 is_terminal: bool = False, is_nonterminal: bool = False,
+                 id: Optional[str] = None) -> Edge:
+        """Convenience function for creating and adding an Edge at the same time."""
+        edge = Edge(EdgeLabel(name, [node.label for node in nodes],
+                              is_terminal=is_terminal, is_nonterminal=is_nonterminal),
+                    nodes,
+                    id=id)
+        self.add_edge(edge)
+        return edge
 
     def remove_edge(self, edge: Edge):
         """Removes a hyperedge from the hypergraph."""
@@ -258,15 +274,16 @@ class Graph:
     def to_string(self, indent):
         num_nodes = len(self._nodes)
         num_edges = len(self._edges)
-        string = "\t"*indent + f"Factor graph with {num_nodes} nodes and {num_edges} edges"
+        string = "  "*indent + f"Graph containing:"
         if num_nodes > 0:
-            string += "\n" + "\t"*indent + "Nodes:"
             for node in self._nodes:
-                string += "\n\t" + "\t"*indent + f"{node}"
+                string += "\n  " + "  "*indent
+                if node in self.ext:
+                    string += "External "
+                string += str(node)
         if num_edges > 0:
-            string += "\n" + "\t"*indent + "Edges:"
             for edge in self._edges:
-                string += "\n" + edge.to_string(indent+1, False)
+                string += "\n" + edge.to_string(indent+1)
         return string
 
 @dataclass
@@ -293,8 +310,8 @@ class HRGRule:
     def __str__(self):
         return self.to_string(0)
     def to_string(self, indent):
-        string = "\t"*indent
-        string += f"HRGRule with left-hand side {self.lhs.name} and right-hand side as follows:\n"
+        string = "  "*indent
+        string += f"HRGRule {self.lhs.name} ->\n"
         string += self.rhs.to_string(indent+1)
         return string
 
@@ -401,15 +418,15 @@ class HRG:
         return not self.__eq__(other)
 
     def __str__(self):
-        string = "Factor graph grammar with:"
-        string += "\n\tNode labels:"
+        string = "HRG with:"
+        string += "\n  Node labels:"
         for label_name in self._node_labels:
-            string += f"\n\t\t{self._node_labels[label_name]}"
-        string += "\n\tEdge labels:"
+            string += f"\n    {self._node_labels[label_name]}"
+        string += "\n  Edge labels:"
         for label_name in self._edge_labels:
             string += f"\n{self._edge_labels[label_name].to_string(2)}"
-        string += f"\n\tStart symbol {self.start_symbol.name}"
-        string += f"\n\tProductions:"
+        string += f"\n  Start symbol {self.start_symbol.name}"
+        string += f"\n  Productions:"
         for nonterminal in self._rules:
             for rule in self._rules[nonterminal]:
                 string += f"\n{rule.to_string(2)}"

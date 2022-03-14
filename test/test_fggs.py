@@ -250,6 +250,26 @@ class TestGraph(unittest.TestCase):
 
         self.assertEqual(self.graph, copy)
 
+    def test_convenience(self):
+        g = Graph()
+        node1 = g.new_node('nl1', id='node1')
+        node2 = g.new_node('nl2')
+        edge1 = g.new_edge('el1', [node1, node2], is_terminal=True, id='edge1')
+        edge2 = g.new_edge('el2', [node2], is_nonterminal=True)
+        g.ext = [node2]
+
+        self.assertEqual(set(g.nodes()), {node1, node2})
+        self.assertEqual(node1, self.node1)
+        self.assertEqual(node2.label, self.node2.label)
+        self.assertEqual(set(g.edges()), {edge1, edge2})
+        self.assertEqual(edge1.label, self.edge1.label)
+        self.assertEqual(edge1.label, self.edge1.label)
+        self.assertEqual(edge1.nodes, (node1, node2))
+        self.assertEqual(edge2.label, self.edge2.label)
+        self.assertEqual(edge2.nodes, (node2,))
+        self.assertEqual(g.ext, (node2,))
+
+
 class TestHRGRule(unittest.TestCase):
 
     def setUp(self):
