@@ -132,12 +132,10 @@ def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> Mult
 
     # LU decomposition
     for k,z in enumerate(order):
-        if (z,z) in a:
-            for x in order[k+1:]:
-                if (x,z) in a:
-                    a[x,z].T.copy_(semiring.solve(a[z,z].T, a[x,z].T))
         for x in order[k+1:]:
             if (x,z) in a:
+                if (z,z) in a:
+                    a[x,z].T.copy_(semiring.solve(a[z,z].T, a[x,z].T))
                 for y in order[k+1:]:
                     if (z,y) in a:
                         a.add_single((x,y), semiring.mm(a[x,z], a[z,y]))
@@ -146,11 +144,12 @@ def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> Mult
 
     # Solve block-triangular systems
     for k,z in reversed(list(enumerate(order))):
-        if (z,z) in a and z in b:
-            b[z].copy_(semiring.solve(a[z,z], b[z]))
-        for x in reversed(order[:k]):
-            if (x,z) in a and z in b:
-                b.add_single(x, semiring.mv(a[x,z], b[z]))
+        if z in b:
+            if (z,z) in a:
+                b[z].copy_(semiring.solve(a[z,z], b[z]))
+            for x in reversed(order[:k]):
+                if (x,z) in a:
+                    b.add_single(x, semiring.mv(a[x,z], b[z]))
 
     # Unflatten and return solution
     for x in b:
