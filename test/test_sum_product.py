@@ -130,16 +130,15 @@ class TestSumProduct(unittest.TestCase):
                             self.assertTrue(torch.norm(z - z_expected) < 1e-2,
                                             f'{z} != {z_expected}')
 
-                        if method != 'newton':
-                            with self.subTest(semiring='BoolSemiring'):
-                                interp = copy.deepcopy(example.fgg.interp)
-                                for fac in interp.factors.values():
-                                    fac.weights = fac.weights > 0.
-                                fgg = FGG(example.fgg.grammar, interp)
-                                z = sum_product(fgg, method='fixed-point', semiring=BoolSemiring())
-                                z_exact = example.exact() > 0.
-                                self.assertTrue(torch.all(z == z_exact),
-                                                f'{z} != {z_exact}')
+                        with self.subTest(semiring='BoolSemiring'):
+                            interp = copy.deepcopy(example.fgg.interp)
+                            for fac in interp.factors.values():
+                                fac.weights = fac.weights > 0.
+                            fgg = FGG(example.fgg.grammar, interp)
+                            z = sum_product(fgg, method='fixed-point', semiring=BoolSemiring())
+                            z_exact = example.exact() > 0.
+                            self.assertTrue(torch.all(z == z_exact),
+                                            f'{z} != {z_exact}')
 
     def test_broyden(self):
         for example in self.examples:
