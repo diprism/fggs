@@ -83,17 +83,22 @@ def fixed_point(F: Function, x0: Tensor, *, tol: float, kmax: int) -> None:
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
-def newton(F: Function, J: Function, x0: Tensor, *, tol: float, kmax: int) -> None:
+def newton(F: Function, J: Function, x0: Tensor, *, semiring: Semiring, tol: float, kmax: int) -> None:
+    """Newton's method for solving x = F(x) in a commutative semiring.
+
+    Javier Esparza, Stefan Kiefer, and Michael Luttenberger. On fixed
+    point equations over commuitative semirings. In Proc. STACS, 2007."""
     k, x1 = 0, x0.clone()
     F0 = F(x0)
     n = x0.size()[0]
-    while torch.any(torch.abs(F0) > tol) and k <= kmax:
+    for k in range(kmax):
         JF = J(x0)
-        dX = torch.linalg.solve(JF, -F0) if n > 1 else (-F0/JF).reshape(n) # type: ignore
-        x1.copy_(x0 + dX)
+        dX = semiring.solve(JF, semiring.sub(F0, x0))
+        x1.copy_(semiring.add(x0, dX))
+        if torch.all(torch.abs(x1 - x0) <= tol):
+            break
         x0.copy_(x1)
         F0 = F(x1)
-        k += 1
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
@@ -223,11 +228,11 @@ def J(fgg: FGG, x: MultiTensor, inputs: Mapping[EdgeLabel, Tensor], semiring: Se
                 if edge.label.is_terminal:
                     assert J_terminals is not None
                     if (n, edge.label) in J_terminals:
-                        J_terminals[n, edge.label] += tau_edge
+                        J_terminals[n, edge.label] = semiring.add(J_terminals[n, edge.label], tau_edge)
                     else:
                         J_terminals[n, edge.label] = tau_edge
                 else:
-                    Jx.dict[n, edge.label] += tau_edge
+                    Jx.dict[n, edge.label] = semiring.add(Jx.dict[n, edge.label], tau_edge)
     return Jx
 
 
@@ -357,14 +362,13 @@ def linear(fgg: FGG, inputs: Mapping[EdgeLabel, Tensor], semiring: Semiring) -> 
         for rule in hrg.rules(n):
             edges = [e for e in rule.rhs.edges() if e.label.is_nonterminal and e.label not in inputs]
             if len(edges) == 0:
-                Fx.dict[n] += sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, inputs, semiring=semiring)
+                Fx.dict[n] = semiring.add(Fx.dict[n], sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, inputs, semiring=semiring))
             elif len(edges) > 1:
                 raise ValueError('FGG is not linearly recursive')
 
     x = MultiTensor.initialize(fgg, semiring)
     Jx = J(fgg, x, inputs, semiring)
-
-    x.copy_(torch.linalg.solve(torch.eye(Jx.size()[0], dtype=semiring.dtype, device=semiring.device)-Jx, Fx))
+    x.copy_(semiring.solve(Jx, Fx))
     return x
 
 
@@ -406,8 +410,6 @@ class SumProduct(torch.autograd.Function):
 
         if method == 'linear':
             # To do: make linear() not use custom backward function, and raise an exception here
-            if not isinstance(semiring, RealSemiring):
-                raise NotImplementedError()
             out = linear(fgg, inputs, semiring)
         else:
             x0 = MultiTensor.initialize(fgg, semiring)
@@ -417,11 +419,9 @@ class SumProduct(torch.autograd.Function):
                 fixed_point(lambda x: F(fgg, cast(MultiTensor, x), inputs, semiring),
                             x0, tol=opts['tol'], kmax=opts['kmax'])
             elif method == 'newton':
-                if not isinstance(semiring, RealSemiring):
-                    raise NotImplementedError()
-                newton(lambda x: F(fgg, cast(MultiTensor, x), inputs, semiring) - x,
-                       lambda x: J(fgg, cast(MultiTensor, x), inputs, semiring) - torch.eye(n, dtype=semiring.dtype, device=semiring.device),
-                       x0, tol=opts['tol'], kmax=opts['kmax'])
+                newton(lambda x: F(fgg, cast(MultiTensor, x), inputs, semiring),
+                       lambda x: J(fgg, cast(MultiTensor, x), inputs, semiring),
+                       x0, semiring=semiring, tol=opts['tol'], kmax=opts['kmax'])
             elif method == 'broyden':
                 if not isinstance(semiring, RealSemiring):
                     raise NotImplementedError()
@@ -440,6 +440,8 @@ class SumProduct(torch.autograd.Function):
         inputs = dict(zip(ctx.in_labels, ctx.saved_tensors))
         hrg, interp = ctx.fgg.grammar, ctx.fgg.interp
         semiring = ctx.opts['semiring']
+        # gradients are always computed in the real semiring
+        real_semiring = RealSemiring(dtype=semiring.dtype, device=semiring.device)
 
         jf_terminals: Dict[Tuple[EdgeLabel,EdgeLabel],Tensor] = {}
         if isinstance(semiring, RealSemiring):
@@ -450,21 +452,21 @@ class SumProduct(torch.autograd.Function):
             raise ValueError(f'invalid semiring: {semiring}')
         
         f = MultiTensor.initialize(ctx.fgg, semiring)
-        f.fill_(0.) # override semiring zero, because gradients are always in real semiring
+        f.fill_(0.)
         for x, grad_x in zip(ctx.out_labels, grad_out):
             f.dict[x] += grad_x
 
         # Solve linear system of equations
         grad_nt = MultiTensor.initialize(ctx.fgg, semiring)
-        grad_nt.fill_(0.) # override semiring zero
+        grad_nt.fill_(0.)
         try:
             assert torch.all(f >= 0.)
-            grad_nt[...] = torch.linalg.solve(torch.eye(jf.size()[0], dtype=semiring.dtype, device=semiring.device)-jf.T, f)
+            grad_nt[...] = real_semiring.solve(jf.T, f)
             failed = not torch.all(grad_nt >= 0.) # negative or NaN
         except RuntimeError:
             failed = True
         if failed:
-            warnings.warn('SumProduct.backward(): torch.linalg.solve failed; using fixed-point iteration')
+            warnings.warn('SumProduct.backward(): linear solve failed; using fixed-point iteration')
             grad_nt.fill_(0.)
             fixed_point(lambda g: torch.nan_to_num(f + jf.T @ g),
                         grad_nt,

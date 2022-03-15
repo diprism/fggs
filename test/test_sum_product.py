@@ -94,60 +94,52 @@ class TestSumProduct(unittest.TestCase):
                     return tuple(torch.exp(z) for z in ret)
                 self.assertTrue(torch.autograd.gradcheck(f, in_values, atol=1e-3))
 
-    def test_fixed_point(self):
-        for example in self.examples:
-            with self.subTest(example=str(example)):
-                z = sum_product(example.fgg, method='fixed-point')
-                z_exact = example.exact()
-                self.assertTrue(torch.norm(z - z_exact) < 1e-2,
-                                f'{z} != {z_exact}')
+    def test_sum_product(self):
+        for method in ['fixed-point', 'linear', 'newton']:
+            with self.subTest(method=method):
+                for example in self.examples:
+                    if method == 'linear' and not example.linear: continue
+                    if method in ['linear', 'newton'] and not example.clean: continue # not implemented yet
+                    with self.subTest(example=str(example)):
+                        z_exact = example.exact()
+                        fgg = example.fgg
+                        with self.subTest(semiring='RealSemiring'):
+                            z = sum_product(fgg, method=method, semiring=RealSemiring())
+                            self.assertTrue(torch.norm(z - z_exact) < 1e-2,
+                                            f'{z} != {z_exact}')
+                        
+                        interp = copy.deepcopy(fgg.interp)
+                        for fac in interp.factors.values():
+                            fac.weights = torch.log(fac.weights)
+                        fgg = FGG(example.fgg.grammar, interp)
+                        
+                        with self.subTest(semiring='LogSemiring'):
+                            z = torch.exp(sum_product(fgg, method=method, semiring=LogSemiring()))
+                            self.assertTrue(torch.norm(z - z_exact) < 1e-2,
+                                            f'{z} != {z_exact}')
+                            
+                        with self.subTest(semiring='ViterbiSemiring'):
+                            z = torch.exp(sum_product(fgg, method=method, semiring=ViterbiSemiring()))
 
-    def test_fixed_point_log(self):
-        for example in self.examples:
-            with self.subTest(example=str(example)):
-                interp = copy.deepcopy(example.fgg.interp)
-                for fac in interp.factors.values():
-                    fac.weights = torch.log(fac.weights)
-                fgg = FGG(example.fgg.grammar, interp)
-                z = torch.exp(sum_product(fgg, method='fixed-point', semiring=LogSemiring()))
-                z_exact = example.exact()
-                self.assertTrue(torch.norm(z - z_exact) < 1e-2,
-                                f'{z} != {z_exact}')
+                            # Rerun at a very low temperature to estimate the correct value
+                            
+                            temp = 1/1000
+                            for fac in interp.factors.values():
+                                fac.weights /= temp
+                            z_expected = torch.exp(temp * sum_product(fgg, method=method, semiring=LogSemiring()))
+                            self.assertTrue(torch.norm(z - z_expected) < 1e-2,
+                                            f'{z} != {z_expected}')
 
-    def test_fixed_point_bool(self):
-        for example in self.examples:
-            with self.subTest(example=str(example)):
-                interp = copy.deepcopy(example.fgg.interp)
-                for fac in interp.factors.values():
-                    fac.weights = fac.weights > 0.
-                fgg = FGG(example.fgg.grammar, interp)
-                z = sum_product(fgg, method='fixed-point', semiring=BoolSemiring())
-                z_exact = example.exact() > 0.
-                self.assertTrue(torch.all(z == z_exact),
-                                f'{z} != {z_exact}')
+                        with self.subTest(semiring='BoolSemiring'):
+                            interp = copy.deepcopy(example.fgg.interp)
+                            for fac in interp.factors.values():
+                                fac.weights = fac.weights > 0.
+                            fgg = FGG(example.fgg.grammar, interp)
+                            z = sum_product(fgg, method='fixed-point', semiring=BoolSemiring())
+                            z_exact = example.exact() > 0.
+                            self.assertTrue(torch.all(z == z_exact),
+                                            f'{z} != {z_exact}')
 
-    def test_linear(self):
-        for example in self.examples:
-            if not example.clean: continue # not implemented yet
-            with self.subTest(example=str(example)):
-                if example.linear:
-                    z = sum_product(example.fgg, method='linear')
-                    z_exact = example.exact()
-                    self.assertTrue(torch.norm(z - z_exact) < 1e-10,
-                                    f'{z} != {z_exact}')
-                else:
-                    with self.assertRaises(ValueError):
-                        _ = sum_product(example.fgg, method='linear')
-
-    def test_newton(self):
-        for example in self.examples:
-            if not example.clean: continue # not implemented yet
-            with self.subTest(example=str(example)):
-                z = sum_product(example.fgg, method='newton')
-                z_exact = example.exact()
-                self.assertTrue(torch.norm(z - z_exact) < 1e-2,
-                                f'{z} != {z_exact}')
-                
     def test_broyden(self):
         for example in self.examples:
             with self.subTest(example=str(example)):
