@@ -9,6 +9,7 @@ import tqdm # type: ignore
 ap = argparse.ArgumentParser()
 ap.add_argument('trainfile')
 ap.add_argument('-m', dest="method", default="rule", help="Method for converting CFG to FGG ('rule' or 'pattern')")
+ap.add_argument('--device', dest="device", default="cpu")
 args = ap.parse_args()
 
 # Read in training data
@@ -93,7 +94,7 @@ elif args.method == 'pattern':
     hrhs.add_node(root)
     el = fggs.EdgeLabel('is_start', [nonterminal_nl], is_terminal=True)
     hrhs.add_edge(fggs.Edge(el, [root]))
-    weights = torch.tensor([x == 'TOP' for x in nonterminal_dom.values], dtype=torch.get_default_dtype())
+    weights = torch.tensor([x == 'TOP' for x in nonterminal_dom.values], dtype=torch.get_default_dtype(), device=args.device)
     interp.add_factor(el, fggs.CategoricalFactor([nonterminal_dom], weights))
     hrhs.add_edge(fggs.Edge(subtree_el, [root]))
     hrg.add_rule(fggs.HRGRule(tree_el, hrhs))
@@ -175,9 +176,9 @@ for epoch in range(100):
                             assert False
 
             for el in params:
-                interp.factors[el].weights = params[el]
+                interp.factors[el].weights = params[el].to(args.device)
                 
-            z = fggs.sum_product(fgg, method='newton', semiring=fggs.LogSemiring())
+            z = fggs.sum_product(fgg, method='newton', semiring=fggs.LogSemiring(device=args.device))
 
             loss = -w + len(minibatch) * z # type: ignore
             train_loss += loss.item()
