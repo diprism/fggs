@@ -1,9 +1,13 @@
 import torch
+if not hasattr(torch, 'inf'):
+    import math
+    torch.inf = math.inf
 import torch_semiring_einsum
 from abc import ABC, abstractmethod
 from typing import Union
 
 class Semiring(ABC):
+    """A complete, commutative star-semiring (https://en.wikipedia.org/wiki/Semiring)."""
     def __init__(self, dtype=torch.get_default_dtype(), device='cpu'):
         self.dtype = dtype
         self.device = device
@@ -39,7 +43,9 @@ class Semiring(ABC):
     
     @abstractmethod
     def star(self, x: torch.Tensor) -> torch.Tensor:
-        """Compute ∑ xⁿ elementwise."""
+        """Compute x* = ∑ xⁿ = 1 + x + xx + ..., elementwise. Since 
+        x* = 1 + x(x*), this lets us solve equations of the form 
+        z = az+b as z = (a*)b."""
         pass
     
     @abstractmethod
@@ -68,7 +74,7 @@ class Semiring(ABC):
         closure. Theoretical Computer Science, 4(1), 1977, pages
         59-76. https://doi.org/10.1016/0304-3975(77)90056-1
 
-        Thanks to Ryan Cotterell for pointing this out.
+        (Thanks to Ryan Cotterell for pointing this out.)
 
         """
         a = a.clone()
@@ -81,7 +87,6 @@ class Semiring(ABC):
             elif x.ndim == 2:
                 x[:]  = self.add(x,         self.mul(a[:,k,None], x[k]))
         return x
-
 
 class RealSemiring(Semiring):
     
@@ -178,8 +183,6 @@ class ViterbiSemiring(Semiring):
         val, ind = torch_semiring_einsum.log_viterbi_einsum_forward(equation, *args, block_size=1)
         return val
 
-    mv_equation = torch_semiring_einsum.compile_equation('ij,j->i')
-    
     
 class BoolSemiring(Semiring):
     

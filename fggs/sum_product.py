@@ -105,6 +105,7 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
 
     Javier Esparza, Stefan Kiefer, and Michael Luttenberger. On fixed
     point equations over commutative semirings. In Proc. STACS, 2007."""
+    semiring = x0.semiring
     k = 0
     x1 = MultiTensor(x0.shapes, x0.semiring)
     for k in range(kmax):
@@ -114,6 +115,7 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
         x1.copy_(x0 + dX)
         if x0.allclose(x1, tol): break
         x0.copy_(x1)
+        
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 

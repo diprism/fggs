@@ -184,7 +184,6 @@ for epoch in range(100):
 
             opt.zero_grad()
             loss.backward()
-
             # Gradient clipping is crucial, since the gradient can have infinite components.
             # The clipping value should be high enough to quickly exit the region where Z is infinite.
             # The reciprocal of the learning rate seems to be a reasonable choice.
