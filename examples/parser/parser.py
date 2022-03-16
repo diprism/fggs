@@ -81,10 +81,10 @@ elif args.method == 'pattern':
     subtree_el = fggs.EdgeLabel('subtree', [nonterminal_nl], is_nonterminal=True)
     bigram_els = {
         (None, False) : fggs.EdgeLabel('start terminal', [nonterminal_nl, terminal_nl], is_terminal=True),
-        (False, None) : fggs.EdgeLabel('terminal stop', [nonterminal_nl, terminal_nl], is_terminal=True),
+        (False, None) : fggs.EdgeLabel('terminal stop', [terminal_nl], is_terminal=True),
         (None, True) : fggs.EdgeLabel('start nonterminal', [nonterminal_nl, nonterminal_nl], is_terminal=True),
-        (True, True) : fggs.EdgeLabel('nonterminal nonterminal', [nonterminal_nl, nonterminal_nl, nonterminal_nl], is_terminal=True),
-        (True, None) : fggs.EdgeLabel('nonterminal stop', [nonterminal_nl, nonterminal_nl], is_terminal=True),
+        (True, True) : fggs.EdgeLabel('nonterminal nonterminal', [nonterminal_nl, nonterminal_nl], is_terminal=True),
+        (True, None) : fggs.EdgeLabel('nonterminal stop', [nonterminal_nl], is_terminal=True),
     }
 
     hrg = fggs.HRG(tree_el)
@@ -116,8 +116,8 @@ elif args.method == 'pattern':
         # One edge for each bigram of nodes (including START and STOP)
         hrhs.add_edge(fggs.Edge(bigram_els[None, pattern[0]], [parent, children[0]]))
         for i in range(len(pattern)-1):
-            hrhs.add_edge(fggs.Edge(bigram_els[pattern[i], pattern[i+1]], [parent, children[i], children[i+1]]))
-        hrhs.add_edge(fggs.Edge(bigram_els[pattern[-1], None], [parent, children[-1]]))
+            hrhs.add_edge(fggs.Edge(bigram_els[pattern[i], pattern[i+1]], [children[i], children[i+1]]))
+        hrhs.add_edge(fggs.Edge(bigram_els[pattern[-1], None], [children[-1]]))
         
         hrhs.ext = [parent]
         hrg.add_rule(fggs.HRGRule(subtree_el, hrhs))
@@ -168,8 +168,8 @@ for epoch in range(100):
                             rhs_indices = tuple(nonterminal_dom.numberize(x) if isinstance(x, Nonterminal) else terminal_dom.numberize(x) for x in rhs)
                             w += params[bigram_els[None, pattern[0]]][lhs_index, rhs_indices[0]]
                             for i in range(len(rhs)-1):
-                                w += params[bigram_els[pattern[i], pattern[i+1]]][lhs_index, rhs_indices[i], rhs_indices[i+1]]
-                            w += params[bigram_els[pattern[-1], None]][lhs_index, rhs_indices[-1]]
+                                w += params[bigram_els[pattern[i], pattern[i+1]]][rhs_indices[i], rhs_indices[i+1]]
+                            w += params[bigram_els[pattern[-1], None]][rhs_indices[-1]]
 
                         else:
                             assert False
