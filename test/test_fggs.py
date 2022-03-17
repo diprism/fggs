@@ -426,8 +426,8 @@ class TestHRG(unittest.TestCase):
         self.assertNotEqual(id(hrg), id(copy))
         self.assertEqual(hrg, copy)
 
-    def test_new_rule(self):
-        copy = HRG(self.hrg.start_symbol)
+    def test_convenience(self):
+        copy = HRG(self.hrg.start_symbol.name)
         for rule in self.hrg.all_rules():
             copy.new_rule(rule.lhs.name, rule.rhs)
         self.assertEqual(self.hrg, copy)
@@ -514,12 +514,12 @@ class TestFGG(unittest.TestCase):
     def test_convenience(self):
         interp = Interpretation()
         fgg = FGG(self.hrg, interp)
-        fgg.add_domain(self.nl1.name, self.dom1)
-        self.assertTrue(fgg.interp.domains[self.nl1] is self.dom1)
-        fgg.add_domain(self.nl2.name, self.dom2)
-        self.assertTrue(fgg.interp.domains[self.nl2] is self.dom2)
-        fgg.add_factor(self.el1.name, self.fac1)
-        self.assertTrue(fgg.interp.factors[self.el1] is self.fac1)
+        fgg.new_finite_domain(self.nl1.name, self.dom1.values)
+        self.assertTrue(fgg.interp.domains[self.nl1] == self.dom1)
+        fgg.new_finite_domain(self.nl2.name, self.dom2.values)
+        self.assertTrue(fgg.interp.domains[self.nl2] == self.dom2)
+        fgg.new_categorical_factor(self.el1.name, self.fac1.weights)
+        self.assertTrue(fgg.interp.factors[self.el1] == self.fac1)
 
         
 if __name__ == "__main__":

@@ -2,8 +2,8 @@ __all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 
 
 from typing import Optional, Iterable, Tuple, Union, Dict, Sequence, List, cast
 from dataclasses import dataclass, field
-from fggs.domains import Domain
-from fggs.factors import Factor
+from fggs.domains import Domain, FiniteDomain
+from fggs.factors import Factor, CategoricalFactor
 
 
 @dataclass(frozen=True)
@@ -324,10 +324,14 @@ class HRGRule:
 class HRG:
     """A hyperedge replacement graph grammar."""
     
-    def __init__(self, start: EdgeLabel):
+    def __init__(self, start: Union[EdgeLabel, str]):
         self._node_labels: Dict[str, NodeLabel] = dict()
         self._edge_labels: Dict[str, EdgeLabel] = dict()
         self._rules: Dict[EdgeLabel, List[HRGRule]] = dict()
+        if isinstance(start, str):
+            # Assume that the derived graph has no external nodes
+            start = EdgeLabel(start, [], is_nonterminal=True)
+        start = cast(EdgeLabel, start)
         self.start_symbol: EdgeLabel = start
 
     def add_node_label(self, label: NodeLabel):
@@ -393,8 +397,8 @@ class HRG:
 
     def new_rule(self, lhs: str, rhs: Graph):
         """Convenience function for creating and adding a Rule at the same time."""
-        lhs = EdgeLabel(lhs, [node.label for node in rhs.ext], is_nonterminal=True)
-        rule = HRGRule(lhs, rhs)
+        lhs_el = EdgeLabel(lhs, [node.label for node in rhs.ext], is_nonterminal=True)
+        rule = HRGRule(lhs_el, rhs)
         self.add_rule(rule)
         return rule
 
@@ -519,15 +523,17 @@ class FGG:
     def __init__(self, grammar: HRG, interp: Interpretation):
         self.grammar = grammar
         self.interp = interp
+
+    def new_finite_domain(self, name: str, values: Sequence):
+        nl = NodeLabel(name)
+        dom = FiniteDomain(values)
+        self.interp.add_domain(nl, dom)
+        return dom
+
+    def new_categorical_factor(self, name: str, weights):
+        el = self.grammar.get_edge_label(name)
+        doms = [self.interp.domains[nl] for nl in el.node_labels]
+        fac = CategoricalFactor(doms, weights)
+        self.interp.add_factor(el, fac)
+        return fac
         
-    def add_domain(self, nl: Union[NodeLabel, str], dom: Domain):
-        """Add mapping from node label nl to Domain dom."""
-        if isinstance(nl, str):
-            nl = self.grammar.get_node_label(nl)
-        self.interp.add_domain(cast(NodeLabel, nl), dom)
-        
-    def add_factor(self, el: Union[EdgeLabel, str], fac: Factor):
-        """Add mapping from edge label el to Factor fac."""
-        if isinstance(el, str):
-            el = self.grammar.get_edge_label(el)
-        self.interp.add_factor(cast(EdgeLabel, el), fac)
