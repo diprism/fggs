@@ -177,7 +177,7 @@ for epoch in range(100):
                         else:
                             assert False
                 
-            z = fggs.sum_product(fgg, method='fixed-point', semiring=fggs.LogSemiring())
+            z = fggs.sum_product(fgg, method='newton', semiring=fggs.LogSemiring())
 
             loss = -w + len(minibatch) * z # type: ignore
             train_loss += loss.item()
