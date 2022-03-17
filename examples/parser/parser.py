@@ -47,8 +47,6 @@ for tree in traintrees:
 
 print('convert to FGG')
 
-interp = fggs.Interpretation()
-
 if args.method == 'rule':
     hrg = fggs.HRG('TOP')
     
@@ -70,6 +68,7 @@ if args.method == 'rule':
             hrhs.ext = []
             hrg.new_rule(lhs, hrhs)
 
+    interp = fggs.Interpretation()
     fgg = fggs.FGG(hrg, interp)
     for el in rules.values():
         fgg.new_categorical_factor(el, torch.tensor(0., requires_grad=True))
@@ -120,6 +119,7 @@ elif args.method == 'pattern':
         hrhs.ext = [parent]
         hrg.new_rule('subtree', hrhs)
 
+    interp = fggs.Interpretation()
     fgg = fggs.FGG(hrg, interp)
     
     nonterminal_dom = fgg.new_finite_domain('nonterminal', nonterminals)
