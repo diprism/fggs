@@ -156,6 +156,12 @@ class Graph:
         """Returns a copy of the list of hyperedges in the hypergraph."""
         return list(self._edges)
 
+    def has_edge_label(self, name):
+        return name in self._edge_labels
+
+    def get_edge_label(self, name):
+        return self._edge_labels[name]
+
     def edge_labels(self):
         """Returns a view of the edge labels used in the hypergraph."""
         return self._edge_labels.values()
@@ -289,7 +295,6 @@ class Graph:
 @dataclass
 class HRGRule:
     """An HRG production.
-
     - lhs: The left-hand side nonterminal symbol.
     - rhs: The right-hand side hypergraph fragment.
     """
@@ -385,6 +390,13 @@ class HRG:
             self.add_edge_label(edge.label)
         
         self._rules.setdefault(lhs, []).append(rule)
+
+    def new_rule(self, lhs: str, rhs: Graph):
+        """Convenience function for creating and adding a Rule at the same time."""
+        lhs = EdgeLabel(lhs, [node.label for node in rhs.ext], is_nonterminal=True)
+        rule = HRGRule(lhs, rhs)
+        self.add_rule(rule)
+        return rule
 
     def all_rules(self):
         """Return a copy of the list of all rules."""
@@ -508,3 +520,14 @@ class FGG:
         self.grammar = grammar
         self.interp = interp
         
+    def add_domain(self, nl: Union[NodeLabel, str], dom: Domain):
+        """Add mapping from node label nl to Domain dom."""
+        if isinstance(nl, str):
+            nl = self.grammar.get_node_label(nl)
+        self.interp.add_domain(cast(NodeLabel, nl), dom)
+        
+    def add_factor(self, el: Union[EdgeLabel, str], fac: Factor):
+        """Add mapping from edge label el to Factor fac."""
+        if isinstance(el, str):
+            el = self.grammar.get_edge_label(el)
+        self.interp.add_factor(cast(EdgeLabel, el), fac)

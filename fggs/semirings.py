@@ -110,7 +110,7 @@ class LogSemiring(Semiring):
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
         return -torch.where(x < -1,
-                            torch.log1p(-torch.exp(x)),
+                            torch.log1p(-torch.exp(x)), # type: ignore
                             torch.log(-torch.expm1(x))).nan_to_num(nan=-torch.inf) # type: ignore
     
     einsum = staticmethod(torch_semiring_einsum.log_einsum) # type: ignore

@@ -269,7 +269,7 @@ class TestGraph(unittest.TestCase):
         self.assertEqual(edge2.nodes, (node2,))
         self.assertEqual(g.ext, (node2,))
 
-
+        
 class TestHRGRule(unittest.TestCase):
 
     def setUp(self):
@@ -298,7 +298,7 @@ class TestHRGRule(unittest.TestCase):
         copy = self.rule.copy()
         self.assertNotEqual(id(rule), id(copy))
         self.assertEqual(rule, copy)
-        
+
 class TestHRG(unittest.TestCase):
 
     def setUp(self):
@@ -426,8 +426,14 @@ class TestHRG(unittest.TestCase):
         self.assertNotEqual(id(hrg), id(copy))
         self.assertEqual(hrg, copy)
 
+    def test_new_rule(self):
+        copy = HRG(self.hrg.start_symbol)
+        for rule in self.hrg.all_rules():
+            copy.new_rule(rule.lhs.name, rule.rhs)
+        self.assertEqual(self.hrg, copy)
 
-class TestInterpretation(unittest.TestCase):
+
+class TestFGG(unittest.TestCase):
 
     def setUp(self):
         self.dom1 = FiniteDomain(['foo', 'bar', 'baz'])
@@ -469,29 +475,29 @@ class TestInterpretation(unittest.TestCase):
         self.graph2.ext = [self.node3]
         self.rule2 = HRGRule(self.el2, self.graph2)
 
-        self.fgg = HRG(self.start)
-        self.fgg.add_node_label(self.nl1)
-        self.fgg.add_node_label(self.nl2)
-        self.fgg.add_edge_label(self.el1)
-        self.fgg.add_edge_label(self.el2)
-        self.fgg.add_edge_label(self.start)
-        self.fgg.add_rule(self.rule)
-        self.fgg.add_rule(self.rule2)
+        self.hrg = HRG(self.start)
+        self.hrg.add_node_label(self.nl1)
+        self.hrg.add_node_label(self.nl2)
+        self.hrg.add_edge_label(self.el1)
+        self.hrg.add_edge_label(self.el2)
+        self.hrg.add_edge_label(self.start)
+        self.hrg.add_rule(self.rule)
+        self.hrg.add_rule(self.rule2)
 
     def test_interpretation(self):
         interp = Interpretation()
         interp.add_domain(self.nl1, self.dom1)
         with self.assertRaises(ValueError):
             interp.add_domain(self.nl1, self.dom1)
-        self.assertFalse(interp.can_interpret(self.fgg))
+        self.assertFalse(interp.can_interpret(self.hrg))
         interp.add_domain(self.nl2, self.dom2)
-        self.assertFalse(interp.can_interpret(self.fgg))
+        self.assertFalse(interp.can_interpret(self.hrg))
         interp.add_factor(self.el1, self.fac1)
         with self.assertRaises(ValueError):
             interp.add_factor(self.el1, self.fac1)
         with self.assertRaises(ValueError):
             interp.add_factor(self.el2, self.fac2)
-        self.assertTrue(interp.can_interpret(self.fgg))
+        self.assertTrue(interp.can_interpret(self.hrg))
 
     def test_shape(self):
         interp = Interpretation()
@@ -504,6 +510,17 @@ class TestInterpretation(unittest.TestCase):
         self.assertEqual(interp.shape(self.edge2), (4,))
         # Test that empty input has correct shape
         self.assertEqual(interp.shape([]), tuple())
+
+    def test_convenience(self):
+        interp = Interpretation()
+        fgg = FGG(self.hrg, interp)
+        fgg.add_domain(self.nl1.name, self.dom1)
+        self.assertTrue(fgg.interp.domains[self.nl1] is self.dom1)
+        fgg.add_domain(self.nl2.name, self.dom2)
+        self.assertTrue(fgg.interp.domains[self.nl2] is self.dom2)
+        fgg.add_factor(self.el1.name, self.fac1)
+        self.assertTrue(fgg.interp.factors[self.el1] is self.fac1)
+
         
 if __name__ == "__main__":
     unittest.main()
