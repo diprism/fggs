@@ -15,7 +15,7 @@ class TestSemirings(unittest.TestCase):
         if x.dtype is torch.bool:
             self.assertTrue(torch.all(x == y), (x, y))
         else:
-            self.assertTrue(torch.allclose(x, y), (x, y))
+            self.assertTrue(torch.allclose(x.nan_to_num(), y.nan_to_num()), (x, y))
     
     def test_from_int(self):
         for semiring, values in examples:
@@ -108,7 +108,7 @@ class TestSemirings(unittest.TestCase):
         for semiring, _ in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 self.assertAlmostEqual(
-                    semiring.einsum(e, semiring.from_int(a), semiring.from_int(b), block_size=1),
+                    semiring.einsum(e, semiring.from_int(a), semiring.from_int(b)),
                     semiring.from_int(c)
                 )
 
