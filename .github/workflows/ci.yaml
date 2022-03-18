@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        pytorch-version: [ '1.8', '1.9', '1.10' ]
+        pytorch-version: [ '1.8.0', '1.9.0', '1.10.0', '1.11.0' ]
     steps:
       - run: echo "checking out branch ${{ github.ref }} on ${{ github.repository }}."
       - name: checkout repository
