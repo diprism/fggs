@@ -364,15 +364,13 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
                         inputs[e.label] = all[e.label]
                 max_rhs = max(max_rhs, n)
 
-        # SCC has a single, non-looping nonterminal
+        comp_opts = dict(opts)
         if len(comp) == 1 and max_rhs == 0:
-            comp_opts = opts | {'method': 'one-step'}
-
+            # SCC has a single, non-looping nonterminal
+            comp_opts['method'] = 'one-step'
         elif max_rhs == 1 and opts['method'] == 'newton':
-            comp_opts = opts | {'method': 'linear'}
-
-        else:
-            comp_opts = opts
+            # SCC is linearly recursive
+            comp_opts['method'] = 'linear'
 
         comp_labels = list(comp)
         comp_values = SumProduct.apply(fgg, comp_opts, inputs.keys(), comp_labels, *inputs.values())
