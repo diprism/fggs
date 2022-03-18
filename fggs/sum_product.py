@@ -4,6 +4,7 @@ from fggs.fggs import FGG, HRG, HRGRule, Interpretation, EdgeLabel, Edge, Node
 from fggs.factors import CategoricalFactor
 from fggs.semirings import *
 from fggs.multi import *
+from fggs.utils import scc, nonterminal_graph
 
 from typing import Callable, Dict, Mapping, Sequence, Iterable, Tuple, List, Set, Union, Optional
 import warnings
@@ -22,59 +23,6 @@ def tensordot(a, b, n):
     # https://github.com/pytorch/pytorch/issues/61096 (PyTorch 1.9.0)
     return torch.tensordot(a, b, n) if n > 0 \
         else a.reshape(a.size() + (1,) * b.dim()) * b
-
-def scc(g: HRG) -> List[EdgeLabel]:
-    """Decompose an HRG into a its strongly-connected components using
-    Tarjan's algorithm.
-
-    Returns a list of sets of nonterminal EdgeLabels. The list is in
-    topological order: there is no rule with a lhs in an earlier
-    component and an rhs nonterminal in a later component.
-
-    Robert Tarjan. Depth-first search and linear graph
-    algorithms. SIAM J. Comput., 1(2),
-    146-160. https://doi.org/10.1137/0201010
-
-    Based on pseudocode from https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm
-
-    """
-    
-    index = 0
-    indexof = {}    # order of nonterminals in DFS traversal
-    lowlink = {}    # lowlink[v] = min(indexof[w] | w is v or a descendant of v)
-    stack = []      # path from start nonterminal to current nonterminal
-    onstack = set() # = set(stack)
-    comps = []
-
-    def visit(v):
-        nonlocal index
-        indexof[v] = lowlink[v] = index
-        index += 1
-        stack.append(v)
-        onstack.add(v)
-
-        for r in g.rules(v):
-            nts = set(e.label for e in r.rhs.edges() if e.label.is_nonterminal)
-            for w in nts:
-                if w not in indexof:
-                    visit(w)
-                    lowlink[v] = min(lowlink[v], lowlink[w])
-                elif w in onstack:
-                    lowlink[v] = min(lowlink[v], indexof[w])
-
-        if lowlink[v] == indexof[v]:
-            comp = set()
-            while v not in comp:
-                w = stack.pop()
-                onstack.remove(w)
-                comp.add(w)
-            comps.append(comp)
-    
-    for v in g.nonterminals():
-        if v not in indexof:
-            visit(v)
-
-    return comps
 
 
 class FGGMultiShape(MultiShape):
@@ -153,7 +101,7 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                 tau_edge = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, x, inputs, semiring=semiring)
                 if edge.label in Jx.shapes[1]:
                     Jx.add_single((n, edge.label), tau_edge)
-                elif edge.label in J_inputs.shapes[1]:
+                elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
                     J_inputs.add_single((n, edge.label), tau_edge)
                 else:
                     assert False
@@ -186,7 +134,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                 tau_edge = tau_edge.reshape(tau_edge_size)
                 if edge.label in Jx.shapes[1]:
                     Jx.add_single((n, edge.label), torch.exp(tau_edge))
-                elif edge.label in J_inputs.shapes[1]:
+                elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
                     J_inputs.add_single((n, edge.label), torch.exp(tau_edge))
                 else:
                     assert False
@@ -383,7 +331,7 @@ class SumProduct(torch.autograd.Function):
         
         return (None, None, None, None) + grad_in
 
-    
+
 def sum_product(fgg: FGG, **opts) -> Tensor:
     """Compute the sum-product of an FGG.
     
@@ -402,24 +350,22 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
         opts['tol'] = 0
 
     all = {t:interp.factors[t].weights for t in hrg.terminals()}
-    for comp_labels in scc(hrg):
+    for comp in scc(nonterminal_graph(hrg)):
 
-        in_labels = set()
+        inputs = {}
         max_rhs = 0
-        for x in comp_labels:
+        for x in comp:
             for r in hrg.rules(x):
                 n = 0
                 for e in r.rhs.edges():
-                    if e.label in comp_labels:
+                    if e.label in comp:
                         n += 1
                     else:
-                        in_labels.add(e.label)
+                        inputs[e.label] = all[e.label]
                 max_rhs = max(max_rhs, n)
-        in_labels = list(in_labels)
-        in_values = [all[x] for x in in_labels]
 
         # SCC has a single, non-looping nonterminal
-        if len(comp_labels) == 1 and max_rhs == 0:
+        if len(comp) == 1 and max_rhs == 0:
             comp_opts = opts | {'method': 'one-step'}
 
         elif max_rhs == 1 and opts['method'] == 'newton':
@@ -428,7 +374,7 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
         else:
             comp_opts = opts
 
-        comp_labels = list(comp_labels)
-        comp_values = SumProduct.apply(fgg, comp_opts, in_labels, comp_labels, *in_values)
+        comp_labels = list(comp)
+        comp_values = SumProduct.apply(fgg, comp_opts, inputs.keys(), comp_labels, *inputs.values())
         all.update(zip(comp_labels, comp_values))
     return all[fgg.grammar.start_symbol]
