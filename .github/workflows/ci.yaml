@@ -35,6 +35,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: install dependencies
         run: python -m pip install -r requirements.txt
+      - name: change PyTorch version to oldest supported
         run: python -m pip install torch==1.7
       - name: check types
         run: make typecheck
