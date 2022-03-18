@@ -531,9 +531,10 @@ class FGG:
         return dom
 
     def new_categorical_factor(self, name: str, weights):
+        if not self.grammar.has_edge_label(name):
+            raise KeyError("FGG doesn't have an edge label named {name}")
         el = self.grammar.get_edge_label(name)
         doms = [self.interp.domains[nl] for nl in el.node_labels]
         fac = CategoricalFactor(doms, weights)
         self.interp.add_factor(el, fac)
         return fac
-        
