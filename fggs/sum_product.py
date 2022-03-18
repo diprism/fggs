@@ -95,7 +95,7 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
     for n in x.shapes[0]:
         for rule in hrg.rules(n):
             for edge in rule.rhs.edges():
-                if edge.label not in x.shapes and J_inputs is None: continue
+                if edge.label not in Jx.shapes[1] and J_inputs is None: continue
                 ext = rule.rhs.ext + edge.nodes
                 edges = set(rule.rhs.edges()) - {edge}
                 tau_edge = sum_product_edges(interp, rule.rhs.nodes(), edges, ext, x, inputs, semiring=semiring)
@@ -124,7 +124,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
         tau_rules = torch.log_softmax(tau_rules, dim=0).nan_to_num()
         for rule, tau_rule in zip(rules, tau_rules):
             for edge in rule.rhs.edges():
-                if edge.label not in x.shapes and J_inputs is None: continue
+                if edge.label not in Jx.shapes[1] and J_inputs is None: continue
                 ext = rule.rhs.ext + edge.nodes
                 tau_edge = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), ext, x, inputs, semiring=semiring)
                 tau_edge_size = tau_edge.size()
