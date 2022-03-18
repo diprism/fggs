@@ -2,8 +2,8 @@ __all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 
 
 from typing import Optional, Iterable, Tuple, Union, Dict, Sequence, List, cast
 from dataclasses import dataclass, field
-from fggs.domains import Domain
-from fggs.factors import Factor
+from fggs.domains import Domain, FiniteDomain
+from fggs.factors import Factor, CategoricalFactor
 
 
 @dataclass(frozen=True)
@@ -156,6 +156,12 @@ class Graph:
         """Returns a copy of the list of hyperedges in the hypergraph."""
         return list(self._edges)
 
+    def has_edge_label(self, name):
+        return name in self._edge_labels
+
+    def get_edge_label(self, name):
+        return self._edge_labels[name]
+
     def edge_labels(self):
         """Returns a view of the edge labels used in the hypergraph."""
         return self._edge_labels.values()
@@ -289,7 +295,6 @@ class Graph:
 @dataclass
 class HRGRule:
     """An HRG production.
-
     - lhs: The left-hand side nonterminal symbol.
     - rhs: The right-hand side hypergraph fragment.
     """
@@ -319,10 +324,14 @@ class HRGRule:
 class HRG:
     """A hyperedge replacement graph grammar."""
     
-    def __init__(self, start: EdgeLabel):
+    def __init__(self, start: Union[EdgeLabel, str]):
         self._node_labels: Dict[str, NodeLabel] = dict()
         self._edge_labels: Dict[str, EdgeLabel] = dict()
         self._rules: Dict[EdgeLabel, List[HRGRule]] = dict()
+        if isinstance(start, str):
+            # Assume that the derived graph has no external nodes
+            start = EdgeLabel(start, [], is_nonterminal=True)
+        start = cast(EdgeLabel, start)
         self.start_symbol: EdgeLabel = start
 
     def add_node_label(self, label: NodeLabel):
@@ -385,6 +394,13 @@ class HRG:
             self.add_edge_label(edge.label)
         
         self._rules.setdefault(lhs, []).append(rule)
+
+    def new_rule(self, lhs: str, rhs: Graph):
+        """Convenience function for creating and adding a Rule at the same time."""
+        lhs_el = EdgeLabel(lhs, [node.label for node in rhs.ext], is_nonterminal=True)
+        rule = HRGRule(lhs_el, rhs)
+        self.add_rule(rule)
+        return rule
 
     def all_rules(self):
         """Return a copy of the list of all rules."""
@@ -507,4 +523,18 @@ class FGG:
     def __init__(self, grammar: HRG, interp: Interpretation):
         self.grammar = grammar
         self.interp = interp
-        
+
+    def new_finite_domain(self, name: str, values: Sequence):
+        nl = NodeLabel(name)
+        dom = FiniteDomain(values)
+        self.interp.add_domain(nl, dom)
+        return dom
+
+    def new_categorical_factor(self, name: str, weights):
+        if not self.grammar.has_edge_label(name):
+            raise KeyError(f"FGG doesn't have an edge label named {name}")
+        el = self.grammar.get_edge_label(name)
+        doms = [self.interp.domains[nl] for nl in el.node_labels]
+        fac = CategoricalFactor(doms, weights)
+        self.interp.add_factor(el, fac)
+        return fac
