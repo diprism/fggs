@@ -1,6 +1,24 @@
 name: CI
 on: [push]
 jobs:
+  torch-oldest:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "checking out branch ${{ github.ref }} on ${{ github.repository }}."
+      - name: checkout repository
+        uses: actions/checkout@v2
+      - name: install python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+      - name: install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: change PyTorch version to oldest supported
+        run: python -m pip install torch==1.8
+      - name: check types
+        run: make typecheck
+      - name: perform unit testing
+        run: make test
   torch-newest:
     runs-on: ubuntu-latest
     strategy:
@@ -16,27 +34,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: install dependencies
         run: python -m pip install -r requirements.txt
-      - name: check types
-        run: make typecheck
-      - name: perform unit testing
-        run: make test
-  torch-oldest:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [ '3.7', '3.8', '3.9', '3.10' ]
-    steps:
-      - run: echo "checking out branch ${{ github.ref }} on ${{ github.repository }}."
-      - name: checkout repository
-        uses: actions/checkout@v2
-      - name: install python
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: install dependencies
-        run: python -m pip install -r requirements.txt
-      - name: change PyTorch version to oldest supported
-        run: python -m pip install torch==1.7
       - name: check types
         run: make typecheck
       - name: perform unit testing
