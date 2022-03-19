@@ -1,7 +1,5 @@
 import torch
-if not hasattr(torch, 'inf'):
-    import math
-    torch.inf = math.inf
+from math import inf
 import torch_semiring_einsum
 from abc import ABC, abstractmethod
 from typing import Union
@@ -107,7 +105,7 @@ class RealSemiring(Semiring):
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
         y = 1/(1-x)
-        y.masked_fill_(x >= 1, torch.inf)
+        y.masked_fill_(x >= 1, inf)
         return y
         
     @staticmethod
@@ -151,7 +149,7 @@ class LogSemiring(Semiring):
     def star(x: torch.Tensor) -> torch.Tensor:
         return -torch.where(x < -1, # type: ignore
                             torch.log1p(-torch.exp(x)), # type: ignore
-                            torch.log(-torch.expm1(x))).nan_to_num(nan=-torch.inf) # type: ignore
+                            torch.log(-torch.expm1(x))).nan_to_num(nan=-inf) # type: ignore
 
     @staticmethod
     def einsum(equation, *args):
@@ -162,7 +160,7 @@ class ViterbiSemiring(Semiring):
     
     def from_int(self, n):
         n = torch.as_tensor(n, device=self.device)
-        return torch.where(n > 0, 0., -torch.inf).to(self.dtype)
+        return torch.where(n > 0, 0., -inf).to(self.dtype)
     
     add = staticmethod(torch.maximum) # type: ignore
     @staticmethod
@@ -176,7 +174,7 @@ class ViterbiSemiring(Semiring):
     mul = staticmethod(torch.add) # type: ignore
     
     def star(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.where(x >= 0, torch.inf, 0.).to(self.dtype)
+        return torch.where(x >= 0, inf, 0.).to(self.dtype)
     
     @staticmethod
     def einsum(equation, *args):
