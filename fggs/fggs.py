@@ -141,20 +141,18 @@ class Graph:
     """A hypergraph or hypergraph fragment (= hypergraph with external nodes)."""
 
     def __init__(self):
-        self._nodes       = set()
-        self._node_ids    = set()
-        self._edges       = set()
-        self._edge_ids    = set()
+        self._nodes       = dict()    # map from ids to Nodes
+        self._edges       = dict()    # map from ids to Edges
         self._edge_labels = dict()    # map from names to EdgeLabels
         self._ext         = tuple()
     
     def nodes(self):
-        """Returns a copy of the list of nodes in the hypergraph."""
-        return list(self._nodes)
+        """Returns a view of the nodes in the hypergraph."""
+        return self._nodes.values()
     
     def edges(self):
-        """Returns a copy of the list of hyperedges in the hypergraph."""
-        return list(self._edges)
+        """Returns a view of the hyperedges in the hypergraph."""
+        return self._edges.values()
 
     def has_edge_label(self, name):
         return name in self._edge_labels
@@ -183,7 +181,7 @@ class Graph:
     def ext(self, nodes: Iterable[Node]):
         """Sets the external nodes. If they are not already in the hypergraph, they are added."""
         for node in nodes:
-            if node not in self._nodes:
+            if node.id not in self._nodes:
                 self.add_node(node)
         self._ext = tuple(nodes)
     
@@ -199,10 +197,9 @@ class Graph:
     
     def add_node(self, node: Node):
         """Adds a node to the hypergraph."""
-        if node.id in self._node_ids:
+        if node.id in self._nodes.keys():
             raise ValueError(f"Can't have two nodes with same ID {node.id} in same Graph.")
-        self._nodes.add(node)
-        self._node_ids.add(node.id)
+        self._nodes[node.id] = node
 
     def new_node(self, name: str, id: Optional[str] = None) -> Node:
         """Convenience function for creating and adding a Node at the same time."""
@@ -212,27 +209,25 @@ class Graph:
 
     def remove_node(self, node: Node):
         """Removes a node from the hypergraph."""
-        if node not in self._nodes:
+        if node.id not in self._nodes:
             raise ValueError(f'Node {node} cannot be removed because it does not belong to this Graph')
-        for edge in self._edges:
+        for edge in self._edges.values():
             if node in edge.nodes:
                 raise ValueError(f'Node {node} cannot be removed because it is an attachment node of Edge {edge}')
         if node in self.ext:
             raise ValueError(f'Node {node} cannot be removed because it is an external node of the Graph')
-        self._nodes.remove(node)
-        self._node_ids.remove(node.id)
+        del self._nodes[node.id]
 
     def add_edge(self, edge: Edge):
         """Adds a hyperedge to the hypergraph. If the attachment nodes are not already in the hypergraph, they are added."""
-        if edge.id in self._edge_ids:
+        if edge.id in self._edges:
             raise ValueError(f"Can't have two edges with same ID {edge.id} in same Graph.")
         if edge.label.name in self._edge_labels and edge.label != self._edge_labels[edge.label.name]:
             raise ValueError(f"Can't have two edge labels with same name {edge.label.name} in same Graph.")
         for node in edge.nodes:
-            if node not in self._nodes:
+            if node.id not in self._nodes:
                 self.add_node(node)
-        self._edges.add(edge)
-        self._edge_ids.add(edge.id)
+        self._edges[edge.id] = edge
         self._edge_labels[edge.label.name] = edge.label
 
     def new_edge(self, name: str, nodes: Sequence[Node],
@@ -249,18 +244,15 @@ class Graph:
 
     def remove_edge(self, edge: Edge):
         """Removes a hyperedge from the hypergraph."""
-        if edge not in self._edges:
+        if edge.id not in self._edges:
             raise ValueError(f'Graph does not contain Edge {edge}')
-        self._edges.remove(edge)
-        self._edge_ids.remove(edge.id)
+        del self._edges[edge.id]
 
     def copy(self):
         """Returns a copy of this Graph."""
         copy = Graph()
-        copy._nodes = set(self._nodes)
-        copy._node_ids = set(self._node_ids)
-        copy._edges = set(self._edges)
-        copy._edge_ids = set(self._edge_ids)
+        copy._nodes = dict(self._nodes)
+        copy._edges = dict(self._edges)
         copy._ext = tuple(self._ext)
         return copy
 
@@ -282,13 +274,13 @@ class Graph:
         num_edges = len(self._edges)
         string = "  "*indent + f"Graph containing:"
         if num_nodes > 0:
-            for node in self._nodes:
+            for node in self._nodes.values():
                 string += "\n  " + "  "*indent
                 if node in self.ext:
                     string += "External "
                 string += str(node)
         if num_edges > 0:
-            for edge in self._edges:
+            for edge in self._edges.values():
                 string += "\n" + edge.to_string(indent+1)
         return string
 

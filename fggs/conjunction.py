@@ -48,7 +48,7 @@ def conjoinable(rule1, rule2):
     """Test whether two HRG rules are conjoinable."""
     
     # Must have same Nodes (in terms of Node id) with same NodeLabels
-    if rule1.rhs.nodes() != rule2.rhs.nodes():
+    if set(rule1.rhs.nodes()) != set(rule2.rhs.nodes()):
         return False
     # Must have same nonterminal Edges (in terms of Edge id)
     # which can have different EdgeLabels, but must connect to same Nodes
