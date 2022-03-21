@@ -169,7 +169,7 @@ class ViterbiSemiring(Semiring):
     
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return x # or torch.maximum(x, y)?
+        return x
     
     mul = staticmethod(torch.add) # type: ignore
     

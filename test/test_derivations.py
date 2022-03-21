@@ -22,7 +22,8 @@ class TestReplace(unittest.TestCase):
         self.graph.ext = [self.node2]
 
     def test_replace(self):
-        g = replace_edges(self.graph, {self.edge2:self.graph})
+        g = self.graph.copy()
+        (node_map, edge_map) = replace_edge(g, self.edge2, self.graph)
         self.assertEqual(sorted(v.label.name for v in g.nodes()), ['nl1', 'nl1', 'nl2'])
         self.assertEqual(sorted(e.label.name for e in g.edges()), ['el1', 'el1', 'el2'])
 

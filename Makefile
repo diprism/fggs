@@ -10,4 +10,4 @@ docs:
 	sphinx-build -M html docs/source "$@"
 
 typecheck:
-	mypy fggs
+	mypy --config-file= fggs # work around bug in mypy 0.920

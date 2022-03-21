@@ -1,6 +1,6 @@
-__all__ = ['start_graph', 'replace_edges']
+__all__ = ['start_graph', 'replace_edge']
 
-from typing import Dict
+from typing import Dict, Tuple
 
 from fggs.fggs import *
 
@@ -13,60 +13,39 @@ def start_graph(g: HRG) -> Graph:
     ret.add_edge(e)
     return ret
         
-def replace_edges(graph: Graph, replacements: Dict[Edge, Graph]):
 
-    """Return a copy of `graph` in which, for every item `(edge,
-    repl)` in `replacements`, `edge` (which must be labeled by a
-    `Nonterminal`) is replaced with a copy of graph `repl`
-    (which must have the same type as `edge`).
+def replace_edge(graph: Graph, edge: Edge, replacement: Graph) -> Tuple[Dict[Node, Node], Dict[Edge, Edge]]:
+    """Destructively replace an edge with a graph.
+
+    - `graph`: A Graph.
+    - `edge`: An Edge in `graph` labeled by a nonterminal.
+    - `replacement`: A Graph with the same type as `edge`.
+
+    Returns: a pair (node_map, edge_map), where
+    - `node_map` maps nodes in `replacement` to nodes in the result.
+    - `edge_map` maps edges in `replacement` to edges in the result.
     """
+    if edge.label.type != replacement.type:
+        raise ValueError('An edge can only be replaced with a graph having the same type')
+    graph.remove_edge(edge)
 
-    for (edge, repl) in replacements.items():
-        if not edge.label.is_nonterminal:
-            raise ValueError("Only a nonterminal-labeled edge can be replaced.")
-
-        if isinstance(repl, HRGRule):
-            if edge.label != repl.lhs:
-                raise ValueError("An edge can only be replaced with a HRGRule with a matching left-hand side.")
-        elif isinstance(repl, Graph):
-            if edge.label.type != repl.type:
-                raise ValueError("A graph fragment can only replace a edge with the same type.")
-        else:
-            raise TypeError("The replacement for an edge must be a HRGRule or a Graph.")
-
-
-    ret = Graph()
-    for v in graph.nodes():
-        ret.add_node(v)
-    ret.ext = graph.ext
-    for e in graph.edges():
-        if e not in replacements:
-            ret.add_edge(e)
-    for e in replacements:
-        repl = replacements[e]
-        if isinstance(repl, HRGRule):
-            repl = repl.rhs
+    # Copy replacement into graph, assigning fresh ids to
+    # replacement's nodes and edges.
+    
+    node_map: Dict[Node, Node] = {}
+    for gnode, rnode in zip(edge.nodes, replacement.ext):
+        node_map[rnode] = gnode
+    for rnode in replacement.nodes():
+        if rnode not in node_map: # i.e., if rnode is not external
+            gnode = Node(rnode.label)
+            node_map[rnode] = gnode
+            graph.add_node(gnode)
             
-        # Copy repl into ret. We assign fresh ids repl's nodes and edges if necessary
-        # (and only if necessary, just because it makes the unit tests for
-        # factorization easier).
-        
-        rnodes = {}
-        for ve, vr in zip(e.nodes, repl.ext):
-            rnodes[vr] = ve
-        for v in repl.nodes():
-            if v not in rnodes: # i.e., if v not in repl.ext
-                if v.id in ret._nodes.keys():
-                    vcopy = Node(v.label) # generate fresh id
-                else:
-                    vcopy = v
-                rnodes[v] = vcopy
-                ret.add_node(vcopy)
-        for er in repl.edges():
-            er_nodes = tuple(rnodes[v] for v in er.nodes)
-            if er.id in ret._edges.keys():
-                er = Edge(er.label, er_nodes) # fresh id
-            elif er_nodes != er.nodes:
-                er = Edge(er.label, er_nodes, id=er.id)
-            ret.add_edge(er)
-    return ret
+    edge_map: Dict[Edge, Edge] = {}
+    for redge in replacement.edges():
+        gnodes = tuple(node_map[rnode] for rnode in redge.nodes)
+        gedge = Edge(redge.label, gnodes)
+        edge_map[redge] = gedge
+        graph.add_edge(gedge)
+
+    return (node_map, edge_map)

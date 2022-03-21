@@ -182,11 +182,8 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
                 tensors.append(inputs[edge.label])
                 break
         else:
-            if edge.label.is_nonterminal:
-                # One argument to einsum will be the zero tensor, so just return zero
-                return semiring.zeros(interp.shape(ext))
-            else:
-                raise TypeError(f'cannot compute sum-product of FGG with factor {interp.factors[edge.label]}')
+            # One argument to einsum will be the zero tensor, so just return zero
+            return semiring.zeros(interp.shape(ext))
 
     if len(indexing) > 0:
         # Each node corresponds to an index, so choose a letter for each

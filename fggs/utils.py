@@ -1,6 +1,6 @@
-from typing import Iterable, Union, List, Set, Dict, TypeVar
+from typing import Iterable, Union, List, Set, Dict, TypeVar, Tuple
 from fggs.fggs import *
-
+import itertools
 
 def unique_label_name(name: str, labs: Iterable[Union[NodeLabel, EdgeLabel]]) -> str:
     """Given a name, modify it until it does not overlap with
@@ -95,3 +95,36 @@ def scc(g: Dict[T, Set[T]]) -> List[Set[T]]:
             visit(v)
 
     return comps
+
+
+def naive_graph_isomorphism(g1: Graph, g2: Graph):
+    """Find an isomorphism from g1 to g2, if any. Used in unit tests only.
+
+    If g1 and g2 are isomorphic, return (True, f) where f is a mapping
+    from nodes of g1 to nodes of g2. Else, return (False, msg) where
+    msg is a string explaining why the graphs are not isomorphic.
+    """
+    nodes1 = set(node.label for node in g1.nodes())
+    nodes2 = set(node.label for node in g2.nodes())
+    if nodes1 != nodes2:
+        return (False, f'different node labels ({nodes1} != {nodes2}')
+    edges1 = set(edge.label for edge in g1.edges())
+    edges2 = set(edge.label for edge in g2.edges())
+    if edges1 != edges2:
+        return (False, f'different edge labels ({edges1} != {edges2})')
+    if g1.type != g2.type:
+        return (False, f'different graph types ({g1.type} != {g2.type})')
+    
+    order1 = list(g1.nodes())
+    for order2 in itertools.permutations(g2.nodes()):
+        if [node.label for node in order1] != [node.label for node in order2]:
+            continue
+        map1 = {node:i for (i, node) in enumerate(order1)}
+        map2 = {node:i for (i, node) in enumerate(order2)}
+        edges1 = set((edge.label, tuple(map1[node] for node in edge.nodes)) for edge in g1.edges())
+        edges2 = set((edge.label, tuple(map2[node] for node in edge.nodes)) for edge in g2.edges())
+        if edges1 != edges2: continue
+        if [map1[node] for node in g1.ext] != [map2[node] for node in g2.ext]:
+            continue
+        return (True, dict(zip(order1, order2)))
+    return(False, 'graphs are not isomorphic')
