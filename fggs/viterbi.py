@@ -82,7 +82,7 @@ def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring)
 
     return (Fx, lhs_pointer, rhs_pointer)
 
-def viterbi(fgg: FGG, start_asst: Tuple[int], opts: Dict) -> Tuple[FactorGraph, Dict[Node, int]]:
+def viterbi(fgg: FGG, start_asst: Tuple[int,...], opts: Dict) -> FGGDerivation:
     hrg, interp = fgg.grammar, fgg.interp
 
     if len(start_asst) != hrg.start_symbol.arity:
@@ -119,39 +119,34 @@ def viterbi(fgg: FGG, start_asst: Tuple[int], opts: Dict) -> Tuple[FactorGraph, 
         lhs_pointer.update(lp1)
         rhs_pointer.update(rp1)
     
-    # Reconstruct factor graph and assignment
+    # Reconstruct derivation
 
-    graph = start_graph(hrg)
-    asst: Dict[Node, int] = {}
-    
-    def reconstruct(edge: Edge):
-        edge_asst = tuple(asst[node] for node in edge.nodes)
-        
-        # lhs_pointer[edge.label][edge_asst] is the index of the first
+    def reconstruct(nt: EdgeLabel, nt_asst: Tuple[int,...]) -> FGGDerivation:
+        # lhs_pointer[nt][nt_asst] is the index of the first
         # rule used in the best derivation starting with edge.
-        ri = lhs_pointer[edge.label][edge_asst]
-        rule = list(hrg.rules(edge.label))[ri]
+        ri = lhs_pointer[nt][nt_asst]
+        rule = list(hrg.rules(nt))[ri]
 
-        # Replace edge with rule.
-        (node_map, edge_map) = replace_edge(graph, edge, rule.rhs)
-        
-        # rhs_pointer[edge.label][ri][edge_asst] is the best
-        # assignment to the internal nodes of rule.rhs. The nodes are
-        # listed in order of appearance when iterating over the edges
-        # of rule.rhs.
+        # rhs_pointer[nt][ri][nt_asst] is the best assignment to the
+        # internal nodes of rule.rhs. The nodes are listed in order of
+        # appearance when iterating over the edges of rule.rhs.
+        rhs_asst = dict(zip(rule.rhs.ext, nt_asst))
         ii = 0
         for e in rule.rhs.edges():
             for v in e.nodes:
-                if node_map[v] not in asst:
-                    asst[node_map[v]] = rhs_pointer[edge.label][ri][edge_asst][ii]
+                if v not in rhs_asst:
+                    rhs_asst[v] = rhs_pointer[nt][ri][nt_asst][ii]
                     ii += 1
-        assert ii == len(rhs_pointer[edge.label][ri][edge_asst])
+        assert ii == len(rhs_pointer[nt][ri][nt_asst])
 
-        # Recurse on nonterminals.
+        # Recurse on rhs nonterminal edges.
+        child_derivs: Dict[Edge, FGGDerivation] = {}
         for e in rule.rhs.edges():
             if e.label.is_nonterminal:
-                reconstruct(edge_map[e])
+                e_asst = tuple(rhs_asst[v] for v in e.nodes)
+                child_derivs[e] = reconstruct(e.label, e_asst)
+        
+        return FGGDerivation(fgg, rule, rhs_asst, child_derivs)
 
-    [start_edge] = graph.edges()
-    reconstruct(start_edge)
-    return (FactorGraph(graph, interp), asst)
+    return reconstruct(hrg.start_symbol, start_asst)
+

@@ -1,8 +1,34 @@
-__all__ = ['start_graph', 'replace_edge']
+__all__ = ['FGGDerivation', 'start_graph', 'replace_edge']
 
-from typing import Dict, Tuple
-
+from typing import Dict, Tuple, Any, Optional
+from dataclasses import dataclass
 from fggs.fggs import *
+
+@dataclass
+class FGGDerivation:
+    fgg: FGG
+    rule: HRGRule
+    asst: Dict[Node, Any]
+    children: Dict[Edge, 'FGGDerivation']
+
+    def derive(self):
+        """Returns the factor graph and assignment derived by this derivation."""
+
+        graph = Graph()
+        edge = Edge(self.rule.lhs, [Node(l) for l in self.rule.lhs.type])
+        graph.add_edge(edge)
+        asst: Dict[Node, Any] = {}
+        
+        def visit(deriv: FGGDerivation, edge: Edge):
+            (node_map, edge_map) = replace_edge(graph, edge, deriv.rule.rhs)
+            for node in deriv.rule.rhs.nodes():
+                asst[node_map[node]] = deriv.asst[node]
+            for child in deriv.children:
+                visit(deriv.children[child], edge_map[child])
+
+        visit(self, edge)
+        return (FactorGraph(graph, self.fgg.interp), asst)
+    
 
 def start_graph(g: HRG) -> Graph:
     """Construct a graph consisting of a single Edge labeled by the start

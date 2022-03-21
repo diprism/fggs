@@ -1,6 +1,76 @@
-import unittest
-
+import unittest, json
 from fggs import *
+from fggs.utils import naive_graph_isomorphism
+
+def load_fgg(filename):
+    with open(filename) as f:
+        return json_to_fgg(json.load(f))
+
+class TestDerivation(unittest.TestCase):
+    def setUp(self):
+        self.fgg = load_fgg('test/hmm.json')
+
+    def test_derive(self):
+        S = self.fgg.grammar.get_edge_label('S')
+        X = self.fgg.grammar.get_edge_label('X')
+        rule_S = self.fgg.grammar.rules(S)[0]
+        rule_X1 = self.fgg.grammar.rules(X)[0]
+        rule_X2 = self.fgg.grammar.rules(X)[1]
+        deriv = FGGDerivation(
+            self.fgg,
+            rule_S,
+            {rule_S.rhs._nodes['v0']: 4}, # BOS
+            {
+                rule_S.rhs._edges['e1']: FGGDerivation(
+                    self.fgg,
+                    rule_X1,
+                    {
+                        rule_X1.rhs._nodes['v0']: 4, # BOS
+                        rule_X1.rhs._nodes['v1']: 0, # DT
+                        rule_X1.rhs._nodes['v2']: 0, # the
+                    },
+                    {
+                        rule_X1.rhs._edges['e2']: FGGDerivation(
+                            self.fgg,
+                            rule_X2,
+                            {
+                                rule_X1.rhs._nodes['v0']: 0, # the
+                                rule_X1.rhs._nodes['v1']: 5, # EOS
+                            },
+                            {}
+                        )
+                    }
+                )
+            }
+        )
+
+        g = Graph()
+        bos = g.new_node('T')
+        dt  = g.new_node('T')
+        the = g.new_node('W')
+        eos = g.new_node('T')
+        g.new_edge('is_bos',     [bos],      is_terminal=True)
+        g.new_edge('transition', [bos, dt],  is_terminal=True)
+        g.new_edge('transition', [dt,  eos], is_terminal=True)
+        g.new_edge('emission',   [dt,  the], is_terminal=True)
+        g.new_edge('is_eos',     [eos],      is_terminal=True)
+
+        tdom = self.fgg.interp.domains[self.fgg.grammar.get_node_label('T')]
+        wdom = self.fgg.interp.domains[self.fgg.grammar.get_node_label('W')]
+        
+        a = {}
+        a[bos] = tdom.numberize('BOS')
+        a[dt]  = tdom.numberize('DT')
+        a[the] = wdom.numberize('the')
+        a[eos] = tdom.numberize('EOS')
+
+        derived, asst = deriv.derive()
+        result, m = naive_graph_isomorphism(derived.graph, g)
+
+        for node in asst:
+            self.assertEqual(asst[node], a[m[node]])
+        
+        self.assertTrue(result, m)
 
 class TestReplace(unittest.TestCase):
     def setUp(self):
@@ -38,4 +108,5 @@ class TestStartGraph(unittest.TestCase):
         self.assertEqual([e.label for e in g.edges()], [s])
         self.assertEqual(len(g.nodes()), len(s.type))
     
-    
+if __name__ == '__main__':
+    unittest.main()
