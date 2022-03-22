@@ -1,8 +1,6 @@
 import torch
-if not hasattr(torch, 'inf'):
-    import math
-    torch.inf = math.inf
-import torch_semiring_einsum
+from math import inf
+import torch_semiring_einsum, torch_semiring_einsum.utils
 from abc import ABC, abstractmethod
 from typing import Union
 
@@ -53,8 +51,7 @@ class Semiring(ABC):
         pass
     
     def mm(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        a = a.nan_to_num().unsqueeze(-1)
-        b = b.nan_to_num()
+        a = a.unsqueeze(-1)
         block_size = 10
         out = self.sum(self.mul(a[:,:block_size], b[:block_size]), dim=1)
         for j in range(block_size, a.shape[1], block_size):
@@ -62,7 +59,7 @@ class Semiring(ABC):
         return out
     
     def mv(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        return self.sum(self.mul(a.nan_to_num(), b.nan_to_num()), dim=1)
+        return self.sum(self.mul(a, b), dim=1)
 
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         """Find the least nonnegative solution of x = ax+b. Equivalently, compute ∑ aⁿb.
@@ -98,21 +95,30 @@ class RealSemiring(Semiring):
     
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return torch.relu(x - y) # maximum(0, x-y)
+        # relu(x - y) = maximum(0, x - y)
+        return torch.relu(x - y).nan_to_num(nan=0., posinf=inf)
 
     @staticmethod
     def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return torch.mul(x, y).nan_to_num()
+        return torch.mul(x, y).nan_to_num(nan=0., posinf=inf)
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
         y = 1/(1-x)
-        y.masked_fill_(x >= 1, torch.inf)
+        y.masked_fill_(x >= 1, inf)
         return y
         
     @staticmethod
     def einsum(equation, *args):
-        return torch_semiring_einsum.real_einsum_forward(equation, *args, block_size=1)
+        # Make inf * 0 = 0
+        def multiply_in_place(a, b):
+            a.mul_(b)
+            torch.nan_to_num(a, nan=0., posinf=inf, out=a)
+        def callback(compute_sum):
+            return compute_sum(torch_semiring_einsum.utils.add_in_place,
+                               torch_semiring_einsum.utils.sum_block,
+                               multiply_in_place)
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, 1, callback)
     
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         # We want the least nonnegative solution of (I-a)x = b, and
@@ -142,27 +148,52 @@ class LogSemiring(Semiring):
     
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        z = -torch.relu((x-y).nan_to_num()) # type: ignore # minimum(0, y-x)
+        # relu(x - y) = maximum(0, x - y)
+        z = -torch.relu((x - y).nan_to_num(nan=0., neginf=-inf, posinf=inf)) # type: ignore
         return x - LogSemiring.star(z)
     
-    mul = staticmethod(torch.add) # type: ignore
+    @staticmethod
+    def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return torch.add(x, y).nan_to_num(nan=-inf, neginf=-inf, posinf=inf)
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
         return -torch.where(x < -1, # type: ignore
                             torch.log1p(-torch.exp(x)), # type: ignore
-                            torch.log(-torch.expm1(x))).nan_to_num(nan=-torch.inf) # type: ignore
+                            torch.log(-torch.expm1(x))).nan_to_num(nan=-inf) # type: ignore
 
     @staticmethod
     def einsum(equation, *args):
-        return torch_semiring_einsum.log_einsum_forward(equation, *args, block_size=1)
+        
+        # Slightly modified from torch_semiring_einsum/log_forward.py
+        # to make log(inf) + log(0) = log(0)
+        def multiply_in_place(a, b):
+            a.add_(b)
+            torch.nan_to_num(a, nan=-inf, posinf=inf, neginf=-inf, out=a)
+        def callback(compute_sum):
+            u = torch_semiring_einsum.utils
+            max_values = compute_sum(u.max_in_place, u.max_block, multiply_in_place)
+            u.clip_max_values(max_values)
+            resized_max_values = u.resize_max_values(
+                max_values,
+                len(equation.reduce_input_to_output.reduced_variables))
+            def sumexpsub_block(a, dims):
+                a.sub_(resized_max_values)
+                a.exp_()
+                return u.sum_block(a, dims)
+            result = compute_sum(u.add_in_place, sumexpsub_block, multiply_in_place)
+            result.log_()
+            result.add_(max_values)
+            return result
+
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, 1, callback)
 
 
 class ViterbiSemiring(Semiring):
     
     def from_int(self, n):
         n = torch.as_tensor(n, device=self.device)
-        return torch.where(n > 0, 0., -torch.inf).to(self.dtype)
+        return torch.where(n > 0, 0., -inf).to(self.dtype)
     
     add = staticmethod(torch.maximum) # type: ignore
     @staticmethod
@@ -171,17 +202,27 @@ class ViterbiSemiring(Semiring):
     
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return x # or torch.maximum(x, y)?
+        return x
     
-    mul = staticmethod(torch.add) # type: ignore
+    @staticmethod
+    def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return torch.add(x, y).nan_to_num(nan=-inf, neginf=-inf, posinf=inf)
     
     def star(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.where(x >= 0, torch.inf, 0.).to(self.dtype)
+        return torch.where(x >= 0, inf, 0.).to(self.dtype)
     
     @staticmethod
     def einsum(equation, *args):
-        val, ind = torch_semiring_einsum.log_viterbi_einsum_forward(equation, *args, block_size=1)
-        return val
+        # Make log(inf) + log(0) = log(0)
+        def add_in_place(a, b):
+            a.add_(b)
+            torch.nan_to_num(a, nan=-inf, posinf=inf, neginf=-inf, out=a)
+        def callback(compute_sum):
+            return compute_sum(torch_semiring_einsum.utils.max_in_place,
+                               torch_semiring_einsum.utils.max_block,
+                               add_in_place,
+                               include_indexes=False)
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, 1, callback)
 
     
 class BoolSemiring(Semiring):

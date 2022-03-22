@@ -4,6 +4,11 @@ from fggs.factors import *
 from fggs.fggs import *
 from fggs.utils import *
 
+def load_fgg(filename):
+    import json
+    from fggs import json_to_fgg
+    with open(filename) as f:
+        return json_to_fgg(json.load(f))
 
 class TestUniqueName(unittest.TestCase):
     
@@ -48,3 +53,9 @@ class TestSingleton(unittest.TestCase):
         
         g = singleton_hrg(self.graph)
         self.assertEqual(g.start_symbol.name, "<S>_1")
+
+        
+class TestSCC(unittest.TestCase):
+    def test_scc(self):
+        g = load_fgg('test/hmm.json').grammar
+        self.assertEqual(scc(nonterminal_graph(g)), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])
