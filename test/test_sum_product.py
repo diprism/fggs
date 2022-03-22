@@ -1,7 +1,7 @@
 from fggs import sum_product, FGG, Interpretation, CategoricalFactor, json_to_fgg
 from fggs.sum_product import scc, SumProduct
 from fggs.semirings import *
-import unittest, warnings, torch, random, json, copy
+import unittest, warnings, torch, random, json, copy, math
 
 def load_fgg(filename):
     with open(filename) as f:
@@ -95,6 +95,35 @@ class TestSumProduct(unittest.TestCase):
                     return tuple(torch.exp(z) for z in ret)
                 self.assertTrue(torch.autograd.gradcheck(f, in_values, atol=1e-3))
 
+    def test_infinite_gradient(self):
+        fgg = load_fgg('test/linear.json')
+        # make sum-product infinite
+        faca = fgg.interp.factors[fgg.grammar.get_edge_label('a')]
+        faca.weights = torch.tensor(1., requires_grad=True)
+        facb = fgg.interp.factors[fgg.grammar.get_edge_label('b')]
+        facb.weights = torch.tensor(1., requires_grad=True)
+        facc = fgg.interp.factors[fgg.grammar.get_edge_label('c')]
+        facc.weights = torch.tensor(1., requires_grad=True)
+        z = sum_product(fgg, method='linear')
+        self.assertEqual(z.item(), math.inf)
+        z.backward()
+        self.assertEqual(faca.weights.grad.item(), math.inf)
+        self.assertEqual(facb.weights.grad.item(), math.inf)
+        self.assertEqual(facc.weights.grad.item(), math.inf)
+        
+        fgg = load_fgg('test/simplefgg.json')
+        # make sum-product infinite
+        fac1 = fgg.interp.factors[fgg.grammar.get_edge_label('fac1')]
+        fac1.weights = torch.tensor(1., requires_grad=True)
+        fac2 = fgg.interp.factors[fgg.grammar.get_edge_label('fac2')]
+        fac2.weights = torch.tensor(1., requires_grad=True)
+        z = sum_product(fgg, method='newton')
+        self.assertEqual(z.item(), math.inf)
+        z.backward()
+        self.assertEqual(fac1.weights.grad.item(), math.inf)
+        self.assertEqual(fac2.weights.grad.item(), math.inf)
+        
+
     def test_sum_product(self):
         for method in ['fixed-point', 'linear', 'newton']:
             with self.subTest(method=method):
@@ -140,12 +169,6 @@ class TestSumProduct(unittest.TestCase):
                             z_exact = example.exact() > 0.
                             self.assertTrue(torch.all(z == z_exact),
                                             f'{z} != {z_exact}')
-
-                
-class TestSCC(unittest.TestCase):
-    def test_scc(self):
-        g = load_fgg('test/hmm.json').grammar
-        self.assertEqual(scc(g), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])
 
 
 if __name__ == '__main__':
