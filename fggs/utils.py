@@ -128,3 +128,4 @@ def naive_graph_isomorphism(g1: Graph, g2: Graph):
             continue
         return (True, dict(zip(order1, order2)))
     return(False, 'graphs are not isomorphic')
+

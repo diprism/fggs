@@ -19,11 +19,6 @@ def _formatwarning(message, category, filename=None, lineno=None, file=None, lin
     return '%s:%s: %s: %s' % (filename, lineno, category.__name__, message)
 warnings.formatwarning = _formatwarning # type: ignore
 
-def tensordot(a, b, n):
-    # https://github.com/pytorch/pytorch/issues/61096 (PyTorch 1.9.0)
-    return torch.tensordot(a, b, n) if n > 0 \
-        else a.reshape(a.size() + (1,) * b.dim()) * b
-
 
 class FGGMultiShape(MultiShape):
     """A virtual MultiShape for the nonterminals or terminals of an FGG."""
@@ -108,6 +103,10 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
     return Jx
 
 
+def log_softmax(a: Tensor, dim: int) -> Tensor:
+    # a could have infinite elements, which would make log_softmax return all nans.
+    return torch.log_softmax(a.nan_to_num(), dim)
+    
 def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
           J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
     """The Jacobian of F(semiring=LogSemiring), computed in the real semiring."""
@@ -121,7 +120,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
             tau_rule = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x, inputs, semiring=semiring)
             tau_rules.append(tau_rule)
         tau_rules = torch.stack(tau_rules, dim=0)
-        tau_rules = torch.log_softmax(tau_rules, dim=0).nan_to_num()
+        tau_rules = log_softmax(tau_rules, dim=0)
         for rule, tau_rule in zip(rules, tau_rules):
             for edge in rule.rhs.edges():
                 if edge.label not in Jx.shapes[1] and J_inputs is None: continue
@@ -129,7 +128,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                 tau_edge = sum_product_edges(interp, rule.rhs.nodes(), rule.rhs.edges(), ext, x, inputs, semiring=semiring)
                 tau_edge_size = tau_edge.size()
                 tau_edge = tau_edge.reshape(tau_rule.size() + (-1,))
-                tau_edge = torch.log_softmax(tau_edge, dim=-1).nan_to_num()
+                tau_edge = log_softmax(tau_edge, dim=-1)
                 tau_edge += tau_rule.unsqueeze(-1)
                 tau_edge = tau_edge.reshape(tau_edge_size)
                 if edge.label in Jx.shapes[1]:
@@ -317,10 +316,6 @@ class SumProduct(torch.autograd.Function):
             raise ValueError(f'invalid semiring: {semiring}')
 
         grad_nt = multi_solve(jf, f, transpose=True)
-
-        # Change infs to very large numbers
-        for x in grad_nt:
-            torch.nan_to_num(grad_nt[x], out=grad_nt[x])
                     
         # Compute gradients of inputs
         grad_t = multi_mv(jf_inputs, grad_nt, transpose=True)
