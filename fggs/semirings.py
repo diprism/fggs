@@ -96,11 +96,12 @@ class RealSemiring(Semiring):
     
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return torch.relu(x - y) # maximum(0, x-y)
+        # relu(x - y) = maximum(0, x - y)
+        return torch.relu(x - y).nan_to_num(nan=0., posinf=inf)
 
     @staticmethod
     def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return torch.mul(x, y).nan_to_num()
+        return torch.mul(x, y).nan_to_num(nan=0., posinf=inf)
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
@@ -140,10 +141,13 @@ class LogSemiring(Semiring):
     
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        z = -torch.relu((x-y).nan_to_num()) # type: ignore # minimum(0, y-x)
+        # relu(x - y) = maximum(0, x - y)
+        z = -torch.relu((x - y).nan_to_num(nan=0., neginf=-inf, posinf=inf)) # type: ignore
         return x - LogSemiring.star(z)
     
-    mul = staticmethod(torch.add) # type: ignore
+    @staticmethod
+    def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return torch.add(x, y).nan_to_num(nan=-inf, neginf=-inf, posinf=inf)
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
@@ -169,9 +173,11 @@ class ViterbiSemiring(Semiring):
     
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return x # or torch.maximum(x, y)?
+        return x
     
-    mul = staticmethod(torch.add) # type: ignore
+    @staticmethod
+    def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return torch.add(x, y).nan_to_num(nan=-inf, neginf=-inf, posinf=inf)
     
     def star(self, x: torch.Tensor) -> torch.Tensor:
         return torch.where(x >= 0, inf, 0.).to(self.dtype)

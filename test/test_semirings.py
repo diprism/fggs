@@ -1,13 +1,14 @@
 from fggs.semirings import *
 import unittest
-import itertools, math
+import itertools
+from math import log, inf
 import torch, torch_semiring_einsum
 
 examples = [
-    (RealSemiring(),    list(map(torch.tensor, [0., 1., 2.]))),
-    (LogSemiring(),     list(map(torch.tensor, [-math.inf, 0., math.log(2.)]))),
-    (ViterbiSemiring(), list(map(torch.tensor, [-math.inf, 0., 0.]))),
-    (BoolSemiring(),    list(map(torch.tensor, [False, True, True]))),
+    (RealSemiring(),    list(map(torch.tensor, [0.,    1.,   2.,     3.,     inf]))),
+    (LogSemiring(),     list(map(torch.tensor, [-inf,  0.,   log(2), log(3), inf]))),
+    (ViterbiSemiring(), list(map(torch.tensor, [-inf,  0.,   0.,     0.,     inf]))),
+    (BoolSemiring(),    list(map(torch.tensor, [False, True, True,   True,   True]))),
 ]
 
 class TestSemirings(unittest.TestCase):
@@ -16,11 +17,14 @@ class TestSemirings(unittest.TestCase):
             self.assertTrue(torch.all(x == y), (x, y))
         else:
             self.assertTrue(torch.allclose(x.nan_to_num(), y.nan_to_num()), (x, y))
+            self.assertFalse(torch.any(x.isnan()))
+            self.assertFalse(torch.any(y.isnan()))
+            self.assertTrue(torch.all(x.isinf() == y.isinf()), (x, y))
     
     def test_from_int(self):
         for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
-                for i, x in enumerate(values):
+                for i, x in enumerate(values[:4]):
                     self.assertAlmostEqual(semiring.from_int(i), x)
     
     def test_add_associative(self):
