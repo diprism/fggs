@@ -1,13 +1,14 @@
 from fggs.semirings import *
 import unittest
-import itertools, math
+import itertools
+from math import log, inf
 import torch, torch_semiring_einsum
 
 examples = [
-    (RealSemiring(),    list(map(torch.tensor, [0., 1., 2.]))),
-    (LogSemiring(),     list(map(torch.tensor, [-math.inf, 0., math.log(2.)]))),
-    (ViterbiSemiring(), list(map(torch.tensor, [-math.inf, 0., 0.]))),
-    (BoolSemiring(),    list(map(torch.tensor, [False, True, True]))),
+    (RealSemiring(),    torch.tensor([0.,    1.,   2.,     3.,     inf])),
+    (LogSemiring(),     torch.tensor([-inf,  0.,   log(2), log(3), inf])),
+    (ViterbiSemiring(), torch.tensor([-inf,  0.,   0.,     0.,     inf])),
+    (BoolSemiring(),    torch.tensor([False, True, True,   True,   True])),
 ]
 
 class TestSemirings(unittest.TestCase):
@@ -16,11 +17,14 @@ class TestSemirings(unittest.TestCase):
             self.assertTrue(torch.all(x == y), (x, y))
         else:
             self.assertTrue(torch.allclose(x.nan_to_num(), y.nan_to_num()), (x, y))
+            self.assertFalse(torch.any(x.isnan()))
+            self.assertFalse(torch.any(y.isnan()))
+            self.assertTrue(torch.all(x.isinf() == y.isinf()), (x, y))
     
     def test_from_int(self):
         for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
-                for i, x in enumerate(values):
+                for i, x in enumerate(values[:4]):
                     self.assertAlmostEqual(semiring.from_int(i), x)
     
     def test_add_associative(self):
@@ -99,11 +103,11 @@ class TestSemirings(unittest.TestCase):
                     else:
                         self.assertAlmostEqual(semiring.add(semiring.sub(y, x), x), x)
 
-    def test_matmul(self):
+    def test_einsum(self):
         e = torch_semiring_einsum.compile_equation('ij,jk->ik')
         torch.manual_seed(0)
-        a = torch.randint(0, 10, (10, 10))
-        b = torch.randint(0, 10, (10, 10))
+        a = torch.randint(0, 5, (10, 10))
+        b = torch.randint(0, 5, (10, 10))
         c = a @ b
         for semiring, _ in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
@@ -111,6 +115,25 @@ class TestSemirings(unittest.TestCase):
                     semiring.einsum(e, semiring.from_int(a), semiring.from_int(b)),
                     semiring.from_int(c)
                 )
+
+    def test_einsum_inf(self):
+        e = torch_semiring_einsum.compile_equation('ij,j->i')
+        big = 1000
+        a = torch.tensor([[0, 1, 0],
+                          [big, 1, 0],
+                          [0, 1, big],
+                          [big, 1, big],
+                          [0, big, 0]])
+        b = torch.tensor([0, 1, big])
+        c = a @ b
+        for semiring, values in examples:
+            with self.subTest(semiring=semiring.__class__.__name__):
+                sinf = values[-1]
+                sa = torch.where(a < big, semiring.from_int(a), sinf)
+                sb = torch.where(b < big, semiring.from_int(b), sinf)
+                sc = torch.where(c < big, semiring.from_int(c), sinf)
+                self.assertAlmostEqual(semiring.einsum(e, sa, sb), sc)
+            
 
     def test_solve(self):
         torch.manual_seed(0)
