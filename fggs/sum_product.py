@@ -364,10 +364,6 @@ class SumProduct(torch.autograd.Function):
             raise ValueError(f'invalid semiring: {semiring}')
 
         grad_nt = multi_solve(jf, f, transpose=True)
-
-        # Change infs to very large numbers
-        for x in grad_nt:
-            torch.nan_to_num(grad_nt[x], out=grad_nt[x])
                     
         # Compute gradients of factors
         grad_t = multi_mv(jf_terminals, grad_nt, transpose=True)
