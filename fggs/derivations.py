@@ -8,7 +8,7 @@ def start_graph(g: HRG) -> Graph:
     """Construct a graph consisting of a single Edge labeled by the start
     nonterminal symbol."""
     ret = Graph()
-    s = g._start
+    s = g.start_symbol
     e = Edge(s, [Node(l) for l in s.type])
     ret.add_edge(e)
     return ret
@@ -56,7 +56,7 @@ def replace_edges(graph: Graph, replacements: Dict[Edge, Graph]):
             rnodes[vr] = ve
         for v in repl.nodes():
             if v not in rnodes: # i.e., if v not in repl.ext
-                if v.id in ret._nodes.keys():
+                if ret.has_node(v):
                     vcopy = Node(v.label) # generate fresh id
                 else:
                     vcopy = v
@@ -64,7 +64,7 @@ def replace_edges(graph: Graph, replacements: Dict[Edge, Graph]):
                 ret.add_node(vcopy)
         for er in repl.edges():
             er_nodes = tuple(rnodes[v] for v in er.nodes)
-            if er.id in ret._edges.keys():
+            if ret.has_edge(er):
                 er = Edge(er.label, er_nodes) # fresh id
             elif er_nodes != er.nodes:
                 er = Edge(er.label, er_nodes, id=er.id)
