@@ -170,12 +170,6 @@ class TestSumProduct(unittest.TestCase):
                             self.assertTrue(torch.all(z == z_exact),
                                             f'{z} != {z_exact}')
 
-                
-class TestSCC(unittest.TestCase):
-    def test_scc(self):
-        g = load_fgg('test/hmm.json').grammar
-        self.assertEqual(scc(g), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])
-
 
 if __name__ == '__main__':
     unittest.main()
