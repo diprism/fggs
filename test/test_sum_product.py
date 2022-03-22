@@ -1,7 +1,7 @@
 from fggs import sum_product, FGG, Interpretation, CategoricalFactor, json_to_fgg
 from fggs.sum_product import scc, SumProduct
 from fggs.semirings import *
-import unittest, warnings, torch, random, json, copy
+import unittest, warnings, torch, random, json, copy, math
 
 def load_fgg(filename):
     with open(filename) as f:
@@ -105,11 +105,11 @@ class TestSumProduct(unittest.TestCase):
         facc = fgg.interp.factors[fgg.grammar.get_edge_label('c')]
         facc.weights = torch.tensor(1., requires_grad=True)
         z = sum_product(fgg, method='linear')
-        self.assertEqual(z.item(), torch.inf)
+        self.assertEqual(z.item(), math.inf)
         z.backward()
-        self.assertEqual(faca.weights.grad.item(), torch.inf)
-        self.assertEqual(facb.weights.grad.item(), torch.inf)
-        self.assertEqual(facc.weights.grad.item(), torch.inf)
+        self.assertEqual(faca.weights.grad.item(), math.inf)
+        self.assertEqual(facb.weights.grad.item(), math.inf)
+        self.assertEqual(facc.weights.grad.item(), math.inf)
         
         fgg = load_fgg('test/simplefgg.json')
         # make sum-product infinite
@@ -118,10 +118,10 @@ class TestSumProduct(unittest.TestCase):
         fac2 = fgg.interp.factors[fgg.grammar.get_edge_label('fac2')]
         fac2.weights = torch.tensor(1., requires_grad=True)
         z = sum_product(fgg, method='newton')
-        self.assertEqual(z.item(), torch.inf)
+        self.assertEqual(z.item(), math.inf)
         z.backward()
-        self.assertEqual(fac1.weights.grad.item(), torch.inf)
-        self.assertEqual(fac2.weights.grad.item(), torch.inf)
+        self.assertEqual(fac1.weights.grad.item(), math.inf)
+        self.assertEqual(fac2.weights.grad.item(), math.inf)
         
 
     def test_sum_product(self):
