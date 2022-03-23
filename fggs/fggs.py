@@ -120,7 +120,7 @@ class Edge:
                 raise TypeError('explicit Edge ids must be strings')
 
         if self.label.type != tuple([node.label for node in self.nodes]):
-            raise ValueError(f"Can't use edge label {self.label.name} with this set of nodes.")
+            raise ValueError(f"Can't use edge label {self.label.name} with nodes labeled ({','.join(node.label.name for node in self.nodes)}).")
         if not isinstance(self.nodes, tuple):
             object.__setattr__(self, 'nodes', tuple(self.nodes))
     
@@ -154,8 +154,8 @@ class Graph:
         """Returns a view of the hyperedges in the hypergraph."""
         return self._edges.values()
 
-    def has_edge_label(self, name):
-        return name in self._edge_labels
+    def has_edge_label_name(self, name):
+        return name in self._edge_labels.keys()
 
     def get_edge_label(self, name):
         return self._edge_labels[name]
@@ -181,7 +181,7 @@ class Graph:
     def ext(self, nodes: Iterable[Node]):
         """Sets the external nodes. If they are not already in the hypergraph, they are added."""
         for node in nodes:
-            if node.id not in self._nodes:
+            if node.id not in self._nodes.keys():
                 self.add_node(node)
         self._ext = tuple(nodes)
     
@@ -201,6 +201,10 @@ class Graph:
             raise ValueError(f"Can't have two nodes with same ID {node.id} in same Graph.")
         self._nodes[node.id] = node
 
+    def has_node_id(self, nid: str):
+        """Returns True iff the graph has a node with id `nid`."""
+        return nid in self._nodes.keys()
+
     def new_node(self, name: str, id: Optional[str] = None) -> Node:
         """Convenience function for creating and adding a Node at the same time."""
         node = Node(NodeLabel(name), id=id)
@@ -209,7 +213,7 @@ class Graph:
 
     def remove_node(self, node: Node):
         """Removes a node from the hypergraph."""
-        if node.id not in self._nodes:
+        if node.id not in self._nodes.keys():
             raise ValueError(f'Node {node} cannot be removed because it does not belong to this Graph')
         for edge in self._edges.values():
             if node in edge.nodes:
@@ -220,15 +224,19 @@ class Graph:
 
     def add_edge(self, edge: Edge):
         """Adds a hyperedge to the hypergraph. If the attachment nodes are not already in the hypergraph, they are added."""
-        if edge.id in self._edges:
+        if edge.id in self._edges.keys():
             raise ValueError(f"Can't have two edges with same ID {edge.id} in same Graph.")
-        if edge.label.name in self._edge_labels and edge.label != self._edge_labels[edge.label.name]:
+        if edge.label.name in self._edge_labels.keys() and edge.label != self._edge_labels[edge.label.name]:
             raise ValueError(f"Can't have two edge labels with same name {edge.label.name} in same Graph.")
         for node in edge.nodes:
-            if node.id not in self._nodes:
+            if node.id not in self._nodes.keys():
                 self.add_node(node)
         self._edges[edge.id] = edge
         self._edge_labels[edge.label.name] = edge.label
+
+    def has_edge_id(self, eid: str):
+        """Returns True iff the graph has an edge with id `eid`."""
+        return eid in self._edges.keys()
 
     def new_edge(self, name: str, nodes: Sequence[Node],
                  *,
@@ -244,7 +252,7 @@ class Graph:
 
     def remove_edge(self, edge: Edge):
         """Removes a hyperedge from the hypergraph."""
-        if edge.id not in self._edges:
+        if edge.id not in self._edges.keys():
             raise ValueError(f'Graph does not contain Edge {edge}')
         del self._edges[edge.id]
 
@@ -329,23 +337,23 @@ class HRG:
     def add_node_label(self, label: NodeLabel):
         self._node_labels[label.name] = label
 
-    def has_node_label(self, name):
-        return name in self._node_labels
+    def has_node_label_name(self, name):
+        return name in self._node_labels.keys()
 
     def get_node_label(self, name):
         return self._node_labels[name]
 
     def node_labels(self):
-        return [self._node_labels[name] for name in self._node_labels]
+        return self._node_labels.values()
 
     def add_edge_label(self, label: EdgeLabel):
         name = label.name
-        if name in self._edge_labels and self._edge_labels[name] != label:
+        if name in self._edge_labels.keys() and self._edge_labels[name] != label:
             raise Exception(f"There is already an edge label called {name}.")
         self._edge_labels[name] = label
 
-    def has_edge_label(self, name):
-        return name in self._edge_labels
+    def has_edge_label_name(self, name):
+        return name in self._edge_labels.keys()
 
     def get_edge_label(self, name):
         return self._edge_labels[name]
@@ -428,10 +436,10 @@ class HRG:
     def __str__(self):
         string = "HRG with:"
         string += "\n  Node labels:"
-        for label_name in self._node_labels:
+        for label_name in self._node_labels.keys():
             string += f"\n    {self._node_labels[label_name]}"
         string += "\n  Edge labels:"
-        for label_name in self._edge_labels:
+        for label_name in self._edge_labels.keys():
             string += f"\n{self._edge_labels[label_name].to_string(2)}"
         string += f"\n  Start symbol {self.start_symbol.name}"
         string += f"\n  Productions:"
@@ -523,8 +531,8 @@ class FGG:
         return dom
 
     def new_categorical_factor(self, name: str, weights):
-        if not self.grammar.has_edge_label(name):
-            raise KeyError("FGG doesn't have an edge label named {name}")
+        if not self.grammar.has_edge_label_name(name):
+            raise KeyError(f"FGG doesn't have an edge label named {name}")
         el = self.grammar.get_edge_label(name)
         doms = [self.interp.domains[nl] for nl in el.node_labels]
         fac = CategoricalFactor(doms, weights)
