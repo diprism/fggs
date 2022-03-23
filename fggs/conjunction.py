@@ -31,14 +31,14 @@ def check_namespace_collisions(hrg1, hrg2):
     # (Currently, it's actually not possible for NodeLabels to conflict, but in the future, it might be.)
     node_collisions = []
     for nl1 in hrg1.node_labels():
-        if hrg2.has_node_label(nl1.name):
+        if hrg2.has_node_label_name(nl1.name):
             nl2 = hrg2.get_node_label(nl1.name)
             if nl1 != nl2:
                 node_collisions.append((nl1, nl2))
     # Check for conflicting EdgeLabels
     edge_collisions = []
     for el1 in hrg1.edge_labels():
-        if hrg2.has_edge_label(el1.name):
+        if hrg2.has_edge_label_name(el1.name):
             el2 = hrg2.get_edge_label(el1.name)
             if el1 != el2:
                 edge_collisions.append((el1, el2))

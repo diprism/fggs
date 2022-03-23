@@ -154,7 +154,7 @@ class Graph:
         """Returns a view of the hyperedges in the hypergraph."""
         return self._edges.values()
 
-    def has_edge_label(self, name):
+    def has_edge_label_name(self, name):
         return name in self._edge_labels.keys()
 
     def get_edge_label(self, name):
@@ -201,10 +201,9 @@ class Graph:
             raise ValueError(f"Can't have two nodes with same ID {node.id} in same Graph.")
         self._nodes[node.id] = node
 
-    def has_node(self, node: Node):
-        """Returns True iff the graph has an node with the same id as
-        `node`. Does not check whether the nodes are equal."""
-        return node.id in self._nodes.keys()
+    def has_node_id(self, nid: str):
+        """Returns True iff the graph has a node with id `nid`."""
+        return nid in self._nodes.keys()
 
     def new_node(self, name: str, id: Optional[str] = None) -> Node:
         """Convenience function for creating and adding a Node at the same time."""
@@ -235,10 +234,9 @@ class Graph:
         self._edges[edge.id] = edge
         self._edge_labels[edge.label.name] = edge.label
 
-    def has_edge(self, edge: Edge):
-        """Returns True iff the graph has an edge with the same id as
-        `edge`. Does not check whether the edges are equal."""
-        return edge.id in self._edges.keys()
+    def has_edge_id(self, eid: str):
+        """Returns True iff the graph has an edge with id `eid`."""
+        return eid in self._edges.keys()
 
     def new_edge(self, name: str, nodes: Sequence[Node],
                  *,
@@ -339,7 +337,7 @@ class HRG:
     def add_node_label(self, label: NodeLabel):
         self._node_labels[label.name] = label
 
-    def has_node_label(self, name):
+    def has_node_label_name(self, name):
         return name in self._node_labels.keys()
 
     def get_node_label(self, name):
@@ -354,7 +352,7 @@ class HRG:
             raise Exception(f"There is already an edge label called {name}.")
         self._edge_labels[name] = label
 
-    def has_edge_label(self, name):
+    def has_edge_label_name(self, name):
         return name in self._edge_labels.keys()
 
     def get_edge_label(self, name):
@@ -533,7 +531,7 @@ class FGG:
         return dom
 
     def new_categorical_factor(self, name: str, weights):
-        if not self.grammar.has_edge_label(name):
+        if not self.grammar.has_edge_label_name(name):
             raise KeyError("FGG doesn't have an edge label named {name}")
         el = self.grammar.get_edge_label(name)
         doms = [self.interp.domains[nl] for nl in el.node_labels]

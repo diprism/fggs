@@ -56,7 +56,7 @@ def replace_edges(graph: Graph, replacements: Dict[Edge, Graph]):
             rnodes[vr] = ve
         for v in repl.nodes():
             if v not in rnodes: # i.e., if v not in repl.ext
-                if ret.has_node(v):
+                if ret.has_node_id(v.id):
                     vcopy = Node(v.label) # generate fresh id
                 else:
                     vcopy = v
@@ -64,7 +64,7 @@ def replace_edges(graph: Graph, replacements: Dict[Edge, Graph]):
                 ret.add_node(vcopy)
         for er in repl.edges():
             er_nodes = tuple(rnodes[v] for v in er.nodes)
-            if ret.has_edge(er):
+            if ret.has_edge_id(er.id):
                 er = Edge(er.label, er_nodes) # fresh id
             elif er_nodes != er.nodes:
                 er = Edge(er.label, er_nodes, id=er.id)
