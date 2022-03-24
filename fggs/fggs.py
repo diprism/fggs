@@ -75,27 +75,31 @@ class EdgeLabel:
             for i, node_label in enumerate(self.type):
                 string += "\n  " + "  "*indent + f"{node_label}"
         return string
-    
+
+_id = id # hack to allow id to be used as a keyword argument below
 
 @dataclass(frozen=True)
 class Node:
     """A node of a Graph."""
     
-    label: NodeLabel         #: The node's label
-    id: Optional[str] = None #: The node's id, which must be unique. If not supplied, a random one is chosen.
-    persist_id: bool = field(init=False, default=False) #: Whether the id should be saved with the Node
+    label: NodeLabel #: The node's label
+    id: str          #: The node's id, which must be unique. If not supplied, a random one is chosen.
+    persist_id: bool #: Whether the id should be saved with the Node
 
-    def __post_init__(self):
-        if self.id == None:
+    def __init__(self, label: NodeLabel, id: Optional[str] = None):
+        object.__setattr__(self, 'label', label)
+        if id is None:
             # If no id was specified, use the object's address as a numeric id.
             # Since explicit ids are required to be strings, there can't be an
             # accidental id collision. We also set persist_id to False so that
             # if the Node is saved and loaded, it will receive a new id.
-            object.__setattr__(self, 'id', id(self))
+            object.__setattr__(self, 'id', _id(self))
+            object.__setattr__(self, 'persist_id', False)
         else:
-            object.__setattr__(self, 'persist_id', True)
-            if not isinstance(self.id, str):
+            if not isinstance(id, str):
                 raise TypeError('explicit Node ids must be strings')
+            object.__setattr__(self, 'id', id)
+            object.__setattr__(self, 'persist_id', True)
 
     def __str__(self):
         return f"Node {self.id} with {self.label}"
@@ -105,24 +109,27 @@ class Node:
 class Edge:
     """A hyperedge of a Graph."""
 
-    label: EdgeLabel         #: The edge's label
-    nodes: Iterable[Node]    #: The edge's attachment nodes
-    id: Optional[str] = None #: The edge's id, which must be unique. If not supplied, a random one is chosen.
-    persist_id: bool = field(init=False, default=False) #: Whether the id should be saved with the Node
+    label: EdgeLabel        #: The edge's label
+    nodes: Tuple[Node, ...] #: The edge's attachment nodes
+    id: str                 #: The edge's id, which must be unique. If not supplied, a random one is chosen.
+    persist_id: bool        #: Whether the id should be saved with the Node
 
-    def __post_init__(self):
+    def __init__(self, label: EdgeLabel, nodes: Iterable[Node], id: Optional[str] = None):
         # See Node.__post_init__ for further explanation of id and persist_id.
-        if self.id == None:
-            object.__setattr__(self, 'id', id(self))
+        if id is None:
+            object.__setattr__(self, 'id', _id(self))
+            object.__setattr__(self, 'persist_id', False)
         else:
-            object.__setattr__(self, 'persist_id', True)
-            if not isinstance(self.id, str):
+            if not isinstance(id, str):
                 raise TypeError('explicit Edge ids must be strings')
+            object.__setattr__(self, 'id', id)
+            object.__setattr__(self, 'persist_id', True)
 
-        if self.label.type != tuple([node.label for node in self.nodes]):
-            raise ValueError(f"Can't use edge label {self.label.name} with nodes labeled ({','.join(node.label.name for node in self.nodes)}).")
-        if not isinstance(self.nodes, tuple):
-            object.__setattr__(self, 'nodes', tuple(self.nodes))
+        if label.type != tuple([node.label for node in nodes]):
+            raise ValueError(f"Can't use edge label {label.name} with nodes labeled ({','.join(node.label.name for node in nodes)}).")
+
+        object.__setattr__(self, 'label', label)
+        object.__setattr__(self, 'nodes', tuple(nodes))
     
     def __str__(self):
         return self.to_string(0)
@@ -137,14 +144,57 @@ class Edge:
         return string
 
 
-class Graph:
+class LabelingMixin:
+
+    _node_labels: Dict[str, NodeLabel] # from names to NodeLabels
+    _edge_labels: Dict[str, EdgeLabel] # from names to EdgeLabels
+        
+    def add_node_label(self, label: NodeLabel):
+        self._node_labels[label.name] = label
+
+    def has_node_label_name(self, name):
+        return name in self._node_labels.keys()
+
+    def get_node_label(self, name):
+        return self._node_labels[name]
+
+    def node_labels(self):
+        return self._node_labels.values()
+
+    def add_edge_label(self, label: EdgeLabel):
+        name = label.name
+        if name in self._edge_labels.keys() and self._edge_labels[name] != label:
+            raise Exception(f"There is already an edge label called {name}.")
+        self._edge_labels[name] = label
+        
+    def has_edge_label_name(self, name):
+        return name in self._edge_labels.keys()
+
+    def get_edge_label(self, name):
+        return self._edge_labels[name]
+
+    def edge_labels(self):
+        """Returns a view of the edge labels used."""
+        return self._edge_labels.values()
+    
+    def nonterminals(self):
+        """Returns a copy of the list of nonterminals used."""
+        return [el for el in self._edge_labels.values() if el.is_nonterminal]
+    
+    def terminals(self):
+        """Returns a copy of the list of terminals used."""
+        return [el for el in self._edge_labels.values() if el.is_terminal]
+
+
+class Graph(LabelingMixin, object):
     """A hypergraph or hypergraph fragment (= hypergraph with external nodes)."""
 
     def __init__(self):
-        self._nodes       = dict()    # map from ids to Nodes
-        self._edges       = dict()    # map from ids to Edges
-        self._edge_labels = dict()    # map from names to EdgeLabels
-        self._ext         = tuple()
+        self._nodes: Dict[str, Node]            = dict() # from ids to Nodes
+        self._edges: Dict[str, Edge]            = dict() # from ids to Edges
+        self._node_labels: Dict[str, NodeLabel] = dict() # from names to NodeLabels
+        self._edge_labels: Dict[str, EdgeLabel] = dict() # from names to EdgeLabels
+        self._ext: Tuple[Node, ...]             = ()
     
     def nodes(self):
         """Returns a view of the nodes in the hypergraph."""
@@ -153,24 +203,6 @@ class Graph:
     def edges(self):
         """Returns a view of the hyperedges in the hypergraph."""
         return self._edges.values()
-
-    def has_edge_label_name(self, name):
-        return name in self._edge_labels.keys()
-
-    def get_edge_label(self, name):
-        return self._edge_labels[name]
-
-    def edge_labels(self):
-        """Returns a view of the edge labels used in the hypergraph."""
-        return self._edge_labels.values()
-    
-    def nonterminals(self):
-        """Returns a copy of the list of nonterminals used in the hypergraph."""
-        return [el for el in self._edge_labels.values() if el.is_nonterminal]
-    
-    def terminals(self):
-        """Returns a copy of the list of terminals used in the hypergraph."""
-        return [el for el in self._edge_labels.values() if el.is_terminal]
 
     @property
     def ext(self):
@@ -292,6 +324,7 @@ class Graph:
                 string += "\n" + edge.to_string(indent+1)
         return string
 
+
 @dataclass
 class HRGRule:
     """An HRG production.
@@ -321,7 +354,7 @@ class HRGRule:
         return string
 
 
-class HRG:
+class HRG(LabelingMixin, object):
     """A hyperedge replacement graph grammar."""
     
     def __init__(self, start: Union[EdgeLabel, str]):
@@ -333,42 +366,6 @@ class HRG:
             start = EdgeLabel(start, [], is_nonterminal=True)
         start = cast(EdgeLabel, start)
         self.start_symbol: EdgeLabel = start
-
-    def add_node_label(self, label: NodeLabel):
-        self._node_labels[label.name] = label
-
-    def has_node_label_name(self, name):
-        return name in self._node_labels.keys()
-
-    def get_node_label(self, name):
-        return self._node_labels[name]
-
-    def node_labels(self):
-        return self._node_labels.values()
-
-    def add_edge_label(self, label: EdgeLabel):
-        name = label.name
-        if name in self._edge_labels.keys() and self._edge_labels[name] != label:
-            raise Exception(f"There is already an edge label called {name}.")
-        self._edge_labels[name] = label
-
-    def has_edge_label_name(self, name):
-        return name in self._edge_labels.keys()
-
-    def get_edge_label(self, name):
-        return self._edge_labels[name]
-
-    def edge_labels(self):
-        """Return the edge labels used in this HRG."""
-        return self._edge_labels.values()
-
-    def nonterminals(self):
-        """Return a copy of the list of nonterminals used in this HRG."""
-        return [el for el in self._edge_labels.values() if el.is_nonterminal]
-    
-    def terminals(self):
-        """Return a copy of the list of terminals used in this HRG."""
-        return [el for el in self._edge_labels.values() if el.is_terminal]
 
     @property
     def start_symbol(self) -> EdgeLabel:
