@@ -150,27 +150,34 @@ class LabelingMixin:
     _edge_labels: Dict[str, EdgeLabel] # from names to EdgeLabels
         
     def add_node_label(self, label: NodeLabel):
+        """Adds a node label to the set of used node labels."""
         self._node_labels[label.name] = label
 
     def has_node_label_name(self, name):
+        """Returns true if there is a used node label with the given name."""
         return name in self._node_labels.keys()
 
     def get_node_label(self, name):
+        """Returns the unique used node label with the given name."""
         return self._node_labels[name]
 
     def node_labels(self):
+        """Returns a view of the node labels used."""
         return self._node_labels.values()
 
     def add_edge_label(self, label: EdgeLabel):
+        """Adds an edge label to the set of used edge labels."""
         name = label.name
         if name in self._edge_labels.keys() and self._edge_labels[name] != label:
             raise Exception(f"There is already an edge label called {name}.")
         self._edge_labels[name] = label
         
     def has_edge_label_name(self, name):
+        """Returns true if there is an edge label with the given name."""
         return name in self._edge_labels.keys()
 
     def get_edge_label(self, name):
+        """Returns the unique used edge label with the given name."""
         return self._edge_labels[name]
 
     def edge_labels(self):
