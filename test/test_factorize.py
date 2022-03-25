@@ -1,6 +1,7 @@
 import unittest
 from fggs import *
 from fggs.factorize import add_node, add_edge, tree_decomposition
+from fggs.utils import naive_graph_isomorphism
 import re, collections, os, json
 
 class TestTreewidth(unittest.TestCase):
@@ -95,13 +96,15 @@ class TestFactorize(unittest.TestCase):
                 for r in g.all_rules():
                     frules = {fr.lhs:fr for fr in factorize_rule(r)}
                     def visit(fr):
-                        replacements = {}
-                        for e in fr.rhs.edges():
+                        for e in list(fr.rhs.edges()):
                             if e.label.is_nonterminal and e.label not in g.nonterminals():
-                                replacements[e] = visit(frules[e.label])
-                        return HRGRule(fr.lhs, replace_edges(fr.rhs, replacements))
-                    rr = visit(frules[r.lhs])
-                    self.assertEqual(r, rr)
+                                visit(frules[e.label])
+                                replace_edge(fr.rhs, e, frules[e.label].rhs)
+                    rr = frules[r.lhs]
+                    visit(rr)
+                    self.assertEqual(r.lhs, rr.lhs)
+                    result, m = naive_graph_isomorphism(r.rhs, rr.rhs)
+                    self.assertTrue(result, m)
             
 if __name__ == "__main__":
     unittest.main()
