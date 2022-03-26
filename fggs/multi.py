@@ -20,7 +20,7 @@ class MultiTensor(MutableMapping[MultiTensorKey, Tensor]):
     def __getitem__(self, key: MultiTensorKey) -> Tensor:    return self._dict[key]
     def __setitem__(self, key: MultiTensorKey, val: Tensor):
         if isinstance(key, tuple):
-            shape = sum([s[x] for s, x in zip(self.shapes, key)], start=())
+            shape = sum([s[x] for s, x in zip(self.shapes, key)], ())
         else:
             shape = self.shapes[0][key]
         if val.shape != shape:
