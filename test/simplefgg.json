@@ -38,12 +38,12 @@
         "domains": {},
         "factors": {
             "fac1": {
-                "function": "categorical",
+                "function": "finite",
                 "type": [],
                 "weights": 0.8
             },
             "fac2": {
-                "function": "categorical",
+                "function": "finite",
                 "type": [],
                 "weights": 0.2
             }

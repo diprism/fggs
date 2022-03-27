@@ -141,7 +141,7 @@
         "domains": {},
         "factors": {
             "a": {
-                "function": "categorical",
+                "function": "finite",
                 "type": [],
                 "weights": 0.5
             }

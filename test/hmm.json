@@ -70,7 +70,7 @@
         },
         "factors": {
             "transition": {
-                "function": "categorical",
+                "function": "finite",
                 "type": ["T", "T"],
                 "weights": [[0, 1, 0, 0, 0, 0],
                             [0, 0.25, 0.25, 0.25, 0, 0.25],
@@ -80,7 +80,7 @@
                             [0, 0, 0, 0, 0, 0]]
             },
             "emission": {
-                "function": "categorical",
+                "function": "finite",
                 "type": ["T", "W"],
                 "weights": [[1, 0, 0, 0, 0],
                             [0, 0.5, 0, 0, 0.5],
@@ -90,12 +90,12 @@
                             [0, 0, 0, 0, 0]]
             },
             "is_bos": {
-                "function": "categorical",
+                "function": "finite",
                 "type": ["T"],
                 "weights": [0, 0, 0, 0, 1, 0]
             },
             "is_eos": {
-                "function": "categorical",
+                "function": "finite",
                 "type": ["T"],
                 "weights": [0, 0, 0, 0, 0, 1]
             }

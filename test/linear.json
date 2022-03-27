@@ -49,17 +49,17 @@
         "domains": {},
         "factors": {
             "a": {
-                "function": "categorical",
+                "function": "finite",
                 "type": [],
                 "weights": 2
             },
             "b": {
-                "function": "categorical",
+                "function": "finite",
                 "type": [],
                 "weights": 0.2
             },
             "c": {
-                "function": "categorical",
+                "function": "finite",
                 "type": [],
                 "weights": 3
             }

@@ -1,12 +1,12 @@
 import unittest
 from fggs import *
 
-class TestCategoricalFactor(unittest.TestCase):
+class TestFiniteFactor(unittest.TestCase):
 
     def setUp(self):
         self.d3 = FiniteDomain(['foo', 'bar', 'baz'])
         self.d4 = FiniteDomain(['jia', 'yi', 'bing', 'ding'])
-        self.f = CategoricalFactor([self.d3, self.d4], [
+        self.f = FiniteFactor([self.d3, self.d4], [
             [0, 1, 2, 3],
             [4, 5, 6, 7],
             [8, 9, 10, 11],
@@ -20,17 +20,17 @@ class TestCategoricalFactor(unittest.TestCase):
 
     def test_failure(self):
         with self.assertRaises(ValueError):
-            f = CategoricalFactor([self.d3, self.d4], [0, 1, 2, 3])
+            f = FiniteFactor([self.d3, self.d4], [0, 1, 2, 3])
         with self.assertRaises(ValueError):
-            f = CategoricalFactor([self.d3, self.d4], [[[0]]])
+            f = FiniteFactor([self.d3, self.d4], [[[0]]])
         with self.assertRaises(ValueError):
-            f = CategoricalFactor([self.d3, self.d4], [
+            f = FiniteFactor([self.d3, self.d4], [
                 [0, 1, 2, 3],
                 [4, 5, 6, 7],
                 [8, 9, 10],
             ])
         with self.assertRaises(ValueError):
-            f = CategoricalFactor([self.d3, self.d4], [
+            f = FiniteFactor([self.d3, self.d4], [
                 [0, 1, 2, 3],
                 [4, 5, 6, 7],
                 [8, 9, 10, 11],
@@ -38,17 +38,17 @@ class TestCategoricalFactor(unittest.TestCase):
             ])
 
     def test_equals(self):
-        f_eq = CategoricalFactor([self.d3, self.d4], [
+        f_eq = FiniteFactor([self.d3, self.d4], [
             [0, 1, 2, 3],
             [4, 5, 6, 7],
             [8, 9, 10, 11],
         ])
-        f_ne_doms = CategoricalFactor([self.d3, self.d3], [
+        f_ne_doms = FiniteFactor([self.d3, self.d3], [
             [0, 1, 2],
             [4, 5, 6],
             [8, 9, 10],
         ])
-        f_ne_vals = CategoricalFactor([self.d3, self.d4], [
+        f_ne_vals = FiniteFactor([self.d3, self.d4], [
             [12, 13, 14, 15],
             [16, 17, 18, 19],
             [20, 21, 22, 23],

@@ -122,9 +122,9 @@ def json_to_interp(j):
     for name, d in j['factors'].items():
         nls = [NodeLabel(nl) for nl in d['type']]
         el = EdgeLabel(name, nls, is_terminal=True)
-        if d['function'] == 'categorical':
+        if d['function'] == 'finite':
             weights = d['weights']
-            interp.add_factor(el, factors.CategoricalFactor([interp.domains[nl] for nl in nls], weights))
+            interp.add_factor(el, factors.FiniteFactor([interp.domains[nl] for nl in nls], weights))
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
         
@@ -152,9 +152,9 @@ def interp_to_json(interp):
 
     j['factors'] = {}
     for el, fac in interp.factors.items():
-        if isinstance(fac, factors.CategoricalFactor):
+        if isinstance(fac, factors.FiniteFactor):
             j['factors'][el.name] = {
-                'function': 'categorical',
+                'function': 'finite',
                 'type': [nl.name for nl in el.type],
                 'weights': fac.weights,
             }

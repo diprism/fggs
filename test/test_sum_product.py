@@ -1,4 +1,4 @@
-from fggs import sum_product, FGG, Interpretation, CategoricalFactor, json_to_fgg
+from fggs import sum_product, FGG, Interpretation, FiniteFactor, json_to_fgg
 from fggs.sum_product import scc, SumProduct
 from fggs.semirings import *
 import unittest, warnings, torch, random, json, copy, math

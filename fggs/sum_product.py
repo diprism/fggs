@@ -1,7 +1,7 @@
 __all__ = ['sum_product']
 
 from fggs.fggs import FGG, HRG, HRGRule, Interpretation, EdgeLabel, Edge, Node
-from fggs.factors import CategoricalFactor
+from fggs.factors import FiniteFactor
 from fggs.semirings import *
 from fggs.multi import *
 from fggs.utils import scc, nonterminal_graph

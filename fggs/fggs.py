@@ -3,7 +3,7 @@ __all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 
 from typing import Optional, Iterable, Tuple, Union, Dict, Sequence, List, cast
 from dataclasses import dataclass, field
 from fggs.domains import Domain, FiniteDomain
-from fggs.factors import Factor, CategoricalFactor
+from fggs.factors import Factor, FiniteFactor
 
 
 @dataclass(frozen=True)
@@ -530,11 +530,11 @@ class FGG:
         self.interp.add_domain(nl, dom)
         return dom
 
-    def new_categorical_factor(self, name: str, weights):
+    def new_finite_factor(self, name: str, weights):
         if not self.grammar.has_edge_label_name(name):
             raise KeyError(f"FGG doesn't have an edge label named {name}")
         el = self.grammar.get_edge_label(name)
         doms = [self.interp.domains[nl] for nl in el.node_labels]
-        fac = CategoricalFactor(doms, weights)
+        fac = FiniteFactor(doms, weights)
         self.interp.add_factor(el, fac)
         return fac

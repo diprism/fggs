@@ -439,12 +439,12 @@ class TestFGG(unittest.TestCase):
         self.dom1 = FiniteDomain(['foo', 'bar', 'baz'])
         self.dom2 = FiniteDomain(['jia', 'yi', 'bing', 'ding'])
 
-        self.fac1 = CategoricalFactor([self.dom1, self.dom2],
+        self.fac1 = FiniteFactor([self.dom1, self.dom2],
                                       [[1, 2, 3, 4],
                                        [5, 6, 7, 8],
                                        [1, 2, 3, 4]])
-        self.fac2 = CategoricalFactor([self.dom2], [0, 0, 0, 0])
-        self.fac1_wrong = CategoricalFactor([self.dom1, self.dom1],
+        self.fac2 = FiniteFactor([self.dom2], [0, 0, 0, 0])
+        self.fac1_wrong = FiniteFactor([self.dom1, self.dom1],
                                             [[1, 2, 3],
                                              [5, 6, 7],
                                              [1, 2, 3]])
@@ -518,7 +518,7 @@ class TestFGG(unittest.TestCase):
         self.assertTrue(fgg.interp.domains[self.nl1] == self.dom1)
         fgg.new_finite_domain(self.nl2.name, self.dom2.values)
         self.assertTrue(fgg.interp.domains[self.nl2] == self.dom2)
-        fgg.new_categorical_factor(self.el1.name, self.fac1.weights)
+        fgg.new_finite_factor(self.el1.name, self.fac1.weights)
         self.assertTrue(fgg.interp.factors[self.el1] == self.fac1)
 
         

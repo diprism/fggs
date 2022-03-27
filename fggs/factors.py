@@ -1,4 +1,4 @@
-__all__ = ['Factor', 'ConstantFactor', 'CategoricalFactor']
+__all__ = ['Factor', 'ConstantFactor', 'FiniteFactor']
 
 from abc import ABC, abstractmethod
 from fggs import domains
@@ -42,7 +42,7 @@ class ConstantFactor(Factor):
                    self.weight == other.weight
 
         
-class CategoricalFactor(Factor):
+class FiniteFactor(Factor):
     def __init__(self, doms, weights):
         """A factor that can define an arbitrary function on finite domains.
 
@@ -50,7 +50,7 @@ class CategoricalFactor(Factor):
         - weights (list (of lists)* of floats): weights"""
         
         if not all(isinstance(d, domains.FiniteDomain) for d in doms):
-            raise TypeError('CategoricalFactor can only be applied to FiniteDomains')
+            raise TypeError('FiniteFactor can only be applied to FiniteDomains')
         super().__init__(doms)
 
         def check_size(weights, size):

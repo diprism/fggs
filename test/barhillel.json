@@ -48,7 +48,7 @@
         },
         "factors": {
             "a": {
-                "function": "categorical",
+                "function": "finite",
                 "type": ["state", "state"],
                 "weights" : [[0.1, 0.01], [0.01, 0.1]]
             }
