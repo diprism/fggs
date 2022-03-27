@@ -503,8 +503,9 @@ class FactorGraph:
     - interp: Maps node and edge labels to domains and factors, respectively.
     """
     
-    def __init__(self, graph: Graph, interp: Interpretation):
+    def __init__(self, graph: Graph, interp: Optional[Interpretation] = None):
         self.graph = graph
+        if interp is None: interp = Interpretation()
         self.interp = interp
 
         
@@ -515,8 +516,9 @@ class FGG:
     - interp: Maps node and edge labels to domains and factors, respectively.
     """
     
-    def __init__(self, grammar: HRG, interp: Interpretation):
+    def __init__(self, grammar: HRG, interp: Optional[Interpretation] = None):
         self.grammar = grammar
+        if interp is None: interp = Interpretation()
         self.interp = interp
 
     def new_finite_domain(self, name: str, values: Sequence):
