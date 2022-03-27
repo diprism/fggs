@@ -453,19 +453,14 @@ class Interpretation:
     """An interpretation of an HRG."""
     
     def __init__(self):
-        self.domains = {}
-        self.factors = {}
+        self.domains: Dict[str, Domain] = {}
+        self.factors: Dict[str, Factor] = {}
 
-    def can_interpret(self, g: HRG):
-        """Test whether this Interpretation is compatible with HRG g."""
-        return (set(self.domains.keys()).issuperset(set(g.node_labels())) and
-                set(self.factors.keys()).issuperset(set(g.terminals())))
-    
     def add_domain(self, nl: NodeLabel, dom: Domain):
         """Add mapping from NodeLabel nl to Domain dom."""
-        if nl in self.domains:
+        if nl.name in self.domains:
             raise ValueError(f"NodeLabel {nl} is already mapped")
-        self.domains[nl] = dom
+        self.domains[nl.name] = dom
 
     def add_factor(self, el: EdgeLabel, fac: Factor):
         """Add mapping from EdgeLabel el to Factor fac."""
@@ -476,11 +471,11 @@ class Interpretation:
         if fac.arity != el.arity:
             raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (wrong arity)')
         for nl, dom in zip(el.node_labels, fac.domains):
-            if nl not in self.domains:
+            if nl.name not in self.domains:
                 raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (NodeLabel {nl} not mapped)')
-            elif dom != self.domains[nl]:
-                raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} != Domain {self.domains[nl]})')
-        self.factors[el] = fac
+            elif dom != self.domains[nl.name]:
+                raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} != Domain {self.domains[nl.name]})')
+        self.factors[el.name] = fac
 
     def shape(self, x: Union[Sequence[NodeLabel], Sequence[Node], EdgeLabel, Edge]):
         """Return the 'shape' of an Edge or EdgeLabel; that is, 
@@ -499,7 +494,7 @@ class Interpretation:
             nls = x.type
         else:
             nls = x.label.type
-        return tuple(self.domains[nl].size() for nl in nls)
+        return tuple(cast(FiniteDomain, self.domains[nl.name]).size() for nl in nls)
     
 class FactorGraph:
     """A factor graph.
@@ -534,7 +529,7 @@ class FGG:
         if not self.grammar.has_edge_label_name(name):
             raise KeyError(f"FGG doesn't have an edge label named {name}")
         el = self.grammar.get_edge_label(name)
-        doms = [self.interp.domains[nl] for nl in el.node_labels]
+        doms = [self.interp.domains[nl.name] for nl in el.node_labels]
         fac = FiniteFactor(doms, weights)
         self.interp.add_factor(el, fac)
         return fac

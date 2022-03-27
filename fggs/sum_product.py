@@ -1,12 +1,13 @@
 __all__ = ['sum_product']
 
 from fggs.fggs import FGG, HRG, HRGRule, Interpretation, EdgeLabel, Edge, Node
+from fggs.domains import FiniteDomain
 from fggs.factors import FiniteFactor
 from fggs.semirings import *
 from fggs.multi import *
 from fggs.utils import scc, nonterminal_graph
 
-from typing import Callable, Dict, Mapping, Sequence, Iterable, Tuple, List, Set, Union, Optional
+from typing import Callable, Dict, Mapping, Sequence, Iterable, Tuple, List, Set, Union, Optional, cast
 import warnings
 
 import torch
@@ -168,7 +169,7 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
             ext.append(ncopy)
             connected.update([n, ncopy])
             indexing.append([n, ncopy])
-            nsize = interp.domains[n.label].size()
+            nsize = cast(FiniteDomain, interp.domains[n.label.name]).size()
             tensors.append(semiring.eye(nsize))
         else:
             ext.append(n)
@@ -202,14 +203,16 @@ def sum_product_edges(interp: Interpretation, nodes: Iterable[Node], edges: Iter
 
     # Restore any external nodes that were removed.
     if out.ndim < len(ext):
-        vshape = [interp.domains[n.label].size() if n in connected else 1 for n in ext]
-        out = out.view(*vshape).repeat(*interp.shape(ext))
+        eshape = interp.shape(ext)
+        vshape = [s if n in connected else 1 for n, s in zip(ext, eshape)]
+        rshape = [1 if n in connected else s for n, s in zip(ext, eshape)]
+        out = out.view(*vshape).repeat(*rshape)
 
     # Multiply in any disconnected internal nodes.
     mul = 1
     for n in nodes:
         if n not in connected and n not in ext:
-            mul *= interp.domains[n.label].size()
+            mul *= cast(FiniteDomain, interp.domains[n.label.name]).size()
     if mul > 1:
         out = semiring.mul(out, semiring.from_int(mul))
 
@@ -341,7 +344,7 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
     if isinstance(opts['semiring'], BoolSemiring):
         opts['tol'] = 0
 
-    all = {t:interp.factors[t].weights for t in hrg.terminals()}
+    all = {t:cast(FiniteFactor, interp.factors[t.name]).weights for t in hrg.terminals()}
     for comp in scc(nonterminal_graph(hrg)):
 
         inputs = {}

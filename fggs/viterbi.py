@@ -51,10 +51,12 @@ def sum_product_edges(interp: Interpretation, rule: HRGRule, *inputses: MultiTen
 
     # Restore any external nodes that were removed.
     if out.ndim < len(rule.rhs.ext):
-        vshape = [interp.domains[n.label].size() if n in connected else 1 for n in rule.rhs.ext]
-        out = out.view(*vshape).repeat(*interp.shape(rule.lhs))
+        eshape = interp.shape(rule.rhs.ext)
+        vshape = [s if n in connected else 1 for n, s in zip(rule.rhs.ext, eshape)]
+        rshape = [1 if n in connected else s for n, s in zip(rule.rhs.ext, eshape)]
+        out = out.view(*vshape).repeat(*rshape)
         nint = ptr.shape[-1]
-        ptr = ptr.view(*vshape, nint).repeat(*interp.shape(rule.lhs), nint)
+        ptr = ptr.view(*vshape, nint).repeat(*rshape, nint)
 
     return out, ptr
 
@@ -92,7 +94,7 @@ def viterbi(fgg: FGG, start_asst: Tuple[int,...], opts: Dict) -> FGGDerivation:
     kmax = opts.get('kmax', 1000)
     tol = opts.get('tol', 1e-6)
 
-    maximum: MultiTensor = {t:interp.factors[t].weights for t in hrg.terminals()} # type: ignore
+    maximum: MultiTensor = {t:interp.factors[t.name].weights for t in hrg.terminals()} # type: ignore
     lhs_pointer = {}
     rhs_pointer = {}
     for comp in scc(nonterminal_graph(hrg)):

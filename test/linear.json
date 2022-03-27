@@ -50,17 +50,14 @@
         "factors": {
             "a": {
                 "function": "finite",
-                "type": [],
                 "weights": 2
             },
             "b": {
                 "function": "finite",
-                "type": [],
                 "weights": 0.2
             },
             "c": {
                 "function": "finite",
-                "type": [],
                 "weights": 3
             }
         }

@@ -221,15 +221,15 @@ for epoch in range(100):
                         lhs = node.label
                         rhs = tuple(child.label for child in node.children)
                         if args.method == 'rule':
-                            w += interp.factors[hrg.get_edge_label(rules[lhs, rhs])].weights
+                            w += interp.factors[rules[lhs, rhs]].weights
                         elif args.method == 'pattern':
                             pattern = tuple(isinstance(x, Nonterminal) for x in rhs)
                             lhs_index = nonterminal_dom.numberize(lhs)
                             rhs_indices = tuple(nonterminal_dom.numberize(x) if isinstance(x, Nonterminal) else terminal_dom.numberize(x) for x in rhs)
-                            w += interp.factors[hrg.get_edge_label(f'start {pattern[0]}')].weights[lhs_index, rhs_indices[0]]
+                            w += interp.factors[f'start {pattern[0]}'].weights[lhs_index, rhs_indices[0]]
                             for i in range(len(rhs)-1):
-                                w += interp.factors[hrg.get_edge_label(f'{pattern[0]} {pattern[1]}')].weights[rhs_indices[0], rhs_indices[1]]
-                            w += interp.factors[hrg.get_edge_label(f'{pattern[-1]} stop')].weights[rhs_indices[-1]]
+                                w += interp.factors[f'{pattern[0]} {pattern[1]}'].weights[rhs_indices[0], rhs_indices[1]]
+                            w += interp.factors[f'{pattern[-1]} stop'].weights[rhs_indices[-1]]
 
                         else:
                             assert False

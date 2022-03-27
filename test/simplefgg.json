@@ -39,12 +39,10 @@
         "factors": {
             "fac1": {
                 "function": "finite",
-                "type": [],
                 "weights": 0.8
             },
             "fac2": {
                 "function": "finite",
-                "type": [],
                 "weights": 0.2
             }
         }

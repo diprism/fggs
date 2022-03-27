@@ -26,8 +26,8 @@ class TestSumProduct(unittest.TestCase):
         g.new_edge('emission',   [nn,  cat], is_terminal=True)
         g.new_edge('is_eos',     [eos],      is_terminal=True)
 
-        tdom = self.fgg.interp.domains[self.fgg.grammar.get_node_label('T')]
-        wdom = self.fgg.interp.domains[self.fgg.grammar.get_node_label('W')]
+        tdom = self.fgg.interp.domains['T']
+        wdom = self.fgg.interp.domains['W']
         
         self.asst = a = {}
         a[bos] = tdom.numberize('BOS')

@@ -484,21 +484,6 @@ class TestFGG(unittest.TestCase):
         self.hrg.add_rule(self.rule)
         self.hrg.add_rule(self.rule2)
 
-    def test_interpretation(self):
-        interp = Interpretation()
-        interp.add_domain(self.nl1, self.dom1)
-        with self.assertRaises(ValueError):
-            interp.add_domain(self.nl1, self.dom1)
-        self.assertFalse(interp.can_interpret(self.hrg))
-        interp.add_domain(self.nl2, self.dom2)
-        self.assertFalse(interp.can_interpret(self.hrg))
-        interp.add_factor(self.el1, self.fac1)
-        with self.assertRaises(ValueError):
-            interp.add_factor(self.el1, self.fac1)
-        with self.assertRaises(ValueError):
-            interp.add_factor(self.el2, self.fac2)
-        self.assertTrue(interp.can_interpret(self.hrg))
-
     def test_shape(self):
         interp = Interpretation()
         interp.add_domain(self.nl1, self.dom1)
@@ -515,11 +500,11 @@ class TestFGG(unittest.TestCase):
         interp = Interpretation()
         fgg = FGG(self.hrg, interp)
         fgg.new_finite_domain(self.nl1.name, self.dom1.values)
-        self.assertTrue(fgg.interp.domains[self.nl1] == self.dom1)
+        self.assertTrue(fgg.interp.domains[self.nl1.name] == self.dom1)
         fgg.new_finite_domain(self.nl2.name, self.dom2.values)
-        self.assertTrue(fgg.interp.domains[self.nl2] == self.dom2)
+        self.assertTrue(fgg.interp.domains[self.nl2.name] == self.dom2)
         fgg.new_finite_factor(self.el1.name, self.fac1.weights)
-        self.assertTrue(fgg.interp.factors[self.el1] == self.fac1)
+        self.assertTrue(fgg.interp.factors[self.el1.name] == self.fac1)
 
         
 if __name__ == "__main__":

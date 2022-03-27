@@ -34,7 +34,6 @@
         "factors": {
             "fac": {
                 "function": "finite",
-                "type": [],
                 "weights": 2
             }
         }
