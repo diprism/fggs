@@ -115,7 +115,7 @@ class Edge:
     persist_id: bool        #: Whether the id should be saved with the Node
 
     def __init__(self, label: EdgeLabel, nodes: Iterable[Node], id: Optional[str] = None):
-        # See Node.__post_init__ for further explanation of id and persist_id.
+        # See Node.__init__ for further explanation of id and persist_id.
         if id is None:
             object.__setattr__(self, 'id', _id(self))
             object.__setattr__(self, 'persist_id', False)
