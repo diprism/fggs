@@ -18,9 +18,9 @@ if __name__ == '__main__':
 
     for name, weights in args.weights:
         weights = torch.tensor(json.loads(weights), dtype=torch.get_default_dtype())
-        if name not in fgg.interp.factors:
+        if name not in fgg.factors:
             fgg.new_factor(name, weights)
         else:
-            fgg.interp.factors[name].weights = weights
+            fgg.factors[name].weights = weights
     
     print(json.dumps(fggs.formats.weights_to_json(fggs.sum_product(fgg, method=args.method))))

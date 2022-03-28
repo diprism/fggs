@@ -1,4 +1,4 @@
-from fggs import sum_product, FGG, Interpretation, FiniteFactor, json_to_fgg
+from fggs import sum_product, FGG, FiniteFactor, json_to_fgg
 from fggs.sum_product import scc, SumProduct
 from fggs.semirings import *
 import unittest, warnings, torch, random, json, copy, math
@@ -27,7 +27,7 @@ class PPLExample(Example):
     def __init__(self, p):
         super().__init__('test/example12p.json', clean=False, slow=True)
         self.p = p
-        self.fgg.interp.factors['p'].weights = [1 - p, p]
+        self.fgg.factors['p'].weights = [1 - p, p]
         
     def exact(self):
         from math import sqrt
@@ -58,11 +58,22 @@ class TestSumProduct(unittest.TestCase):
         ]
 
         for ex in self.examples:
-            for fac in ex.fgg.interp.factors.values():
+            for fac in ex.fgg.factors.values():
                 if not isinstance(fac.weights, torch.Tensor):
                     fac.weights = torch.tensor(fac.weights, dtype=torch.get_default_dtype())
 
 
+    def assertAlmostEqual(self, x, y):
+        if x.dtype is torch.bool:
+            self.assertTrue(torch.all(x == y), f'{x} != {y}')
+        else:
+            x = torch.as_tensor(x)
+            y = torch.as_tensor(y)
+            self.assertTrue(torch.allclose(x.nan_to_num(), y.nan_to_num(), rtol=1e-2, atol=1e-2), f'{x} != {y}')
+            self.assertFalse(torch.any(x.isnan()))
+            self.assertFalse(torch.any(y.isnan()))
+            self.assertTrue(torch.all(x.isinf() == y.isinf()), f'{x} != {y}')
+            
     def test_autograd(self):
         for example in self.examples:
             if example.slow: continue
@@ -71,7 +82,7 @@ class TestSumProduct(unittest.TestCase):
                 fgg = example.fgg
                 in_labels = fgg.grammar.terminals()
                 in_values = [fac.weights.to(torch.double).requires_grad_(True)
-                             for fac in fgg.interp.factors.values()]
+                             for fac in fgg.factors.values()]
                 out_labels = list(fgg.grammar.nonterminals())
                 def f(*in_values):
                     opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100, 'semiring': RealSemiring(dtype=torch.double)}
@@ -86,7 +97,7 @@ class TestSumProduct(unittest.TestCase):
                 fgg = example.fgg
                 in_labels = fgg.grammar.terminals()
                 in_values = [fac.weights.log().to(torch.double).requires_grad_(True)
-                             for fac in fgg.interp.factors.values()]
+                             for fac in fgg.factors.values()]
                 out_labels = list(fgg.grammar.nonterminals())
                 def f(*in_values):
                     opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100, 'semiring': LogSemiring(dtype=torch.double)}
@@ -98,11 +109,11 @@ class TestSumProduct(unittest.TestCase):
     def test_infinite_gradient(self):
         fgg = load_fgg('test/linear.json')
         # make sum-product infinite
-        faca = fgg.interp.factors['a']
+        faca = fgg.factors['a']
         faca.weights = torch.tensor(1., requires_grad=True)
-        facb = fgg.interp.factors['b']
+        facb = fgg.factors['b']
         facb.weights = torch.tensor(1., requires_grad=True)
-        facc = fgg.interp.factors['c']
+        facc = fgg.factors['c']
         facc.weights = torch.tensor(1., requires_grad=True)
         z = sum_product(fgg, method='linear')
         self.assertEqual(z.item(), math.inf)
@@ -113,9 +124,9 @@ class TestSumProduct(unittest.TestCase):
         
         fgg = load_fgg('test/simplefgg.json')
         # make sum-product infinite
-        fac1 = fgg.interp.factors['fac1']
+        fac1 = fgg.factors['fac1']
         fac1.weights = torch.tensor(1., requires_grad=True)
-        fac2 = fgg.interp.factors['fac2']
+        fac2 = fgg.factors['fac2']
         fac2.weights = torch.tensor(1., requires_grad=True)
         z = sum_product(fgg, method='newton')
         self.assertEqual(z.item(), math.inf)
@@ -132,43 +143,35 @@ class TestSumProduct(unittest.TestCase):
                     if method in ['linear', 'newton'] and not example.clean: continue # not implemented yet
                     with self.subTest(example=str(example)):
                         z_exact = example.exact()
-                        fgg = example.fgg
                         with self.subTest(semiring='RealSemiring'):
-                            z = sum_product(fgg, method=method, semiring=RealSemiring())
-                            self.assertTrue(torch.norm(z - z_exact) < 1e-2,
-                                            f'{z} != {z_exact}')
-                        
-                        interp = copy.deepcopy(fgg.interp)
-                        for fac in interp.factors.values():
-                            fac.weights = torch.log(fac.weights)
-                        fgg = FGG(example.fgg.grammar, interp)
-                        
+                            z = sum_product(example.fgg, method=method, semiring=RealSemiring())
+                            self.assertAlmostEqual(z, z_exact)
+
                         with self.subTest(semiring='LogSemiring'):
+                            # Take log of all weights
+                            fgg = example.fgg.copy()
+                            for fac in fgg.factors.values():
+                                fac.weights = torch.log(fac.weights)
                             z = torch.exp(sum_product(fgg, method=method, semiring=LogSemiring()))
-                            self.assertTrue(torch.norm(z - z_exact) < 1e-2,
-                                            f'{z} != {z_exact}')
+                            self.assertAlmostEqual(z, z_exact)
                             
                         with self.subTest(semiring='ViterbiSemiring'):
+                            # Reuse weights from LogSemiring
                             z = torch.exp(sum_product(fgg, method=method, semiring=ViterbiSemiring()))
-
                             # Rerun at a very low temperature to estimate the correct value
-                            
                             temp = 1/1000
-                            for fac in interp.factors.values():
+                            for fac in fgg.factors.values():
                                 fac.weights /= temp
                             z_expected = torch.exp(temp * sum_product(fgg, method=method, semiring=LogSemiring()))
-                            self.assertTrue(torch.norm(z - z_expected) < 1e-2,
-                                            f'{z} != {z_expected}')
+                            self.assertAlmostEqual(z, z_expected)
 
                         with self.subTest(semiring='BoolSemiring'):
-                            interp = copy.deepcopy(example.fgg.interp)
-                            for fac in interp.factors.values():
+                            fgg = example.fgg.copy()
+                            for fac in fgg.factors.values():
                                 fac.weights = fac.weights > 0.
-                            fgg = FGG(example.fgg.grammar, interp)
-                            z = sum_product(fgg, method='fixed-point', semiring=BoolSemiring())
+                            z = sum_product(fgg, method=method, semiring=BoolSemiring())
                             z_exact = example.exact() > 0.
-                            self.assertTrue(torch.all(z == z_exact),
-                                            f'{z} != {z_exact}')
+                            self.assertAlmostEqual(z, z_exact)
 
 
 if __name__ == '__main__':

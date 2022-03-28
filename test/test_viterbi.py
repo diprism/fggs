@@ -26,8 +26,8 @@ class TestSumProduct(unittest.TestCase):
         g.new_edge('emission',   [nn,  cat], is_terminal=True)
         g.new_edge('is_eos',     [eos],      is_terminal=True)
 
-        tdom = self.fgg.interp.domains['T']
-        wdom = self.fgg.interp.domains['W']
+        tdom = self.fgg.domains['T']
+        wdom = self.fgg.domains['W']
         
         self.asst = a = {}
         a[bos] = tdom.numberize('BOS')
@@ -38,10 +38,9 @@ class TestSumProduct(unittest.TestCase):
         a[eos] = tdom.numberize('EOS')
         
     def test_viterbi(self):
-        interp = copy.deepcopy(self.fgg.interp)
-        for fac in interp.factors.values():
+        fgg = self.fgg.copy()
+        for fac in fgg.factors.values():
             fac.weights = torch.log(torch.as_tensor(fac.weights))
-        fgg = FGG(self.fgg.grammar, interp)
         (facgraph, asst) = viterbi(fgg, (), {'semiring': ViterbiSemiring()}).derive()
         result, m = naive_graph_isomorphism(facgraph.graph, self.graph)
         self.assertTrue(result, m)

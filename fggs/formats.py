@@ -8,14 +8,13 @@ from fggs import domains, factors
 def json_to_fgg(j):
     """Convert an object loaded by json.load to an FGG."""
     hrg = json_to_hrg(j['grammar'])
-
-    interp = Interpretation()
+    fgg = FGG(hrg)
 
     ji = j['interpretation']
     for name, d in ji['domains'].items():
         nl = hrg.get_node_label(name)
         if d['class'] == 'finite':
-            interp.add_domain(nl, domains.FiniteDomain(d['values']))
+            fgg.add_domain(nl, domains.FiniteDomain(d['values']))
         else:
             raise ValueError(f'invalid domain class: {d["type"]}')
 
@@ -23,11 +22,11 @@ def json_to_fgg(j):
         el = hrg.get_edge_label(name)
         if d['function'] == 'finite':
             weights = d['weights']
-            interp.add_factor(el, factors.FiniteFactor([interp.domains[nl.name] for nl in el.type], weights))
+            fgg.add_factor(el, factors.FiniteFactor([fgg.domains[nl.name] for nl in el.type], weights))
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
         
-    return FGG(hrg, interp)
+    return fgg
 
 def fgg_to_json(fgg):
     """Convert an FGG to an object writable by json.dump()."""
@@ -36,7 +35,7 @@ def fgg_to_json(fgg):
     ji = {}
 
     ji['domains'] = {}
-    for nl, dom in fgg.interp.domains.items():
+    for nl, dom in fgg.domains.items():
         if isinstance(dom, domains.FiniteDomain):
             ji['domains'][nl] = {
                 'class' : 'finite',
@@ -46,7 +45,7 @@ def fgg_to_json(fgg):
             raise NotImplementedError(f'unsupported domain type {type(j.domain)}')
 
     ji['factors'] = {}
-    for el, fac in fgg.interp.factors.items():
+    for el, fac in fgg.factors.items():
         if isinstance(fac, factors.FiniteFactor):
             ji['factors'][el] = {
                 'function': 'finite',

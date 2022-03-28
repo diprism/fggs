@@ -169,7 +169,7 @@ elif args.method == 'pattern':
 
     for el in hrg.terminals():
         if el.name != 'is_start':
-            fgg.new_finite_factor(el.name, torch.zeros(fgg.interp.shape(el), requires_grad=True))
+            fgg.new_finite_factor(el.name, torch.zeros(fgg.shape(el), requires_grad=True))
 
 else:
     print(f'unknown method: {args.method}', file=sys.stderr)
@@ -189,7 +189,7 @@ fgg.grammar = fggs.factorize(fgg.grammar)
 # enough that we don't easily jump out of the region where Z is
 # finite.
 
-params = [fac.weights for fac in fgg.interp.factors.values() if fac.weights.requires_grad]
+params = [fac.weights for fac in fgg.factors.values() if fac.weights.requires_grad]
 opt = torch.optim.SGD(params, lr=1e-3)
 
 def minibatches(iterable, size=100):
@@ -219,15 +219,15 @@ for epoch in range(100):
                         lhs = node.label
                         rhs = tuple(child.label for child in node.children)
                         if args.method == 'rule':
-                            w += fgg.interp.factors[rules[lhs, rhs]].weights
+                            w += fgg.factors[rules[lhs, rhs]].weights
                         elif args.method == 'pattern':
                             pattern = tuple(isinstance(x, Nonterminal) for x in rhs)
                             lhs_index = nonterminal_dom.numberize(lhs)
                             rhs_indices = tuple(nonterminal_dom.numberize(x) if isinstance(x, Nonterminal) else terminal_dom.numberize(x) for x in rhs)
-                            w += fgg.interp.factors[f'start {pattern[0]}'].weights[lhs_index, rhs_indices[0]]
+                            w += fgg.factors[f'start {pattern[0]}'].weights[lhs_index, rhs_indices[0]]
                             for i in range(len(rhs)-1):
-                                w += fgg.interp.factors[f'{pattern[0]} {pattern[1]}'].weights[rhs_indices[0], rhs_indices[1]]
-                            w += fgg.interp.factors[f'{pattern[-1]} stop'].weights[rhs_indices[-1]]
+                                w += fgg.factors[f'{pattern[0]} {pattern[1]}'].weights[rhs_indices[0], rhs_indices[1]]
+                            w += fgg.factors[f'{pattern[-1]} stop'].weights[rhs_indices[-1]]
 
                         else:
                             assert False

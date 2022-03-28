@@ -27,7 +27,10 @@ class FGGDerivation:
                 visit(deriv.children[child], edge_map[child])
 
         visit(self, edge)
-        return (FactorGraph(graph, self.fgg.interp), asst)
+        fg = FactorGraph(graph)
+        fg.domains = self.fgg.domains
+        fg.factors = self.fgg.factors
+        return (fg, asst)
     
 
 def start_graph(g: HRG) -> Graph:

@@ -1,10 +1,10 @@
-__all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 'Interpretation', 'FactorGraph', 'FGG']
+__all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 'FactorGraph', 'FGG']
 
 from typing import Optional, Iterable, Tuple, Union, Dict, Sequence, List, cast
 from dataclasses import dataclass, field
 from fggs.domains import Domain, FiniteDomain
 from fggs.factors import Factor, FiniteFactor
-
+import copy
 
 @dataclass(frozen=True)
 class NodeLabel:
@@ -453,13 +453,9 @@ class HRG(LabelingMixin, object):
         return string
 
     
-class Interpretation:
+class InterpretationMixin:
     """An interpretation of an HRG."""
     
-    def __init__(self):
-        self.domains: Dict[str, Domain] = {}
-        self.factors: Dict[str, Factor] = {}
-
     def add_domain(self, nl: NodeLabel, dom: Domain):
         """Add mapping from NodeLabel nl to Domain dom."""
         if nl.name in self.domains:
@@ -500,42 +496,55 @@ class Interpretation:
             nls = x.label.type
         return tuple(cast(FiniteDomain, self.domains[nl.name]).size() for nl in nls)
     
-class FactorGraph:
+class FactorGraph(InterpretationMixin, object):
     """A factor graph.
 
     - graph: The graph structure.
     - interp: Maps node and edge labels to domains and factors, respectively.
     """
     
-    def __init__(self, graph: Graph, interp: Optional[Interpretation] = None):
+    def __init__(self, graph: Graph):
         self.graph = graph
-        if interp is None: interp = Interpretation()
-        self.interp = interp
+        self.domains: Dict[str, Domain] = {}
+        self.factors: Dict[str, Factor] = {}
 
+    def copy(self):
+        """Returns a copy of this FactorGraph."""
+        fg = FactorGraph(self.graph.copy())
+        fg.domains = copy.deepcopy(self.domains)
+        fg.factors = copy.deepcopy(self.factors)
+        return fg
         
-class FGG:
+class FGG(InterpretationMixin, object):
     """A factor graph grammar.
 
     - grammar: The HRG that generates graph structures.
     - interp: Maps node and edge labels to domains and factors, respectively.
     """
     
-    def __init__(self, grammar: HRG, interp: Optional[Interpretation] = None):
+    def __init__(self, grammar: HRG):
         self.grammar = grammar
-        if interp is None: interp = Interpretation()
-        self.interp = interp
+        self.domains: Dict[str, Domain] = {}
+        self.factors: Dict[str, Factor] = {}
 
     def new_finite_domain(self, name: str, values: Sequence):
         nl = NodeLabel(name)
         dom = FiniteDomain(values)
-        self.interp.add_domain(nl, dom)
+        self.add_domain(nl, dom)
         return dom
 
     def new_finite_factor(self, name: str, weights):
         if not self.grammar.has_edge_label_name(name):
             raise KeyError(f"FGG doesn't have an edge label named {name}")
         el = self.grammar.get_edge_label(name)
-        doms = [self.interp.domains[nl.name] for nl in el.node_labels]
+        doms = [self.domains[nl.name] for nl in el.node_labels]
         fac = FiniteFactor(doms, weights)
-        self.interp.add_factor(el, fac)
+        self.add_factor(el, fac)
         return fac
+
+    def copy(self):
+        """Returns a copy of this FGG."""
+        fgg = FGG(self.grammar.copy())
+        fgg.domains = copy.deepcopy(self.domains)
+        fgg.factors = copy.deepcopy(self.factors)
+        return fgg

@@ -55,8 +55,8 @@ class TestDerivation(unittest.TestCase):
         g.new_edge('emission',   [dt,  the], is_terminal=True)
         g.new_edge('is_eos',     [eos],      is_terminal=True)
 
-        tdom = self.fgg.interp.domains['T']
-        wdom = self.fgg.interp.domains['W']
+        tdom = self.fgg.domains['T']
+        wdom = self.fgg.domains['W']
         
         a = {}
         a[bos] = tdom.numberize('BOS')

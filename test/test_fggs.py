@@ -485,26 +485,25 @@ class TestFGG(unittest.TestCase):
         self.hrg.add_rule(self.rule2)
 
     def test_shape(self):
-        interp = Interpretation()
-        interp.add_domain(self.nl1, self.dom1)
-        interp.add_domain(self.nl2, self.dom2)
+        fgg = FGG(self.hrg)
+        fgg.add_domain(self.nl1, self.dom1)
+        fgg.add_domain(self.nl2, self.dom2)
         # Test all formats of input to the function
-        self.assertEqual(interp.shape([self.nl1, self.nl1, self.nl2]), (3, 3, 4))
-        self.assertEqual(interp.shape([self.node2, self.node1, self.node2]), (4, 3, 4))
-        self.assertEqual(interp.shape(self.el1), (3, 4))
-        self.assertEqual(interp.shape(self.edge2), (4,))
+        self.assertEqual(fgg.shape([self.nl1, self.nl1, self.nl2]), (3, 3, 4))
+        self.assertEqual(fgg.shape([self.node2, self.node1, self.node2]), (4, 3, 4))
+        self.assertEqual(fgg.shape(self.el1), (3, 4))
+        self.assertEqual(fgg.shape(self.edge2), (4,))
         # Test that empty input has correct shape
-        self.assertEqual(interp.shape([]), tuple())
+        self.assertEqual(fgg.shape([]), tuple())
 
     def test_convenience(self):
-        interp = Interpretation()
-        fgg = FGG(self.hrg, interp)
+        fgg = FGG(self.hrg)
         fgg.new_finite_domain(self.nl1.name, self.dom1.values)
-        self.assertTrue(fgg.interp.domains[self.nl1.name] == self.dom1)
+        self.assertTrue(fgg.domains[self.nl1.name] == self.dom1)
         fgg.new_finite_domain(self.nl2.name, self.dom2.values)
-        self.assertTrue(fgg.interp.domains[self.nl2.name] == self.dom2)
+        self.assertTrue(fgg.domains[self.nl2.name] == self.dom2)
         fgg.new_finite_factor(self.el1.name, self.fac1.weights)
-        self.assertTrue(fgg.interp.factors[self.el1.name] == self.fac1)
+        self.assertTrue(fgg.factors[self.el1.name] == self.fac1)
 
         
 if __name__ == "__main__":
