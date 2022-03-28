@@ -475,17 +475,17 @@ class TestFGG(unittest.TestCase):
         self.graph2.ext = [self.node3]
         self.rule2 = HRGRule(self.el2, self.graph2)
 
-        self.hrg = HRG(self.start)
-        self.hrg.add_node_label(self.nl1)
-        self.hrg.add_node_label(self.nl2)
-        self.hrg.add_edge_label(self.el1)
-        self.hrg.add_edge_label(self.el2)
-        self.hrg.add_edge_label(self.start)
-        self.hrg.add_rule(self.rule)
-        self.hrg.add_rule(self.rule2)
+        self.fgg = FGG(self.start)
+        self.fgg.add_node_label(self.nl1)
+        self.fgg.add_node_label(self.nl2)
+        self.fgg.add_edge_label(self.el1)
+        self.fgg.add_edge_label(self.el2)
+        self.fgg.add_edge_label(self.start)
+        self.fgg.add_rule(self.rule)
+        self.fgg.add_rule(self.rule2)
 
     def test_shape(self):
-        fgg = FGG(self.hrg)
+        fgg = self.fgg
         fgg.add_domain(self.nl1, self.dom1)
         fgg.add_domain(self.nl2, self.dom2)
         # Test all formats of input to the function
@@ -497,7 +497,7 @@ class TestFGG(unittest.TestCase):
         self.assertEqual(fgg.shape([]), tuple())
 
     def test_convenience(self):
-        fgg = FGG(self.hrg)
+        fgg = self.fgg
         fgg.new_finite_domain(self.nl1.name, self.dom1.values)
         self.assertTrue(fgg.domains[self.nl1.name] == self.dom1)
         fgg.new_finite_domain(self.nl2.name, self.dom2.values)

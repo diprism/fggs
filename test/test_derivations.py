@@ -11,11 +11,11 @@ class TestDerivation(unittest.TestCase):
         self.fgg = load_fgg('test/hmm.json')
 
     def test_derive(self):
-        S = self.fgg.grammar.get_edge_label('S')
-        X = self.fgg.grammar.get_edge_label('X')
-        rule_S = self.fgg.grammar.rules(S)[0]
-        rule_X1 = self.fgg.grammar.rules(X)[0]
-        rule_X2 = self.fgg.grammar.rules(X)[1]
+        S = self.fgg.get_edge_label('S')
+        X = self.fgg.get_edge_label('X')
+        rule_S = self.fgg.rules(S)[0]
+        rule_X1 = self.fgg.rules(X)[0]
+        rule_X2 = self.fgg.rules(X)[1]
         deriv = FGGDerivation(
             self.fgg,
             rule_S,
@@ -65,7 +65,7 @@ class TestDerivation(unittest.TestCase):
         a[eos] = tdom.numberize('EOS')
 
         derived, asst = deriv.derive()
-        result, m = naive_graph_isomorphism(derived.graph, g)
+        result, m = naive_graph_isomorphism(derived, g)
 
         for node in asst:
             self.assertEqual(asst[node], a[m[node]])
@@ -100,11 +100,11 @@ class TestReplace(unittest.TestCase):
 class TestStartGraph(unittest.TestCase):        
     def setUp(self):
         self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
-        self.fgg = HRG(self.start)
+        self.hrg = HRG(self.start)
 
     def test_start_graph(self):
-        s = self.fgg.start_symbol
-        g = start_graph(self.fgg)
+        s = self.hrg.start_symbol
+        g = start_graph(self.hrg)
         self.assertEqual([e.label for e in g.edges()], [s])
         self.assertEqual(len(g.nodes()), len(s.type))
     

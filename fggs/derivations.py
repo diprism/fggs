@@ -14,7 +14,7 @@ class FGGDerivation:
     def derive(self):
         """Returns the factor graph and assignment derived by this derivation."""
 
-        graph = Graph()
+        graph = FactorGraph()
         edge = Edge(self.rule.lhs, [Node(l) for l in self.rule.lhs.type])
         graph.add_edge(edge)
         asst: Dict[Node, Any] = {}
@@ -27,10 +27,9 @@ class FGGDerivation:
                 visit(deriv.children[child], edge_map[child])
 
         visit(self, edge)
-        fg = FactorGraph(graph)
-        fg.domains = self.fgg.domains
-        fg.factors = self.fgg.factors
-        return (fg, asst)
+        graph.domains = self.fgg.domains
+        graph.factors = self.fgg.factors
+        return (graph, asst)
     
 
 def start_graph(g: HRG) -> Graph:

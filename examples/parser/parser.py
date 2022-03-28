@@ -52,9 +52,7 @@ if args.method == 'rule':
     # where NP and VP are 0-ary nonterminal edges and □ is a 0-ary
     # factor for the weight of the CFG rule.
 
-    # Create the HRG.
-    
-    hrg = fggs.HRG('TOP')
+    fgg = fggs.FGG('TOP')
     
     rules = {}
     for lhs in cfg:
@@ -73,11 +71,8 @@ if args.method == 'rule':
             hrhs.new_edge(el, [], is_terminal=True)
             
             hrhs.ext = []
-            hrg.new_rule(lhs, hrhs)
+            fgg.new_rule(lhs, hrhs)
 
-    # Make the HRG into an FGG.
-
-    fgg = fggs.FGG(hrg)
     for el in rules.values():
         fgg.new_finite_factor(el, torch.tensor(0., requires_grad=True))
 
@@ -122,16 +117,14 @@ elif args.method == 'pattern':
                     else:
                         terminals.add(x)
 
-    # Create the HRG.
-    
-    hrg = fggs.HRG('tree')
+    fgg = fggs.FGG('tree')
 
     # The starting rule just ensures that the root node is the CFG start symbol.
     hrhs = fggs.Graph()
     root = hrhs.new_node('nonterminal')
     hrhs.new_edge('is_start', [root], is_terminal=True)
     hrhs.new_edge('subtree', [root], is_nonterminal=True)
-    hrg.new_rule('tree', hrhs)
+    fgg.new_rule('tree', hrhs)
 
     # Create an HRG rule for each pattern.
     for pattern in patterns:
@@ -155,11 +148,8 @@ elif args.method == 'pattern':
         hrhs.new_edge(f'{pattern[-1]} stop', [children[-1]], is_terminal=True)
         
         hrhs.ext = [parent]
-        hrg.new_rule('subtree', hrhs)
+        fgg.new_rule('subtree', hrhs)
 
-    # Make the HRG into an FGG.
-    
-    fgg = fggs.FGG(hrg)
     nonterminal_dom = fgg.new_finite_domain('nonterminal', nonterminals)
     terminal_dom = fgg.new_finite_domain('terminal', terminals)
     
@@ -167,7 +157,7 @@ elif args.method == 'pattern':
         'is_start',
         torch.tensor([float(x == 'TOP') for x in nonterminals]))
 
-    for el in hrg.terminals():
+    for el in fgg.terminals():
         if el.name != 'is_start':
             fgg.new_finite_factor(el.name, torch.zeros(fgg.shape(el), requires_grad=True))
 
@@ -177,7 +167,7 @@ else:
 
 ### Factorize the FGG into smaller rules.
 
-fgg.grammar = fggs.factorize(fgg.grammar)
+fgg = fggs.factorize_fgg(fgg)
 
 ### Train a globally-normalized model.
 

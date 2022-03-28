@@ -76,7 +76,7 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
 def F(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring) -> MultiTensor:
     Fx = MultiTensor(x.shapes, x.semiring)
     for n in x.shapes[0]:
-        for rule in fgg.grammar.rules(n):
+        for rule in fgg.rules(n):
             tau_rule = sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x, inputs, semiring=semiring)
             Fx.add_single(n, tau_rule)
     return Fx
@@ -87,7 +87,7 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
     """The Jacobian of F."""
     Jx = MultiTensor(x.shapes+x.shapes, semiring)
     for n in x.shapes[0]:
-        for rule in fgg.grammar.rules(n):
+        for rule in fgg.rules(n):
             for edge in rule.rhs.edges():
                 if edge.label not in Jx.shapes[1] and J_inputs is None: continue
                 ext = rule.rhs.ext + edge.nodes
@@ -111,7 +111,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
     """The Jacobian of F(semiring=LogSemiring), computed in the real semiring."""
     Jx = MultiTensor(x.shapes+x.shapes, semiring=RealSemiring(dtype=semiring.dtype, device=semiring.device))
     for n in x.shapes[0]:
-        rules = list(fgg.grammar.rules(n))
+        rules = list(fgg.rules(n))
         tau_rules: Union[List[Tensor], Tensor]
         tau_rules = []
         for rule in rules:
@@ -229,7 +229,7 @@ def linear(fgg: FGG, inputs: MultiTensor, out_labels: Sequence[EdgeLabel], semir
     for n in out_labels:
         if n in inputs:
             continue
-        for rule in fgg.grammar.rules(n):
+        for rule in fgg.rules(n):
             edges = [e for e in rule.rhs.edges() if e.label not in inputs]
             if len(edges) == 0:
                 F0.add_single(n, sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, inputs, semiring=semiring))
@@ -330,8 +330,7 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
     - tol: Iterative algorithms terminate when the L∞ distance between consecutive iterates is below tol.
     - kmax: Number of iterations after which iterative algorithms give up.
     """
-    hrg = fgg.grammar
-
+    
     opts.setdefault('method',   'fixed-point')
     opts.setdefault('semiring', RealSemiring())
     opts.setdefault('tol',      1e-6)
@@ -339,13 +338,13 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
     if isinstance(opts['semiring'], BoolSemiring):
         opts['tol'] = 0
 
-    all = {t:cast(FiniteFactor, fgg.factors[t.name]).weights for t in hrg.terminals()}
-    for comp in scc(nonterminal_graph(hrg)):
+    all = {t:cast(FiniteFactor, fgg.factors[t.name]).weights for t in fgg.terminals()}
+    for comp in scc(nonterminal_graph(fgg)):
 
         inputs = {}
         max_rhs = 0
         for x in comp:
-            for r in hrg.rules(x):
+            for r in fgg.rules(x):
                 n = 0
                 for e in r.rhs.edges():
                     if e.label in comp:
@@ -365,4 +364,4 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
         comp_labels = list(comp)
         comp_values = SumProduct.apply(fgg, comp_opts, inputs.keys(), comp_labels, *inputs.values())
         all.update(zip(comp_labels, comp_values))
-    return all[hrg.start_symbol]
+    return all[fgg.start_symbol]

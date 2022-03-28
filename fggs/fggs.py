@@ -499,34 +499,39 @@ class InterpretationMixin:
             nls = x.label.type
         return tuple(cast(FiniteDomain, self.domains[nl.name]).size() for nl in nls)
     
-class FactorGraph(InterpretationMixin, object):
-    """A factor graph.
-
-    - graph: The graph structure.
-    """
+class FactorGraph(InterpretationMixin, Graph):
+    """A factor graph."""
     
-    def __init__(self, graph: Graph):
-        self.graph = graph
+    def __init__(self):
+        super().__init__()
         self.domains: Dict[str, Domain] = {}
         self.factors: Dict[str, Factor] = {}
 
     def copy(self):
         """Returns a copy of this FactorGraph."""
-        fg = FactorGraph(self.graph.copy())
+        fg = FactorGraph()
+        fg._nodes = dict(self._nodes)
+        fg._edges = dict(self._edges)
+        fg._ext = tuple(self._ext)
         fg.domains = copy.deepcopy(self.domains)
         fg.factors = copy.deepcopy(self.factors)
         return fg
         
-class FGG(InterpretationMixin, object):
-    """A factor graph grammar.
-
-    - grammar: The HRG that generates graph structures.
-    """
+class FGG(InterpretationMixin, HRG):
+    """A factor graph grammar."""
     
-    def __init__(self, grammar: HRG):
-        self.grammar = grammar
+    def __init__(self, start: Union[EdgeLabel, str]):
+        super().__init__(start)
         self.domains: Dict[str, Domain] = {}
         self.factors: Dict[str, Factor] = {}
+
+    @staticmethod
+    def from_hrg(hrg: HRG):
+        """Create an FGG out of an HRG and no domains and factors."""
+        fgg = FGG(hrg.start_symbol)
+        for r in hrg.all_rules():
+            fgg.add_rule(r)
+        return fgg
 
     def new_finite_domain(self, name: str, values: Sequence):
         nl = NodeLabel(name)
@@ -535,9 +540,9 @@ class FGG(InterpretationMixin, object):
         return dom
 
     def new_finite_factor(self, name: str, weights):
-        if not self.grammar.has_edge_label_name(name):
+        if not self.has_edge_label_name(name):
             raise KeyError(f"FGG doesn't have an edge label named {name}")
-        el = self.grammar.get_edge_label(name)
+        el = self.get_edge_label(name)
         doms = [self.domains[nl.name] for nl in el.node_labels]
         fac = FiniteFactor(doms, weights)
         self.add_factor(el, fac)
@@ -545,7 +550,12 @@ class FGG(InterpretationMixin, object):
 
     def copy(self):
         """Returns a copy of this FGG."""
-        fgg = FGG(self.grammar.copy())
+        fgg = FGG(self.start_symbol)
+        fgg._node_labels = self._node_labels.copy()
+        fgg._edge_labels = self._edge_labels.copy()
+        fgg._rules = {}
+        for lhs in self._rules:
+            fgg._rules[lhs] = [r.copy() for r in self._rules[lhs]]
         fgg.domains = copy.deepcopy(self.domains)
         fgg.factors = copy.deepcopy(self.factors)
         return fgg

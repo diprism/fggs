@@ -71,7 +71,7 @@ def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring)
     lhs_pointer = {n:torch.zeros(fgg.shape(n), dtype=torch.int, device=semiring.device) for n in x.shapes[0]}
     rhs_pointer: Dict = {n:[] for n in x.shapes[0]}
     for n in x.shapes[0]:
-        for ri, rule in enumerate(fgg.grammar.rules(n)):
+        for ri, rule in enumerate(fgg.rules(n)):
             tau_rule, pointer = sum_product_edges(fgg, rule, x, inputs, semiring=semiring)
             if n in Fx:
                 lhs_pointer[n].masked_fill_(tau_rule > Fx[n], ri)
@@ -84,26 +84,24 @@ def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring)
     return (Fx, lhs_pointer, rhs_pointer)
 
 def viterbi(fgg: FGG, start_asst: Tuple[int,...], opts: Dict) -> FGGDerivation:
-    hrg = fgg.grammar
-
-    if len(start_asst) != hrg.start_symbol.arity:
+    if len(start_asst) != fgg.start_symbol.arity:
         raise ValueError("Assignment does not have same type as FGG's start symbol")
     
     semiring = opts['semiring']
     kmax = opts.get('kmax', 1000)
     tol = opts.get('tol', 1e-6)
 
-    maximum: MultiTensor = {t:fgg.factors[t.name].weights for t in hrg.terminals()} # type: ignore
+    maximum: MultiTensor = {t:fgg.factors[t.name].weights for t in fgg.terminals()} # type: ignore
     lhs_pointer = {}
     rhs_pointer = {}
-    for comp in scc(nonterminal_graph(hrg)):
+    for comp in scc(nonterminal_graph(fgg)):
         x = MultiTensor(FGGMultiShape(fgg, comp), semiring)
         
         # Since we only use fixed-point iteration, we only need two cases.
         trivial = False
         if len(comp) == 1:
             [nt] = comp
-            if not any(e.label == nt for r in hrg.rules(nt) for e in r.rhs.edges()):
+            if not any(e.label == nt for r in fgg.rules(nt) for e in r.rhs.edges()):
                 trivial = True
 
         if trivial:
@@ -126,7 +124,7 @@ def viterbi(fgg: FGG, start_asst: Tuple[int,...], opts: Dict) -> FGGDerivation:
         # lhs_pointer[nt][nt_asst] is the index of the first
         # rule used in the best derivation starting with edge.
         ri = lhs_pointer[nt][nt_asst]
-        rule = list(hrg.rules(nt))[ri]
+        rule = list(fgg.rules(nt))[ri]
 
         # rhs_pointer[nt][ri][nt_asst] is the best assignment to the
         # internal nodes of rule.rhs. The nodes are listed in order of
@@ -149,5 +147,5 @@ def viterbi(fgg: FGG, start_asst: Tuple[int,...], opts: Dict) -> FGGDerivation:
         
         return FGGDerivation(fgg, rule, rhs_asst, child_derivs)
 
-    return reconstruct(hrg.start_symbol, start_asst)
+    return reconstruct(fgg.start_symbol, start_asst)
 

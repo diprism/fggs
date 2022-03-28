@@ -80,10 +80,10 @@ class TestSumProduct(unittest.TestCase):
             if not example.clean: continue # not implemented yet
             with self.subTest(example=str(example)):
                 fgg = example.fgg
-                in_labels = fgg.grammar.terminals()
+                in_labels = fgg.terminals()
                 in_values = [fac.weights.to(torch.double).requires_grad_(True)
                              for fac in fgg.factors.values()]
-                out_labels = list(fgg.grammar.nonterminals())
+                out_labels = list(fgg.nonterminals())
                 def f(*in_values):
                     opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100, 'semiring': RealSemiring(dtype=torch.double)}
                     return SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
@@ -95,10 +95,10 @@ class TestSumProduct(unittest.TestCase):
             if not example.clean: continue # not implemented yet
             with self.subTest(example=str(example)):
                 fgg = example.fgg
-                in_labels = fgg.grammar.terminals()
+                in_labels = fgg.terminals()
                 in_values = [fac.weights.log().to(torch.double).requires_grad_(True)
                              for fac in fgg.factors.values()]
-                out_labels = list(fgg.grammar.nonterminals())
+                out_labels = list(fgg.nonterminals())
                 def f(*in_values):
                     opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100, 'semiring': LogSemiring(dtype=torch.double)}
                     ret = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)

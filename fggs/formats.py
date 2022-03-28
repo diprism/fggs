@@ -7,19 +7,18 @@ from fggs import domains, factors
 
 def json_to_fgg(j):
     """Convert an object loaded by json.load to an FGG."""
-    hrg = json_to_hrg(j['grammar'])
-    fgg = FGG(hrg)
+    fgg = FGG.from_hrg(json_to_hrg(j['grammar']))
 
     ji = j['interpretation']
     for name, d in ji['domains'].items():
-        nl = hrg.get_node_label(name)
+        nl = fgg.get_node_label(name)
         if d['class'] == 'finite':
             fgg.add_domain(nl, domains.FiniteDomain(d['values']))
         else:
             raise ValueError(f'invalid domain class: {d["type"]}')
 
     for name, d in ji['factors'].items():
-        el = hrg.get_edge_label(name)
+        el = fgg.get_edge_label(name)
         if d['function'] == 'finite':
             weights = d['weights']
             fgg.add_factor(el, factors.FiniteFactor([fgg.domains[nl.name] for nl in el.type], weights))
@@ -30,7 +29,7 @@ def json_to_fgg(j):
 
 def fgg_to_json(fgg):
     """Convert an FGG to an object writable by json.dump()."""
-    jg = hrg_to_json(fgg.grammar)
+    jg = hrg_to_json(fgg)
     
     ji = {}
 
