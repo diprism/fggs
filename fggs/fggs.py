@@ -455,6 +455,9 @@ class HRG(LabelingMixin, object):
     
 class InterpretationMixin:
     """An interpretation of an HRG."""
+
+    domains: Dict[str, Domain] # from node label names to Domains
+    factors: Dict[str, Factor] # from edge label names to Factors
     
     def add_domain(self, nl: NodeLabel, dom: Domain):
         """Add mapping from NodeLabel nl to Domain dom."""
@@ -500,7 +503,6 @@ class FactorGraph(InterpretationMixin, object):
     """A factor graph.
 
     - graph: The graph structure.
-    - interp: Maps node and edge labels to domains and factors, respectively.
     """
     
     def __init__(self, graph: Graph):
@@ -519,7 +521,6 @@ class FGG(InterpretationMixin, object):
     """A factor graph grammar.
 
     - grammar: The HRG that generates graph structures.
-    - interp: Maps node and edge labels to domains and factors, respectively.
     """
     
     def __init__(self, grammar: HRG):
