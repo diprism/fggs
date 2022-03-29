@@ -64,9 +64,9 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
     for k in range(kmax):
         F0 = F(x0)
         JF = J(x0)
+        if F0.allclose(x0, tol): break
         dX = multi_solve(JF, F0 - x0)
         x1.copy_(x0 + dX)
-        if x0.allclose(x1, tol): break
         x0.copy_(x1)
         
     if k > kmax:
@@ -117,6 +117,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
         for rule in rules:
             tau_rule = sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x, inputs, semiring=semiring)
             tau_rules.append(tau_rule)
+        if len(tau_rules) == 0: continue
         tau_rules = torch.stack(tau_rules, dim=0)
         tau_rules = log_softmax(tau_rules, dim=0)
         for rule, tau_rule in zip(rules, tau_rules):
@@ -212,7 +213,6 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
             mul *= cast(FiniteDomain, fgg.domains[n.label.name]).size()
     if mul > 1:
         out = semiring.mul(out, semiring.from_int(mul))
-
     return out
 
 

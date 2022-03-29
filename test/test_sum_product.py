@@ -8,11 +8,10 @@ def load_fgg(filename):
         return json_to_fgg(json.load(f))
 
 class Example:
-    def __init__(self, filename, linear=False, clean=True, slow=False, value=None):
+    def __init__(self, filename, linear=False, gradcheck=True, value=None):
         self.name = filename
         self.linear = linear
-        self.clean = clean
-        self.slow = slow
+        self.gradcheck = gradcheck
         if value is not None:
             self.value = value
         self.fgg = load_fgg(filename)
@@ -25,7 +24,8 @@ class Example:
 
 class PPLExample(Example):
     def __init__(self, p):
-        super().__init__('test/example12p.json', clean=False, slow=True)
+        # Skip gradcheck because it's slow
+        super().__init__('test/example12p.json', gradcheck=False)
         self.p = p
         self.fgg.factors['p'].weights = [1 - p, p]
         
@@ -41,18 +41,35 @@ class PPLExample(Example):
     def __str__(self):
         return f'{self.name} (p={self.p})'
 
+class QuadraticExample(Example):
+    def __init__(self, p):
+        # Skip gradcheck near 0.5 because finite differences is not accurate
+        gradcheck = abs(p-0.5) > 0.1
+            
+        super().__init__('test/simplefgg.json', gradcheck=gradcheck)
+        self.p = p
+        self.fgg.factors['fac1'].weights = p
+        self.fgg.factors['fac2'].weights = 1-p
+        
+    def exact(self):
+        p = self.p
+        return min(1, (1-p)/p)
+
+    def __str__(self):
+        return f'{self.name} (p={self.p})'
+
 class TestSumProduct(unittest.TestCase):
 
     def setUp(self):
         warnings.filterwarnings('ignore', message='.*maximum iteration.*')
 
         self.examples = [
-            Example('test/hmm.json', value=1., linear=True, clean=False),
+            Example('test/hmm.json', value=1., linear=True, gradcheck=False), # gradcheck is slow
             PPLExample(0.1), PPLExample(0.5), PPLExample(0.9),
-            Example('test/simplefgg.json', value=0.25),
+            QuadraticExample(0.25), QuadraticExample(0.5), QuadraticExample(0.75), QuadraticExample(1.),
             Example('test/disconnected_node.json', value=torch.tensor([18., 18., 18.]), linear=True),
             Example('test/barhillel.json', value=torch.tensor([[0.1129, 0.0129], [0.0129, 0.1129]])),
-            Example('test/test.json', value=torch.tensor([7., 1., 1.]), clean=False),
+            Example('test/test.json', value=torch.tensor([7., 1., 1.]), gradcheck=False), # gradcheck tries negative weights, which we don't support
             Example('test/linear.json', value=7.5, linear=True),
             Example('test/cycle.json', value=1-0.5**10, linear=True),
         ]
@@ -67,8 +84,8 @@ class TestSumProduct(unittest.TestCase):
         if x.dtype is torch.bool:
             self.assertTrue(torch.all(x == y), f'{x} != {y}')
         else:
-            x = torch.as_tensor(x)
-            y = torch.as_tensor(y)
+            x = torch.as_tensor(x, dtype=torch.get_default_dtype())
+            y = torch.as_tensor(y, dtype=torch.get_default_dtype())
             self.assertTrue(torch.allclose(x.nan_to_num(), y.nan_to_num(), rtol=1e-2, atol=1e-2), f'{x} != {y}')
             self.assertFalse(torch.any(x.isnan()))
             self.assertFalse(torch.any(y.isnan()))
@@ -76,8 +93,7 @@ class TestSumProduct(unittest.TestCase):
             
     def test_autograd(self):
         for example in self.examples:
-            if example.slow: continue
-            if not example.clean: continue # not implemented yet
+            if not example.gradcheck: continue
             with self.subTest(example=str(example)):
                 fgg = example.fgg
                 in_labels = fgg.terminals()
@@ -85,14 +101,16 @@ class TestSumProduct(unittest.TestCase):
                              for fac in fgg.factors.values()]
                 out_labels = list(fgg.nonterminals())
                 def f(*in_values):
-                    opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100, 'semiring': RealSemiring(dtype=torch.double)}
+                    opts = {'method': 'newton', 'tol': 1e-6, 'kmax': 100,
+                            'semiring': RealSemiring(dtype=torch.double)}
                     return SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
+                
                 self.assertTrue(torch.autograd.gradcheck(f, in_values, atol=1e-3))
+
 
     def test_autograd_log(self):
         for example in self.examples:
-            if example.slow: continue
-            if not example.clean: continue # not implemented yet
+            if not example.gradcheck: continue
             with self.subTest(example=str(example)):
                 fgg = example.fgg
                 in_labels = fgg.terminals()
@@ -100,7 +118,8 @@ class TestSumProduct(unittest.TestCase):
                              for fac in fgg.factors.values()]
                 out_labels = list(fgg.nonterminals())
                 def f(*in_values):
-                    opts = {'method': 'fixed-point', 'tol': 1e-6, 'kmax': 100, 'semiring': LogSemiring(dtype=torch.double)}
+                    opts = {'method': 'newton', 'tol': 1e-6, 'kmax': 100,
+                            'semiring': LogSemiring(dtype=torch.double)}
                     ret = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
                     # put exp inside f to avoid gradcheck computing -inf - -inf
                     return tuple(torch.exp(z) for z in ret)
@@ -140,7 +159,6 @@ class TestSumProduct(unittest.TestCase):
             with self.subTest(method=method):
                 for example in self.examples:
                     if method == 'linear' and not example.linear: continue
-                    if method in ['linear', 'newton'] and not example.clean: continue # not implemented yet
                     with self.subTest(example=str(example)):
                         z_exact = example.exact()
                         with self.subTest(semiring='RealSemiring'):
