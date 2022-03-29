@@ -18,7 +18,14 @@ class MultiTensor(MutableMapping[MultiTensorKey, Tensor]):
         self._dict: Dict[MultiTensorKey, Tensor] = {}
 
     def __getitem__(self, key: MultiTensorKey) -> Tensor:    return self._dict[key]
-    def __setitem__(self, key: MultiTensorKey, val: Tensor): self._dict[key] = val
+    def __setitem__(self, key: MultiTensorKey, val: Tensor):
+        if isinstance(key, tuple):
+            shape = sum([s[x] for s, x in zip(self.shapes, key)], ())
+        else:
+            shape = self.shapes[0][key]
+        if val.shape != shape:
+            raise ValueError(f'expected Tensor with shape {shape}, got {val.shape}')
+        self._dict[key] = val
     def __delitem__(self, key: MultiTensorKey):              del self._dict[key]
     def __iter__(self) -> Iterator[MultiTensorKey]:          return iter(self._dict)
     def __len__(self) -> int:                                return len(self._dict)
@@ -117,7 +124,7 @@ def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> Mult
     order = list(shapes.keys())
 
     flat_shapes = {x:Size((shapes[x].numel(),)) for x in shapes}
-    a_flat = MultiTensor((shapes, shapes), semiring)
+    a_flat = MultiTensor((flat_shapes, flat_shapes), semiring)
     for (x, y), t in a.items():
         t = t.clone().reshape(flat_shapes[x]+flat_shapes[y])
         if transpose: 
@@ -152,6 +159,7 @@ def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> Mult
                     b.add_single(x, semiring.mv(a[x,z], b[z]))
 
     # Unflatten and return solution
+    b.shapes = (shapes,)
     for x in b:
         b[x] = b[x].reshape(shapes[x])
     return b
