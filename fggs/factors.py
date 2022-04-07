@@ -67,7 +67,7 @@ class CategoricalFactor(Factor):
                 for subweights in weights:
                     check_size(subweights, size[1:])
             else:
-                raise TypeError("weights are wrong type")
+                raise TypeError(f"weights are wrong type ({type(weights)})")
 
         check_size(weights, [d.size() for d in doms])
         self.weights = weights
