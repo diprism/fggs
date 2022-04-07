@@ -9,7 +9,7 @@ import fggs
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='Compute the sum-product of an FGG.')
     ap.add_argument('fgg', metavar='json')
-    ap.add_argument('-m', metavar='method', dest='method', default='fixed-point', choices=['fixed-point', 'newton', 'linear', 'broyden'])
+    ap.add_argument('-m', metavar='method', dest='method', default='newton', choices=['fixed-point', 'newton', 'linear'])
     ap.add_argument('-w', metavar=('factor', 'weights'), dest='weights', action='append', default=[], nargs=2)
 
     args = ap.parse_args()
@@ -18,11 +18,14 @@ if __name__ == '__main__':
 
     for name, weights in args.weights:
         el = fgg.grammar.get_edge_label(name)
-        weights = torch.tensor(json.loads(weights), dtype=torch.get_default_dtype())
+        weights = json.loads(weights)
         if el not in fgg.interp.factors:
-            doms = [fgg.interp.domains[nl] for nl in el.type()]
+            doms = [fgg.interp.domains[nl] for nl in el.type]
             fgg.interp.add_factor(el, fggs.CategoricalFactor(doms, weights))
         else:
             fgg.interp.factors[el].weights = weights
+
+    for el, fac in fgg.interp.factors.items():
+        fac.weights = torch.as_tensor(fac.weights, dtype=torch.get_default_dtype())
     
     print(json.dumps(fggs.formats.weights_to_json(fggs.sum_product(fgg, method=args.method))))
