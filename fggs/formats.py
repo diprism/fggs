@@ -64,7 +64,6 @@ def json_to_hrg(j):
         t = tuple(NodeLabel(l) for l in d['type'])
         labels[name] = EdgeLabel(name, t, is_nonterminal=True)
 
-
     g = HRG(labels[j['start']])
     
     for label in labels.values():
