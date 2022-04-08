@@ -511,7 +511,7 @@ class InterpretationMixin(LabelingMixin):
 
     def new_finite_factor(self, name: str, weights):
         if not self.has_edge_label_name(name):
-            raise KeyError(f"FGG doesn't have an edge label named {name}")
+            raise KeyError(f"there isn't an edge label named {name}")
         el = self.get_edge_label(name)
         doms = [self.domains[nl.name] for nl in el.node_labels]
         fac = FiniteFactor(doms, weights)
@@ -526,11 +526,24 @@ class FactorGraph(InterpretationMixin, Graph):
         self.domains: Dict[str, Domain] = {}
         self.factors: Dict[str, Factor] = {}
 
+    @staticmethod
+    def from_graph(g: Graph):
+        """Create a FactorGraph out of a Graph and no domains and factors."""
+        fg = FactorGraph()
+        for node in g.nodes():
+            fg.add_node(node)
+        for edge in g.edges():
+            fg.add_edge(edge)
+        fg._ext = tuple(g._ext)
+        return fg
+
     def copy(self):
         """Returns a copy of this FactorGraph."""
         fg = FactorGraph()
-        fg._nodes = dict(self._nodes)
-        fg._edges = dict(self._edges)
+        for node in self.nodes():
+            fg.add_node(node)
+        for edge in self.edges():
+            fg.add_edge(edge)
         fg._ext = tuple(self._ext)
         fg.domains = copy.deepcopy(self.domains)
         fg.factors = copy.deepcopy(self.factors)

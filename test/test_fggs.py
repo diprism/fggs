@@ -432,10 +432,12 @@ class TestHRG(unittest.TestCase):
             copy.new_rule(rule.lhs.name, rule.rhs)
         self.assertEqual(self.hrg, copy)
 
-
-class TestFGG(unittest.TestCase):
+class TestFactorGraph(unittest.TestCase):
 
     def setUp(self):
+        TestGraph.setUp(self)
+        self.fg = FactorGraph.from_graph(self.graph)
+        
         self.dom1 = FiniteDomain(['foo', 'bar', 'baz'])
         self.dom2 = FiniteDomain(['jia', 'yi', 'bing', 'ding'])
 
@@ -444,45 +446,43 @@ class TestFGG(unittest.TestCase):
                                        [5, 6, 7, 8],
                                        [1, 2, 3, 4]])
         self.fac2 = FiniteFactor([self.dom2], [0, 0, 0, 0])
-        self.fac1_wrong = FiniteFactor([self.dom1, self.dom1],
-                                            [[1, 2, 3],
-                                             [5, 6, 7],
-                                             [1, 2, 3]])
         
-        self.nl1   = NodeLabel("nl1")
-        self.nl2   = NodeLabel("nl2")
-        self.node1 = Node(self.nl1)
-        self.node2 = Node(self.nl2)
-        
-        self.el1   = EdgeLabel("el1", (self.nl1, self.nl2), is_terminal=True)
-        self.el2   = EdgeLabel("el2", (self.nl2,), is_nonterminal=True)
-        self.edge1 = Edge(self.el1, (self.node1, self.node2))
-        self.edge2 = Edge(self.el2, (self.node2,))
-        
-        self.graph = Graph()
-        self.graph.add_node(self.node1)
-        self.graph.add_node(self.node2)
-        self.graph.add_edge(self.edge1)
-        self.graph.add_edge(self.edge2)
-        self.graph.ext = []
-        
-        self.start = EdgeLabel("S", tuple(), is_nonterminal=True)
-        self.rule = HRGRule(self.start, self.graph)
-        
-        self.node3 = Node(self.nl2)
-        self.graph2 = Graph()
-        self.graph2.add_node(self.node3)
-        self.graph2.ext = [self.node3]
-        self.rule2 = HRGRule(self.el2, self.graph2)
+    def test_shape(self):
+        fg = self.fg
+        fg.add_domain(self.nl1, self.dom1)
+        fg.add_domain(self.nl2, self.dom2)
+        # Test all formats of input to the function
+        self.assertEqual(fg.shape([self.nl1, self.nl1, self.nl2]), (3, 3, 4))
+        self.assertEqual(fg.shape([self.node2, self.node1, self.node2]), (4, 3, 4))
+        self.assertEqual(fg.shape(self.el1), (3, 4))
+        self.assertEqual(fg.shape(self.edge2), (4,))
+        # Test that empty input has correct shape
+        self.assertEqual(fg.shape([]), tuple())
 
-        self.fgg = FGG(self.start)
-        self.fgg.add_node_label(self.nl1)
-        self.fgg.add_node_label(self.nl2)
-        self.fgg.add_edge_label(self.el1)
-        self.fgg.add_edge_label(self.el2)
-        self.fgg.add_edge_label(self.start)
-        self.fgg.add_rule(self.rule)
-        self.fgg.add_rule(self.rule2)
+    def test_convenience(self):
+        fg = self.fg
+        fg.new_finite_domain(self.nl1.name, self.dom1.values)
+        self.assertTrue(fg.domains[self.nl1.name] == self.dom1)
+        fg.new_finite_domain(self.nl2.name, self.dom2.values)
+        self.assertTrue(fg.domains[self.nl2.name] == self.dom2)
+        fg.new_finite_factor(self.el1.name, self.fac1.weights)
+        self.assertTrue(fg.factors[self.el1.name] == self.fac1)
+
+class TestFGG(unittest.TestCase):
+
+    def setUp(self):
+        TestHRG.setUp(self)
+        self.fgg = FGG.from_hrg(self.hrg)
+        
+        self.dom1 = FiniteDomain(['foo', 'bar', 'baz'])
+        self.dom2 = FiniteDomain(['jia', 'yi', 'bing', 'ding'])
+
+        self.fac1 = FiniteFactor([self.dom1, self.dom2],
+                                      [[1, 2, 3, 4],
+                                       [5, 6, 7, 8],
+                                       [1, 2, 3, 4]])
+        self.fac2 = FiniteFactor([self.dom2], [0, 0, 0, 0])
+
 
     def test_shape(self):
         fgg = self.fgg
