@@ -454,13 +454,17 @@ class HRG(LabelingMixin, object):
 
     
 class InterpretationMixin:
-    """An interpretation of an HRG."""
+    """Methods for interpreting an HRG as an FGG or a Graph as a factor graph.
+    
+    A class that uses InterpretationMixin must also use LabelingMixin."""
 
     domains: Dict[str, Domain] # from node label names to Domains
     factors: Dict[str, Factor] # from edge label names to Factors
     
     def add_domain(self, nl: NodeLabel, dom: Domain):
         """Add mapping from NodeLabel nl to Domain dom."""
+        if not self.has_node_label_name(nl.name):
+            self.add_node_label(nl)
         if nl.name in self.domains:
             raise ValueError(f"NodeLabel {nl} is already mapped")
         self.domains[nl.name] = dom
@@ -469,6 +473,8 @@ class InterpretationMixin:
         """Add mapping from EdgeLabel el to Factor fac."""
         if el.is_nonterminal:
             raise ValueError(f"Nonterminals cannot be mapped to Factors")
+        if not self.has_edge_label_name(el.name):
+            self.add_edge_label(el)
         if el in self.factors:
             raise ValueError(f"EdgeLabel {el} is already mapped")
         if fac.arity != el.arity:
@@ -499,6 +505,21 @@ class InterpretationMixin:
             nls = x.label.type
         return tuple(cast(FiniteDomain, self.domains[nl.name]).size() for nl in nls)
     
+    def new_finite_domain(self, name: str, values: Sequence):
+        nl = NodeLabel(name)
+        dom = FiniteDomain(values)
+        self.add_domain(nl, dom)
+        return dom
+
+    def new_finite_factor(self, name: str, weights):
+        if not self.has_edge_label_name(name):
+            raise KeyError(f"FGG doesn't have an edge label named {name}")
+        el = self.get_edge_label(name)
+        doms = [self.domains[nl.name] for nl in el.node_labels]
+        fac = FiniteFactor(doms, weights)
+        self.add_factor(el, fac)
+        return fac
+
 class FactorGraph(InterpretationMixin, Graph):
     """A factor graph."""
     
@@ -532,21 +553,6 @@ class FGG(InterpretationMixin, HRG):
         for r in hrg.all_rules():
             fgg.add_rule(r)
         return fgg
-
-    def new_finite_domain(self, name: str, values: Sequence):
-        nl = NodeLabel(name)
-        dom = FiniteDomain(values)
-        self.add_domain(nl, dom)
-        return dom
-
-    def new_finite_factor(self, name: str, weights):
-        if not self.has_edge_label_name(name):
-            raise KeyError(f"FGG doesn't have an edge label named {name}")
-        el = self.get_edge_label(name)
-        doms = [self.domains[nl.name] for nl in el.node_labels]
-        fac = FiniteFactor(doms, weights)
-        self.add_factor(el, fac)
-        return fac
 
     def copy(self):
         """Returns a copy of this FGG."""
