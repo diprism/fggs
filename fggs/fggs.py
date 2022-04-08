@@ -453,10 +453,8 @@ class HRG(LabelingMixin, object):
         return string
 
     
-class InterpretationMixin:
-    """Methods for interpreting an HRG as an FGG or a Graph as a factor graph.
-    
-    A class that uses InterpretationMixin must also use LabelingMixin."""
+class InterpretationMixin(LabelingMixin):
+    """Methods for interpreting an HRG as an FGG or a Graph as a factor graph."""
 
     domains: Dict[str, Domain] # from node label names to Domains
     factors: Dict[str, Factor] # from edge label names to Factors
