@@ -75,5 +75,5 @@ if __name__ == '__main__':
 
             if args.expect:
                 expect = grad * weights / f
-                print(f'   E[{name}]:', tensor_to_string(expect))
+                print(f'E[#{name}]:', tensor_to_string(expect))
         
