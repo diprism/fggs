@@ -1,10 +1,10 @@
-__all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 'Interpretation', 'FactorGraph', 'FGG']
+__all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 'FactorGraph', 'FGG']
 
 from typing import Optional, Iterable, Tuple, Union, Dict, Sequence, List, cast
 from dataclasses import dataclass, field
 from fggs.domains import Domain, FiniteDomain
-from fggs.factors import Factor, CategoricalFactor
-
+from fggs.factors import Factor, FiniteFactor
+import copy
 
 @dataclass(frozen=True)
 class NodeLabel:
@@ -453,38 +453,36 @@ class HRG(LabelingMixin, object):
         return string
 
     
-class Interpretation:
-    """An interpretation of an HRG."""
-    
-    def __init__(self):
-        self.domains = {}
-        self.factors = {}
+class InterpretationMixin(LabelingMixin):
+    """Methods for interpreting an HRG as an FGG or a Graph as a factor graph."""
 
-    def can_interpret(self, g: HRG):
-        """Test whether this Interpretation is compatible with HRG g."""
-        return (set(self.domains.keys()).issuperset(set(g.node_labels())) and
-                set(self.factors.keys()).issuperset(set(g.terminals())))
+    domains: Dict[str, Domain] # from node label names to Domains
+    factors: Dict[str, Factor] # from edge label names to Factors
     
     def add_domain(self, nl: NodeLabel, dom: Domain):
         """Add mapping from NodeLabel nl to Domain dom."""
-        if nl in self.domains:
+        if not self.has_node_label_name(nl.name):
+            self.add_node_label(nl)
+        if nl.name in self.domains:
             raise ValueError(f"NodeLabel {nl} is already mapped")
-        self.domains[nl] = dom
+        self.domains[nl.name] = dom
 
     def add_factor(self, el: EdgeLabel, fac: Factor):
         """Add mapping from EdgeLabel el to Factor fac."""
         if el.is_nonterminal:
             raise ValueError(f"Nonterminals cannot be mapped to Factors")
+        if not self.has_edge_label_name(el.name):
+            self.add_edge_label(el)
         if el in self.factors:
             raise ValueError(f"EdgeLabel {el} is already mapped")
         if fac.arity != el.arity:
             raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (wrong arity)')
         for nl, dom in zip(el.node_labels, fac.domains):
-            if nl not in self.domains:
+            if nl.name not in self.domains:
                 raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (NodeLabel {nl} not mapped)')
-            elif dom != self.domains[nl]:
-                raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} != Domain {self.domains[nl]})')
-        self.factors[el] = fac
+            elif dom != self.domains[nl.name]:
+                raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} != Domain {self.domains[nl.name]})')
+        self.factors[el.name] = fac
 
     def shape(self, x: Union[Sequence[NodeLabel], Sequence[Node], EdgeLabel, Edge]):
         """Return the 'shape' of an Edge or EdgeLabel; that is, 
@@ -503,42 +501,78 @@ class Interpretation:
             nls = x.type
         else:
             nls = x.label.type
-        return tuple(self.domains[nl].size() for nl in nls)
+        return tuple(cast(FiniteDomain, self.domains[nl.name]).size() for nl in nls)
     
-class FactorGraph:
-    """A factor graph.
-
-    - graph: The graph structure.
-    - interp: Maps node and edge labels to domains and factors, respectively.
-    """
-    
-    def __init__(self, graph: Graph, interp: Interpretation):
-        self.graph = graph
-        self.interp = interp
-
-        
-class FGG:
-    """A factor graph grammar.
-
-    - grammar: The HRG that generates graph structures.
-    - interp: Maps node and edge labels to domains and factors, respectively.
-    """
-    
-    def __init__(self, grammar: HRG, interp: Interpretation):
-        self.grammar = grammar
-        self.interp = interp
-
     def new_finite_domain(self, name: str, values: Sequence):
         nl = NodeLabel(name)
         dom = FiniteDomain(values)
-        self.interp.add_domain(nl, dom)
+        self.add_domain(nl, dom)
         return dom
 
-    def new_categorical_factor(self, name: str, weights):
-        if not self.grammar.has_edge_label_name(name):
-            raise KeyError(f"FGG doesn't have an edge label named {name}")
-        el = self.grammar.get_edge_label(name)
-        doms = [self.interp.domains[nl] for nl in el.node_labels]
-        fac = CategoricalFactor(doms, weights)
-        self.interp.add_factor(el, fac)
+    def new_finite_factor(self, name: str, weights):
+        if not self.has_edge_label_name(name):
+            raise KeyError(f"there isn't an edge label named {name}")
+        el = self.get_edge_label(name)
+        doms = [self.domains[nl.name] for nl in el.node_labels]
+        fac = FiniteFactor(doms, weights)
+        self.add_factor(el, fac)
         return fac
+
+class FactorGraph(InterpretationMixin, Graph):
+    """A factor graph."""
+    
+    def __init__(self):
+        super().__init__()
+        self.domains: Dict[str, Domain] = {}
+        self.factors: Dict[str, Factor] = {}
+
+    @staticmethod
+    def from_graph(g: Graph):
+        """Create a FactorGraph out of a Graph and no domains and factors."""
+        fg = FactorGraph()
+        for node in g.nodes():
+            fg.add_node(node)
+        for edge in g.edges():
+            fg.add_edge(edge)
+        fg._ext = tuple(g._ext)
+        return fg
+
+    def copy(self):
+        """Returns a copy of this FactorGraph."""
+        fg = FactorGraph()
+        for node in self.nodes():
+            fg.add_node(node)
+        for edge in self.edges():
+            fg.add_edge(edge)
+        fg._ext = tuple(self._ext)
+        fg.domains = copy.deepcopy(self.domains)
+        fg.factors = copy.deepcopy(self.factors)
+        return fg
+        
+class FGG(InterpretationMixin, HRG):
+    """A factor graph grammar."""
+    
+    def __init__(self, start: Union[EdgeLabel, str]):
+        super().__init__(start)
+        self.domains: Dict[str, Domain] = {}
+        self.factors: Dict[str, Factor] = {}
+
+    @staticmethod
+    def from_hrg(hrg: HRG):
+        """Create an FGG out of an HRG and no domains and factors."""
+        fgg = FGG(hrg.start_symbol)
+        for r in hrg.all_rules():
+            fgg.add_rule(r)
+        return fgg
+
+    def copy(self):
+        """Returns a copy of this FGG."""
+        fgg = FGG(self.start_symbol)
+        fgg._node_labels = self._node_labels.copy()
+        fgg._edge_labels = self._edge_labels.copy()
+        fgg._rules = {}
+        for lhs in self._rules:
+            fgg._rules[lhs] = [r.copy() for r in self._rules[lhs]]
+        fgg.domains = copy.deepcopy(self.domains)
+        fgg.factors = copy.deepcopy(self.factors)
+        return fgg

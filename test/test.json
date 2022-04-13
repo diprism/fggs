@@ -171,23 +171,19 @@
         },
         "factors": {
             "start": {
-                "function": "categorical",
-                "type": ["dom"],
+                "function": "finite",
                 "weights": [3, 0, 5]
             },
             "fac0": {
-                "function": "categorical",
-                "type": ["dom"],
+                "function": "finite",
                 "weights": [1, 0.2, 0]
             },
             "fac1": {
-                "function": "categorical",
-                "type": ["dom"],
+                "function": "finite",
                 "weights": [0.5, 0.1, 1]
             },
             "fac2": {
-                "function": "categorical",
-                "type": ["dom"],
+                "function": "finite",
                 "weights": [0, 0, 1]
             }
         }

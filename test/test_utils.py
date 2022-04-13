@@ -57,5 +57,5 @@ class TestSingleton(unittest.TestCase):
         
 class TestSCC(unittest.TestCase):
     def test_scc(self):
-        g = load_fgg('test/hmm.json').grammar
+        g = load_fgg('test/hmm.json')
         self.assertEqual(scc(nonterminal_graph(g)), [{g.get_edge_label('X')}, {g.get_edge_label('S')}])

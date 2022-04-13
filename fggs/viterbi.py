@@ -1,4 +1,4 @@
-from fggs.fggs import FGG, FactorGraph, HRGRule, Node, Edge, EdgeLabel, Interpretation
+from fggs.fggs import FGG, FactorGraph, HRGRule, Node, Edge, EdgeLabel
 from fggs.semirings import Semiring
 from fggs.utils import nonterminal_graph, scc
 from fggs.derivations import *
@@ -14,7 +14,7 @@ import torch_semiring_einsum
 # special semiring, but there are enough little differences that it
 # seems easier to implement it separately.
 
-def sum_product_edges(interp: Interpretation, rule: HRGRule, *inputses: MultiTensor, semiring: Semiring) -> Tuple[Tensor, Optional[Tensor]]:
+def sum_product_edges(fgg: FGG, rule: HRGRule, *inputses: MultiTensor, semiring: Semiring) -> Tuple[Tensor, Optional[Tensor]]:
 
     connected: Set[Node] = set()
     indexing: List[Iterable[Node]] = []
@@ -29,7 +29,7 @@ def sum_product_edges(interp: Interpretation, rule: HRGRule, *inputses: MultiTen
                 break
         else:
             # One argument to einsum will be the zero tensor, so just return zero
-            return (semiring.zeros(interp.shape(rule.rhs.ext)), None)
+            return (semiring.zeros(fgg.shape(rule.rhs.ext)), None)
 
     ptr: torch.Tensor
     if len(indexing) > 0:
@@ -51,10 +51,12 @@ def sum_product_edges(interp: Interpretation, rule: HRGRule, *inputses: MultiTen
 
     # Restore any external nodes that were removed.
     if out.ndim < len(rule.rhs.ext):
-        vshape = [interp.domains[n.label].size() if n in connected else 1 for n in rule.rhs.ext]
-        out = out.view(*vshape).repeat(*interp.shape(rule.lhs))
+        eshape = fgg.shape(rule.rhs.ext)
+        vshape = [s if n in connected else 1 for n, s in zip(rule.rhs.ext, eshape)]
+        rshape = [1 if n in connected else s for n, s in zip(rule.rhs.ext, eshape)]
+        out = out.view(*vshape).repeat(*rshape)
         nint = ptr.shape[-1]
-        ptr = ptr.view(*vshape, nint).repeat(*interp.shape(rule.lhs), nint)
+        ptr = ptr.view(*vshape, nint).repeat(*rshape, nint)
 
     return out, ptr
 
@@ -65,13 +67,12 @@ def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring)
       lhs_pointer[nt][ext_asst] is the index of the rule in the best derivation
       rhs_pointer[nt][ri][ext_asst] is the best assignment to the internal nodes of rule ri
     """
-    hrg, interp = fgg.grammar, fgg.interp
     Fx = MultiTensor(x.shapes, x.semiring)
-    lhs_pointer = {n:torch.zeros(interp.shape(n), dtype=torch.int, device=semiring.device) for n in x.shapes[0]}
+    lhs_pointer = {n:torch.zeros(fgg.shape(n), dtype=torch.int, device=semiring.device) for n in x.shapes[0]}
     rhs_pointer: Dict = {n:[] for n in x.shapes[0]}
     for n in x.shapes[0]:
-        for ri, rule in enumerate(hrg.rules(n)):
-            tau_rule, pointer = sum_product_edges(interp, rule, x, inputs, semiring=semiring)
+        for ri, rule in enumerate(fgg.rules(n)):
+            tau_rule, pointer = sum_product_edges(fgg, rule, x, inputs, semiring=semiring)
             if n in Fx:
                 lhs_pointer[n].masked_fill_(tau_rule > Fx[n], ri)
                 Fx[n] = torch.maximum(Fx[n], tau_rule)
@@ -83,26 +84,24 @@ def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring)
     return (Fx, lhs_pointer, rhs_pointer)
 
 def viterbi(fgg: FGG, start_asst: Tuple[int,...], opts: Dict) -> FGGDerivation:
-    hrg, interp = fgg.grammar, fgg.interp
-
-    if len(start_asst) != hrg.start_symbol.arity:
+    if len(start_asst) != fgg.start_symbol.arity:
         raise ValueError("Assignment does not have same type as FGG's start symbol")
     
     semiring = opts['semiring']
     kmax = opts.get('kmax', 1000)
     tol = opts.get('tol', 1e-6)
 
-    maximum: MultiTensor = {t:interp.factors[t].weights for t in hrg.terminals()} # type: ignore
+    maximum: MultiTensor = {t:fgg.factors[t.name].weights for t in fgg.terminals()} # type: ignore
     lhs_pointer = {}
     rhs_pointer = {}
-    for comp in scc(nonterminal_graph(hrg)):
+    for comp in scc(nonterminal_graph(fgg)):
         x = MultiTensor(FGGMultiShape(fgg, comp), semiring)
         
         # Since we only use fixed-point iteration, we only need two cases.
         trivial = False
         if len(comp) == 1:
             [nt] = comp
-            if not any(e.label == nt for r in hrg.rules(nt) for e in r.rhs.edges()):
+            if not any(e.label == nt for r in fgg.rules(nt) for e in r.rhs.edges()):
                 trivial = True
 
         if trivial:
@@ -125,7 +124,7 @@ def viterbi(fgg: FGG, start_asst: Tuple[int,...], opts: Dict) -> FGGDerivation:
         # lhs_pointer[nt][nt_asst] is the index of the first
         # rule used in the best derivation starting with edge.
         ri = lhs_pointer[nt][nt_asst]
-        rule = list(hrg.rules(nt))[ri]
+        rule = list(fgg.rules(nt))[ri]
 
         # rhs_pointer[nt][ri][nt_asst] is the best assignment to the
         # internal nodes of rule.rhs. The nodes are listed in order of
@@ -148,5 +147,5 @@ def viterbi(fgg: FGG, start_asst: Tuple[int,...], opts: Dict) -> FGGDerivation:
         
         return FGGDerivation(fgg, rule, rhs_asst, child_derivs)
 
-    return reconstruct(hrg.start_symbol, start_asst)
+    return reconstruct(fgg.start_symbol, start_asst)
 
