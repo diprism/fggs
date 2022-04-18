@@ -33,8 +33,7 @@
         },
         "factors": {
             "fac": {
-                "function": "categorical",
-                "type": [],
+                "function": "finite",
                 "weights": 2
             }
         }

@@ -1,4 +1,4 @@
-__all__ = ['factorize_rule', 'factorize']
+__all__ = ['factorize_rule', 'factorize_hrg', 'factorize_fgg']
 
 from fggs import fggs, utils
 import copy
@@ -417,7 +417,7 @@ def factorize_rule(rule, method='min_fill', labels=None):
     
     return newrules
 
-def factorize(g, method='min_fill'):
+def factorize_hrg(g, method='min_fill'):
     """Factorize a HRG's rules into smaller rules, hopefully with
     lower maximum treewidth.
     """
@@ -427,3 +427,13 @@ def factorize(g, method='min_fill'):
         for rnew in factorize_rule(r, method=method, labels=labels):
             gnew.add_rule(rnew)
     return gnew
+
+def factorize_fgg(g, method='min_fill'):
+    """Factorize a FGG's rules into smaller rules, hopefully with
+    lower maximum treewidth.
+    """
+    gnew = fggs.FGG.from_hrg(factorize_hrg(g))
+    gnew.factors = g.factors
+    gnew.domains = g.domains
+    return gnew
+    

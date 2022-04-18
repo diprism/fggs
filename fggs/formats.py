@@ -1,4 +1,4 @@
-__all__ = ['json_to_fgg', 'fgg_to_json', 'json_to_hrg', 'hrg_to_json', 'json_to_interp', 'interp_to_json', 'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
+__all__ = ['json_to_fgg', 'fgg_to_json', 'json_to_hrg', 'hrg_to_json', 'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
 
 from fggs.fggs import *
 from fggs import domains, factors
@@ -7,14 +7,51 @@ from fggs import domains, factors
 
 def json_to_fgg(j):
     """Convert an object loaded by json.load to an FGG."""
-    return FGG(json_to_hrg(j['grammar']), json_to_interp(j['interpretation']))
+    fgg = FGG.from_hrg(json_to_hrg(j['grammar']))
+
+    ji = j['interpretation']
+    for name, d in ji['domains'].items():
+        nl = fgg.get_node_label(name)
+        if d['class'] == 'finite':
+            fgg.add_domain(nl, domains.FiniteDomain(d['values']))
+        else:
+            raise ValueError(f'invalid domain class: {d["type"]}')
+
+    for name, d in ji['factors'].items():
+        el = fgg.get_edge_label(name)
+        if d['function'] == 'finite':
+            weights = d['weights']
+            fgg.add_factor(el, factors.FiniteFactor([fgg.domains[nl.name] for nl in el.type], weights))
+        else:
+            raise ValueError(f'invalid factor function: {d["function"]}')
+        
+    return fgg
 
 def fgg_to_json(fgg):
     """Convert an FGG to an object writable by json.dump()."""
-    return {
-        'grammar': hrg_to_json(fgg.grammar),
-        'interpretation': interp_to_json(fgg.interp)
-    }
+    jg = hrg_to_json(fgg)
+    
+    ji = {}
+
+    ji['domains'] = {}
+    for nl, dom in fgg.domains.items():
+        if isinstance(dom, domains.FiniteDomain):
+            ji['domains'][nl] = {
+                'class' : 'finite',
+                'values' : list(dom.values),
+            }
+        else:
+            raise NotImplementedError(f'unsupported domain type {type(j.domain)}')
+
+    ji['factors'] = {}
+    for el, fac in fgg.factors.items():
+        if isinstance(fac, factors.FiniteFactor):
+            ji['factors'][el] = {
+                'function': 'finite',
+                'weights': fac.weights,
+            }
+            
+    return {'grammar': jg, 'interpretation': ji}
 
 def json_to_hrg(j):
     """Convert an object loaded by json.load to an HRG."""
@@ -26,7 +63,6 @@ def json_to_hrg(j):
     for name, d in j['nonterminals'].items():
         t = tuple(NodeLabel(l) for l in d['type'])
         labels[name] = EdgeLabel(name, t, is_nonterminal=True)
-
 
     g = HRG(labels[j['start']])
     
@@ -108,58 +144,12 @@ def hrg_to_json(g):
         
     return j
 
-def json_to_interp(j):
-    """Convert an object loaded by json.load to an Interpretation."""
-    interp = Interpretation()
-
-    for name, d in j['domains'].items():
-        nl = NodeLabel(name)
-        if d['class'] == 'finite':
-            interp.add_domain(nl, domains.FiniteDomain(d['values']))
-        else:
-            raise ValueError(f'invalid domain class: {d["type"]}')
-
-    for name, d in j['factors'].items():
-        nls = [NodeLabel(nl) for nl in d['type']]
-        el = EdgeLabel(name, nls, is_terminal=True)
-        if d['function'] == 'categorical':
-            weights = d['weights']
-            interp.add_factor(el, factors.CategoricalFactor([interp.domains[nl] for nl in nls], weights))
-        else:
-            raise ValueError(f'invalid factor function: {d["function"]}')
-        
-    return interp
-
 def weights_to_json(weights):
     if isinstance(weights, float) or hasattr(weights, 'shape') and len(weights.shape) == 0:
         return float(weights)
     else:
         return [weights_to_json(w) for w in weights]
 
-def interp_to_json(interp):
-    """Convert an Interpretation to an object writable by json.dump()."""
-    j = {}
-
-    j['domains'] = {}
-    for nl, dom in interp.domains.items():
-        if isinstance(dom, domains.FiniteDomain):
-            j['domains'][nl.name] = {
-                'class' : 'finite',
-                'values' : list(dom.values),
-            }
-        else:
-            raise NotImplementedError(f'unsupported domain type {type(j.domain)}')
-
-    j['factors'] = {}
-    for el, fac in interp.factors.items():
-        if isinstance(fac, factors.CategoricalFactor):
-            j['factors'][el.name] = {
-                'function': 'categorical',
-                'type': [nl.name for nl in el.type],
-                'weights': fac.weights,
-            }
-            
-    return j
 
 ### GraphViz and TikZ
 

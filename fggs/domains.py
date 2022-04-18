@@ -10,7 +10,7 @@ class Domain(ABC):
     @abstractmethod
     def contains(self, value):
         pass
-    
+
     def __eq__(self, other):
         return self is other
     

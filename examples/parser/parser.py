@@ -52,9 +52,7 @@ if args.method == 'rule':
     # where NP and VP are 0-ary nonterminal edges and □ is a 0-ary
     # factor for the weight of the CFG rule.
 
-    # Create the HRG.
-    
-    hrg = fggs.HRG('TOP')
+    fgg = fggs.FGG('TOP')
     
     rules = {}
     for lhs in cfg:
@@ -73,14 +71,10 @@ if args.method == 'rule':
             hrhs.new_edge(el, [], is_terminal=True)
             
             hrhs.ext = []
-            hrg.new_rule(lhs, hrhs)
+            fgg.new_rule(lhs, hrhs)
 
-    # Create the interpretation that makes the HRG into an FGG.
-
-    interp = fggs.Interpretation()
-    fgg = fggs.FGG(hrg, interp)
     for el in rules.values():
-        fgg.new_categorical_factor(el, torch.tensor(0., requires_grad=True))
+        fgg.new_finite_factor(el, torch.tensor(0., requires_grad=True))
 
 elif args.method == 'pattern':
 
@@ -123,16 +117,14 @@ elif args.method == 'pattern':
                     else:
                         terminals.add(x)
 
-    # Create the HRG.
-    
-    hrg = fggs.HRG('tree')
+    fgg = fggs.FGG('tree')
 
     # The starting rule just ensures that the root node is the CFG start symbol.
     hrhs = fggs.Graph()
     root = hrhs.new_node('nonterminal')
     hrhs.new_edge('is_start', [root], is_terminal=True)
     hrhs.new_edge('subtree', [root], is_nonterminal=True)
-    hrg.new_rule('tree', hrhs)
+    fgg.new_rule('tree', hrhs)
 
     # Create an HRG rule for each pattern.
     for pattern in patterns:
@@ -156,22 +148,18 @@ elif args.method == 'pattern':
         hrhs.new_edge(f'{pattern[-1]} stop', [children[-1]], is_terminal=True)
         
         hrhs.ext = [parent]
-        hrg.new_rule('subtree', hrhs)
+        fgg.new_rule('subtree', hrhs)
 
-    # Create the interpretation.
-        
-    interp = fggs.Interpretation()
-    fgg = fggs.FGG(hrg, interp)
     nonterminal_dom = fgg.new_finite_domain('nonterminal', nonterminals)
     terminal_dom = fgg.new_finite_domain('terminal', terminals)
     
-    fgg.new_categorical_factor(
+    fgg.new_finite_factor(
         'is_start',
         torch.tensor([float(x == 'TOP') for x in nonterminals]))
 
-    for el in hrg.terminals():
+    for el in fgg.terminals():
         if el.name != 'is_start':
-            fgg.new_categorical_factor(el.name, torch.zeros(interp.shape(el), requires_grad=True))
+            fgg.new_finite_factor(el.name, torch.zeros(fgg.shape(el), requires_grad=True))
 
 else:
     print(f'unknown method: {args.method}', file=sys.stderr)
@@ -179,7 +167,7 @@ else:
 
 ### Factorize the FGG into smaller rules.
 
-fgg.grammar = fggs.factorize(fgg.grammar)
+fgg = fggs.factorize_fgg(fgg)
 
 ### Train a globally-normalized model.
 
@@ -191,7 +179,7 @@ fgg.grammar = fggs.factorize(fgg.grammar)
 # enough that we don't easily jump out of the region where Z is
 # finite.
 
-params = [fac.weights for fac in interp.factors.values() if fac.weights.requires_grad]
+params = [fac.weights for fac in fgg.factors.values() if fac.weights.requires_grad]
 opt = torch.optim.SGD(params, lr=1e-3)
 
 def minibatches(iterable, size=100):
@@ -221,15 +209,15 @@ for epoch in range(100):
                         lhs = node.label
                         rhs = tuple(child.label for child in node.children)
                         if args.method == 'rule':
-                            w += interp.factors[hrg.get_edge_label(rules[lhs, rhs])].weights
+                            w += fgg.factors[rules[lhs, rhs]].weights
                         elif args.method == 'pattern':
                             pattern = tuple(isinstance(x, Nonterminal) for x in rhs)
                             lhs_index = nonterminal_dom.numberize(lhs)
                             rhs_indices = tuple(nonterminal_dom.numberize(x) if isinstance(x, Nonterminal) else terminal_dom.numberize(x) for x in rhs)
-                            w += interp.factors[hrg.get_edge_label(f'start {pattern[0]}')].weights[lhs_index, rhs_indices[0]]
+                            w += fgg.factors[f'start {pattern[0]}'].weights[lhs_index, rhs_indices[0]]
                             for i in range(len(rhs)-1):
-                                w += interp.factors[hrg.get_edge_label(f'{pattern[0]} {pattern[1]}')].weights[rhs_indices[0], rhs_indices[1]]
-                            w += interp.factors[hrg.get_edge_label(f'{pattern[-1]} stop')].weights[rhs_indices[-1]]
+                                w += fgg.factors[f'{pattern[0]} {pattern[1]}'].weights[rhs_indices[0], rhs_indices[1]]
+                            w += fgg.factors[f'{pattern[-1]} stop'].weights[rhs_indices[-1]]
 
                         else:
                             assert False

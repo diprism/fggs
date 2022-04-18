@@ -37,24 +37,22 @@ if __name__ == '__main__':
     fgg = fggs.json_to_fgg(json.load(open(args.fgg)))
 
     for name, weights in args.weights:
-        el = fgg.grammar.get_edge_label(name)
-        weights = string_to_tensor(weights, f"<weights> for {name}", fgg.interp.shape(el))
-        weights.requires_grad_()
-        if el not in fgg.interp.factors:
-            doms = [fgg.interp.domains[nl] for nl in el.type]
-            fgg.interp.add_factor(el, fggs.CategoricalFactor(doms, weights))
+        el = fgg.get_edge_label(name)
+        weights = string_to_tensor(weights, f"<weights> for {name}", fgg.shape(el))
+        if name not in fgg.factors:
+            fgg.new_finite_factor(name, weights)
         else:
-            fgg.interp.factors[el].weights = weights
+            fgg.factors[name].weights = weights
 
     if args.out_weights:
-        out_weights = string_to_tensor(args.out_weights, f"<out_weights>", fgg.interp.shape(fgg.grammar.start_symbol))
+        out_weights = string_to_tensor(args.out_weights, f"<out_weights>", fgg.shape(fgg.start_symbol))
     else:
         out_weights = 1.
 
-    for el in fgg.grammar.terminals():
-        if el not in fgg.interp.factors:
+    for el in fgg.terminals():
+        if el.name not in fgg.factors:
             error(f'factor {el.name} needs weights (use -w option)')
-        fac = fgg.interp.factors[el]
+        fac = fgg.factors[el.name]
         fac.weights = torch.as_tensor(fac.weights, dtype=float)
 
     z = fggs.sum_product(fgg, method=args.method)
@@ -66,8 +64,8 @@ if __name__ == '__main__':
         f = (z * out_weights).sum()
         f.backward()
         for name, _ in args.weights:
-            el = fgg.grammar.get_edge_label(name)
-            weights = fgg.interp.factors[el].weights
+            el = fgg.get_edge_label(name)
+            weights = fgg.factors[el.name].weights
             grad = weights.grad
             
             if args.grad:
@@ -76,4 +74,3 @@ if __name__ == '__main__':
             if args.expect:
                 expect = grad * weights / f
                 print(f'E[#{name}]:', tensor_to_string(expect))
-        
