@@ -62,12 +62,11 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
     x1 = MultiTensor(x0.shapes, x0.semiring)
     for k in range(kmax):
         F0 = F(x0)
-        JF = J(x0)
         if F0.allclose(x0, tol): break
+        JF = J(x0)
         dX = multi_solve(JF, F0 - x0)
-        x1.copy_(x0 + dX)
-        x0.copy_(x1)
-        
+        x0.copy_(x0 + dX)
+
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
@@ -337,8 +336,8 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
 
     opts.setdefault('method',   'fixed-point')
     opts.setdefault('semiring', RealSemiring())
-    opts.setdefault('tol',      1e-6)
-    opts.setdefault('kmax',     1000)
+    opts.setdefault('tol',      1e-5) # with float32, 1e-6 can fail
+    opts.setdefault('kmax',     100)
     if isinstance(opts['semiring'], BoolSemiring):
         opts['tol'] = 0
 
