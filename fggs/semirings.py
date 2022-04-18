@@ -148,9 +148,13 @@ class LogSemiring(Semiring):
     
     @staticmethod
     def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        # relu(x - y) = maximum(0, x - y)
-        z = -torch.relu((x - y).nan_to_num(nan=0., neginf=-inf, posinf=inf)) # type: ignore
-        return x - LogSemiring.star(z)
+        # If x <= y, return -inf
+        # If x ≈ y, log(exp(x) - exp(y)) = x + log(1 - exp(y-x)) = x + log(-expm1(y-x))
+        # If x >> y, log(exp(x) - exp(y)) = x + log(1 - exp(y-x)) = x + log1p(-exp(y-x))
+        d = y - x
+        return torch.where(d < -1, # type: ignore
+                           x + torch.log1p(-torch.exp(d)), # type: ignore
+                           x + torch.log(-torch.expm1(d))).nan_to_num(nan=-inf, neginf=-inf, posinf=inf)
     
     @staticmethod
     def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -158,9 +162,12 @@ class LogSemiring(Semiring):
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
+        # If x >= 0, return inf
+        # If x ≈ 0,  log(1/(1-exp(x))) = -log(1 - exp(x)) = -log(-expm1(x))
+        # If x << 0, log(1/(1-exp(x))) = -log(1 - exp(x)) = -log1p(-exp(x))
         return -torch.where(x < -1, # type: ignore
                             torch.log1p(-torch.exp(x)), # type: ignore
-                            torch.log(-torch.expm1(x))).nan_to_num(nan=-inf) # type: ignore
+                            torch.log(-torch.expm1(x))).nan_to_num(nan=-inf, neginf=-inf) # type: ignore
 
     @staticmethod
     def einsum(equation, *args):
