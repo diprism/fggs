@@ -59,7 +59,6 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
     Javier Esparza, Stefan Kiefer, and Michael Luttenberger. On fixed
     point equations over commutative semirings. In Proc. STACS, 2007."""
     semiring = x0.semiring
-    k = 0
     x1 = MultiTensor(x0.shapes, x0.semiring)
     for k in range(kmax):
         F0 = F(x0)
@@ -102,8 +101,11 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
 
 
 def log_softmax(a: Tensor, dim: int) -> Tensor:
-    # a could have infinite elements, which would make log_softmax return all nans.
-    return torch.log_softmax(a.nan_to_num(), dim)
+    # If a has infinite elements, log_softmax would return all nans.
+    # In this case, make all the infinite elements 1 and the finite elements 0.
+    return torch.where(torch.any(a.isinf(), dim, keepdim=True),
+                       a.isinf().to(dtype=a.dtype, device=a.device),
+                       torch.log_softmax(a, dim))
     
 def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
           J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
