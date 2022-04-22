@@ -103,8 +103,8 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
 def log_softmax(a: Tensor, dim: int) -> Tensor:
     # If a has infinite elements, log_softmax would return all nans.
     # In this case, make all the infinite elements 1 and the finite elements 0.
-    return torch.where(torch.any(a.isinf(), dim, keepdim=True),
-                       a.isinf().to(dtype=a.dtype, device=a.device),
+    return torch.where(torch.any(a == torch.inf, dim, keepdim=True),
+                       (a == torch.inf).to(dtype=a.dtype, device=a.device),
                        torch.log_softmax(a, dim))
     
 def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
@@ -335,7 +335,7 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
     opts.setdefault('method',   'fixed-point')
     opts.setdefault('semiring', RealSemiring())
     opts.setdefault('tol',      1e-5) # with float32, 1e-6 can fail
-    opts.setdefault('kmax',     100)
+    opts.setdefault('kmax',     1000) # for fixed-point, 100 is too low
     if isinstance(opts['semiring'], BoolSemiring):
         opts['tol'] = 0
 
