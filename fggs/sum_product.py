@@ -6,6 +6,7 @@ from fggs.factors import FiniteFactor
 from fggs.semirings import *
 from fggs.multi import *
 from fggs.utils import scc, nonterminal_graph
+from math import inf
 
 from typing import Callable, Dict, Mapping, Sequence, Iterable, Tuple, List, Set, Union, Optional, cast
 import warnings
@@ -103,8 +104,8 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
 def log_softmax(a: Tensor, dim: int) -> Tensor:
     # If a has infinite elements, log_softmax would return all nans.
     # In this case, make all the infinite elements 1 and the finite elements 0.
-    return torch.where(torch.any(a == torch.inf, dim, keepdim=True),
-                       (a == torch.inf).to(dtype=a.dtype, device=a.device),
+    return torch.where(torch.any(a == inf, dim, keepdim=True),
+                       (a == inf).to(dtype=a.dtype, device=a.device),
                        torch.log_softmax(a, dim))
     
 def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
