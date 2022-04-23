@@ -131,6 +131,8 @@ class Tree:
     def from_str(s):
         s = s.strip()
         (tree, n) = Tree._scan_tree(s)
+        if tree is None:
+            return None
         return Tree(tree)
 
     def bottomup(self):

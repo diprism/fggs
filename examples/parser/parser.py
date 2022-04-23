@@ -18,6 +18,7 @@ args = ap.parse_args()
 # Read in training data, which consists of Penn-Treebank-style trees.
 
 traintrees = [trees.Tree.from_str(line) for line in open(args.trainfile)]
+traintrees = [t for t in traintrees if t is not None]
 
 # Extract CFG rules from trees. We don't need to do any binarization
 # or removal of unary rules. The fggs.factorize() routine does the
