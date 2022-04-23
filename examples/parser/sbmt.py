@@ -13,6 +13,17 @@ ap.add_argument('trainfile')
 ap.add_argument('--device', dest="device", default="cpu")
 args = ap.parse_args()
 
+class ClipGradient(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, inp: torch.Tensor, val: float):
+        ctx.val = val
+        return inp
+
+    @staticmethod
+    def backward(ctx, grad_out):
+        grad_in = torch.clip(grad_out, -ctx.val, ctx.val)
+        return (grad_in, None)
+
 # Read in training data, which consists of tokenized strings on the
 # source side and Penn-Treebank-style trees on the target side.
 
@@ -39,8 +50,8 @@ class Encoder(torch.nn.Module):
         self.word_embedding = torch.nn.Parameter(torch.empty((len(vocab), dim)))
         torch.nn.init.normal_(self.word_embedding)
         self.pos_encoding = torch.concat([
-            torch.sin(torch.arange(max_pos).unsqueeze(1) / 10000**torch.arange(dim//2)),
-            torch.cos(torch.arange(max_pos).unsqueeze(1) / 10000**torch.arange(dim//2)),
+            torch.sin(torch.arange(max_pos).unsqueeze(1) / 10000**(2*torch.arange(dim//2)/dim)),
+            torch.cos(torch.arange(max_pos).unsqueeze(1) / 10000**(2*torch.arange(dim//2)/dim)),
         ], dim=1)
         self.transformer = torch.nn.TransformerEncoder(
             torch.nn.TransformerEncoderLayer(d_model=dim, nhead=4),
@@ -142,7 +153,7 @@ for epoch in range(100):
 
                 weights = encoder(swords)
                 for fi, fac in enumerate(fgg.factors.values()):
-                    fac.weights = weights[fi]
+                    fac.weights = ClipGradient.apply(weights[fi], 10.)
 
                 # Compute the weight of the tree.
             
