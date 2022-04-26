@@ -271,10 +271,7 @@ for epoch in range(100):
             loss.backward()
 
             # If Z becomes infinite, some of the gradients can also
-            # become infinite. So gradient clipping is crucial. The
-            # clipping value should be high enough to quickly exit the
-            # region where Z is infinite. The reciprocal of the
-            # learning rate seems to be a reasonable choice.
+            # become infinite. So gradient clipping is crucial.
             torch.nn.utils.clip_grad_value_(params, 10.)
             
             opt.step()
