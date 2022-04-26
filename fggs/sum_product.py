@@ -6,6 +6,7 @@ from fggs.factors import FiniteFactor
 from fggs.semirings import *
 from fggs.multi import *
 from fggs.utils import scc, nonterminal_graph
+from math import inf
 
 from typing import Callable, Dict, Mapping, Sequence, Iterable, Tuple, List, Set, Union, Optional, cast
 import warnings
@@ -59,16 +60,14 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
     Javier Esparza, Stefan Kiefer, and Michael Luttenberger. On fixed
     point equations over commutative semirings. In Proc. STACS, 2007."""
     semiring = x0.semiring
-    k = 0
     x1 = MultiTensor(x0.shapes, x0.semiring)
     for k in range(kmax):
         F0 = F(x0)
-        JF = J(x0)
         if F0.allclose(x0, tol): break
+        JF = J(x0)
         dX = multi_solve(JF, F0 - x0)
-        x1.copy_(x0 + dX)
-        x0.copy_(x1)
-        
+        x0.copy_(x0 + dX)
+
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
@@ -103,8 +102,11 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
 
 
 def log_softmax(a: Tensor, dim: int) -> Tensor:
-    # a could have infinite elements, which would make log_softmax return all nans.
-    return torch.log_softmax(a.nan_to_num(), dim)
+    # If a has infinite elements, log_softmax would return all nans.
+    # In this case, make all the infinite elements 1 and the finite elements 0.
+    return torch.where(torch.any(a == inf, dim, keepdim=True),
+                       (a == inf).to(dtype=a.dtype, device=a.device),
+                       torch.log_softmax(a, dim))
     
 def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
           J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
@@ -333,8 +335,8 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
     
     opts.setdefault('method',   'fixed-point')
     opts.setdefault('semiring', RealSemiring())
-    opts.setdefault('tol',      1e-6)
-    opts.setdefault('kmax',     1000)
+    opts.setdefault('tol',      1e-5) # with float32, 1e-6 can fail
+    opts.setdefault('kmax',     1000) # for fixed-point, 100 is too low
     if isinstance(opts['semiring'], BoolSemiring):
         opts['tol'] = 0
 

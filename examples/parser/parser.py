@@ -1,14 +1,17 @@
 import sys
+import math
 import torch
 import fggs
 import trees
 import argparse
 import collections
+import random
 import tqdm # type: ignore
 
 ap = argparse.ArgumentParser()
 ap.add_argument('trainfile')
 ap.add_argument('-m', dest="method", default="rule", help="Method for converting CFG to FGG ('rule' or 'pattern')")
+ap.add_argument('-p', dest="pretrain", action="store_true", default=False, help="Pretrain model to make loss finite")
 ap.add_argument('--device', dest="device", default="cpu")
 args = ap.parse_args()
 
@@ -27,12 +30,28 @@ class Nonterminal(str):
     def __repr__(self):
         return f'Nonterminal({repr(str(self))})'
     
-cfg = collections.defaultdict(set)
+cfg = collections.defaultdict(collections.Counter)
 for tree in traintrees:
     for node in tree.bottomup():
         if len(node.children) > 0:
             node.label = Nonterminal(node.label)
-            cfg[node.label].add(tuple(child.label for child in node.children))
+            cfg[node.label][tuple(child.label for child in node.children)] += 1
+
+# For reference, train a PCFG and show loss.
+
+pcfg = collections.defaultdict(dict)
+for lhs in cfg:
+    z = sum(cfg[lhs].values())
+    for rhs in cfg[lhs]:
+        pcfg[lhs][rhs] = cfg[lhs][rhs] / z
+logp = 0.        
+for tree in traintrees:
+    for node in tree.bottomup():
+        if len(node.children) > 0:
+            lhs = node.label
+            rhs = tuple(child.label for child in node.children)
+            logp += math.log(pcfg[lhs][rhs])
+print(f'optimal_loss={-logp}')
 
 ### Construct the FGG.
 
@@ -180,8 +199,24 @@ fgg = fggs.factorize_fgg(fgg)
 # finite.
 
 params = [fac.weights for fac in fgg.factors.values() if fac.weights.requires_grad]
-opt = torch.optim.SGD(params, lr=1e-3)
 
+# It's helpful (though not essential) to initialize parameters so that
+# Z is finite. To do this, we do a quick pre-training step using SGD
+# with a fairly large setting for gradient clipping.
+
+if args.pretrain:
+    opt = torch.optim.SGD(params, lr=1e-2)
+    for epoch in range(100):
+        z = fggs.sum_product(fgg, method='newton', semiring=fggs.LogSemiring(device=args.device))
+        print(f'Z={z.item()}')
+        if not torch.isinf(z):
+            break
+        opt.zero_grad()
+        z.backward()
+        torch.nn.utils.clip_grad_value_(params, 100.)
+        opt.step()
+
+# Train on data
 def minibatches(iterable, size=100):
     b = []
     for i, x in enumerate(iterable):
@@ -192,7 +227,9 @@ def minibatches(iterable, size=100):
     if len(b) > 0:
         yield b
 
+opt = torch.optim.Adam(params, lr=5e-2)
 for epoch in range(100):
+    random.shuffle(traintrees)
     train_loss = 0.
     with tqdm.tqdm(total=len(traintrees)) as progress:
         for minibatch in minibatches(traintrees):
@@ -226,17 +263,15 @@ for epoch in range(100):
             z = fggs.sum_product(fgg, method='newton', semiring=fggs.LogSemiring(device=args.device))
 
             loss = -w + len(minibatch) * z # type: ignore
+
             train_loss += loss.item()
 
             opt.zero_grad()
             loss.backward()
 
             # If Z becomes infinite, some of the gradients can also
-            # become infinite. So gradient clipping is crucial. The
-            # clipping value should be high enough to quickly exit the
-            # region where Z is infinite. The reciprocal of the
-            # learning rate seems to be a reasonable choice.
-            torch.nn.utils.clip_grad_value_(params, 1000.)
+            # become infinite. So gradient clipping is crucial.
+            torch.nn.utils.clip_grad_value_(params, 10.)
             
             opt.step()
 
