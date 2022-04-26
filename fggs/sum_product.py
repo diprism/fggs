@@ -62,14 +62,14 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
     semiring = x0.semiring
     x1 = MultiTensor(x0.shapes, x0.semiring)
     for k in range(kmax):
+        print(k)
         F0 = F(x0)
         if F0.allclose(x0, tol): break
         JF = J(x0)
         dX = multi_solve(JF, F0 - x0)
         x0.copy_(x0 + dX)
-
     if k > kmax:
-        warnings.warn('maximum iteration exceeded; convergence not guaranteed')
+        warnings.warn(f'maximum iteration exceeded; convergence not guaranteed')
 
 
 def F(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring) -> MultiTensor:

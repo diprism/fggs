@@ -11,9 +11,10 @@ import tqdm # type: ignore
 ap = argparse.ArgumentParser()
 ap.add_argument('trainfile')
 ap.add_argument('--device', dest="device", default="cpu")
+ap.add_argument('-b', dest="minibatch_size", type=int, default=1)
 args = ap.parse_args()
 
-class ClipGradient(torch.autograd.Function):
+class ClipGradValue(torch.autograd.Function):
     @staticmethod
     def forward(ctx, inp: torch.Tensor, val: float):
         ctx.val = val
@@ -23,6 +24,7 @@ class ClipGradient(torch.autograd.Function):
     def backward(ctx, grad_out):
         grad_in = torch.clip(grad_out, -ctx.val, ctx.val)
         return (grad_in, None)
+clip_grad_value = ClipGradValue.apply
 
 # Read in training data, which consists of tokenized strings on the
 # source side and Penn-Treebank-style trees on the target side.
@@ -41,11 +43,25 @@ svocab = {s:i for (i,s) in enumerate(svocab)}
 
 ### Create the encoder.
 
+class TransformerEncoderLayer(torch.nn.TransformerEncoderLayer):
+    """Same as torch.nn.TransformerEncoderLayer, but with residual connections after layer normalization."""
+    def forward(self, src, src_mask=None, src_key_padding_mask=None):
+        src2, self.last_weights = self.self_attn(
+            src, src, src,
+            attn_mask=src_mask,
+            key_padding_mask=src_key_padding_mask)
+        src2 = self.norm1(src2)
+        src = src + self.dropout1(src2)
+        src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
+        src2 = self.norm2(src2)
+        src = src + self.dropout2(src2)
+        return src
+    
 class Encoder(torch.nn.Module):
     def __init__(self, vocab, out_size):
         super().__init__()
         self.vocab = vocab
-        dim = 512
+        dim = 256
         max_pos = 200
         self.word_embedding = torch.nn.Parameter(torch.empty((len(vocab), dim)))
         torch.nn.init.normal_(self.word_embedding)
@@ -54,7 +70,7 @@ class Encoder(torch.nn.Module):
             torch.cos(torch.arange(max_pos).unsqueeze(1) / 10000**(2*torch.arange(dim//2)/dim)),
         ], dim=1)
         self.transformer = torch.nn.TransformerEncoder(
-            torch.nn.TransformerEncoderLayer(d_model=dim, nhead=4),
+            TransformerEncoderLayer(d_model=dim, nhead=4),
             num_layers=4
         )
         self.out = torch.nn.Linear(dim, out_size)
@@ -63,7 +79,7 @@ class Encoder(torch.nn.Module):
         words = ['<BOS>'] + words
         words = [self.vocab[w] for w in words]
         words = self.word_embedding[words] + self.pos_encoding[:len(words),:]
-        return self.out(self.transformer(words.unsqueeze(0))[0,0])
+        return self.out(self.transformer(words.unsqueeze(1))[0,0,:])
 
 # Extract CFG rules from trees. We don't need to do any binarization
 # or removal of unary rules. The fggs.factorize() routine does the
@@ -83,6 +99,22 @@ for _, tree in traindata:
             node.label = Nonterminal(node.label)
             cfg[node.label][tuple(child.label for child in node.children)] += 1
 
+# For reference, train a PCFG and show loss.
+
+pcfg = collections.defaultdict(dict)
+for lhs in cfg:
+    z = sum(cfg[lhs].values())
+    for rhs in cfg[lhs]:
+        pcfg[lhs][rhs] = cfg[lhs][rhs] / z
+logp = 0.        
+for _, tree in traindata:
+    for node in tree.bottomup():
+        if len(node.children) > 0:
+            lhs = node.label
+            rhs = tuple(child.label for child in node.children)
+            logp += math.log(pcfg[lhs][rhs])
+print(f'optimal_loss={-logp}')
+
 ### Construct the FGG.
 
 # The construction in the FGG paper (Appendix A) is not practical for
@@ -99,37 +131,61 @@ for _, tree in traindata:
 # where NP and VP are 0-ary nonterminal edges and □ is a 0-ary
 # factor for the weight of the CFG rule.
 
-fgg = fggs.FGG('TOP')
+fgg = fggs.FGG(fggs.EdgeLabel('TOP', [fggs.NodeLabel('batch')], is_nonterminal=True))
 
 rules = {}
 for lhs in cfg:
     for rhs in cfg[lhs]:
         hrhs = fggs.Graph()
 
+        b = hrhs.new_node('batch')
+
         # One nonterminal edge for each nonterminal on the rhs of
         # the CFG rule
         for x in rhs:
             if isinstance(x, Nonterminal):
-                hrhs.new_edge(x, [], is_nonterminal=True)
+                hrhs.new_edge(x, [b], is_nonterminal=True)
 
         # One terminal edge for the weight of the CFG rule
         el = f'{repr(lhs)} -> {" ".join(map(repr, rhs))}'
         rules[lhs, rhs] = el # save for later use
-        hrhs.new_edge(el, [], is_terminal=True)
+        hrhs.new_edge(el, [b], is_terminal=True)
 
-        hrhs.ext = []
+        hrhs.ext = [b]
         fgg.new_rule(lhs, hrhs)
 
+fgg.new_finite_domain('batch', range(args.minibatch_size))
 for el in rules.values():
-    fgg.new_finite_factor(el, torch.tensor(0.))
+    fgg.new_finite_factor(el, torch.zeros(args.minibatch_size))
 
 ### Factorize the FGG into smaller rules.
 
 fgg = fggs.factorize_fgg(fgg)
+encoder = Encoder(svocab, len(fgg.factors))
 
+# It's helpful (though not essential) to initialize parameters so that
+# Z is finite. To do this, we do a quick pre-training step using SGD
+# with a fairly large setting for gradient clipping.
+
+opt = torch.optim.SGD(encoder.parameters(), lr=1e-2)
+for epoch in range(100):
+    weights = [clip_grad_value(encoder.out.bias, 100.)]
+    while len(weights) < args.minibatch_size:
+        weights.append(torch.zeros(weights[0].size()))
+    weights = torch.stack(weights, dim=0)
+    for fi, fac in enumerate(fgg.factors.values()):
+        fac.weights = weights[:,fi]
+    z = fggs.sum_product(fgg, method='newton', tol=1e-3, kmax=10, semiring=fggs.LogSemiring(device=args.device))[:1]
+    print(f'Z={z.item()}')
+    if not torch.isinf(z):
+        break
+    opt.zero_grad()
+    z.backward()
+    opt.step()
+        
 ### Train the model.
 
-def minibatches(iterable, size=100):
+def minibatches(iterable, size):
     b = []
     for i, x in enumerate(iterable):
         if i % size == 0 and len(b) > 0:
@@ -139,48 +195,36 @@ def minibatches(iterable, size=100):
     if len(b) > 0:
         yield b
 
-encoder = Encoder(svocab, len(fgg.factors))
-opt = torch.optim.Adam(encoder.parameters(), lr=3e-4)
+opt = torch.optim.Adam(encoder.parameters(), lr=1e-3)
 for epoch in range(100):
     random.shuffle(traindata)
     train_loss = 0.
     with tqdm.tqdm(total=len(traindata)) as progress:
-        for minibatch in minibatches(traindata, 1):
+        for minibatch in minibatches(traindata, args.minibatch_size):
             loss = 0.
+            weights = []
             for swords, ttree in minibatch:
-                # The probability of a tree is the weight of a tree
-                # divided by the total weight of all trees.
-
-                weights = encoder(swords)
-                for fi, fac in enumerate(fgg.factors.values()):
-                    fac.weights = ClipGradient.apply(weights[fi], 10.)
-
+                weights.append(clip_grad_value(encoder(swords), 1.))
+            while len(weights) < args.minibatch_size:
+                weights.append(torch.zeros(weights[0].size()))
+            weights = torch.stack(weights, dim=0)
+            for fi, fac in enumerate(fgg.factors.values()):
+                fac.weights = weights[:,fi]
+                                  
+            for si, (swords, ttree) in enumerate(minibatch):
                 # Compute the weight of the tree.
-            
                 for node in ttree.bottomup():
                     if len(node.children) > 0:
                         lhs = node.label
                         rhs = tuple(child.label for child in node.children)
-                        loss -= fgg.factors[rules[lhs, rhs]].weights
+                        loss -= fgg.factors[rules[lhs, rhs]].weights[si]
 
-                # Compute the total weight of all trees.
-                loss += fggs.sum_product(fgg, method='newton', semiring=fggs.LogSemiring(device=args.device))
-
+            # Compute the total weight of all trees.
+            loss += fggs.sum_product(fgg, method='newton', tol=1e-3, kmax=10, semiring=fggs.LogSemiring(device=args.device))[:len(minibatch)].sum()
             train_loss += loss.item()
 
             opt.zero_grad()
             loss.backward()
-
-            # problem: grads are nan
-
-            # If Z becomes infinite, some of the gradients can also
-            # become infinite. So gradient clipping is crucial. The
-            # clipping value should be high enough to quickly exit the
-            # region where Z is infinite. The reciprocal of the
-            # learning rate seems to be a reasonable choice.
-            torch.nn.utils.clip_grad_value_(encoder.parameters(), 10.)
-            
             opt.step()
-
             progress.update(len(minibatch))
     print(f'epoch={epoch+1} train_loss={train_loss}')
