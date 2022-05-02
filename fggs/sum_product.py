@@ -62,7 +62,6 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
     semiring = x0.semiring
     x1 = MultiTensor(x0.shapes, x0.semiring)
     for k in range(kmax):
-        print(k)
         F0 = F(x0)
         if F0.allclose(x0, tol): break
         JF = J(x0)
