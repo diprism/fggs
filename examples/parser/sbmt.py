@@ -21,9 +21,12 @@ class ClipGradValue(torch.autograd.Function):
         return inp
 
     @staticmethod
-    def backward(ctx, grad_out):
-        grad_in = torch.clip(grad_out, -ctx.val, ctx.val)
-        return (grad_in, None)
+    def backward(ctx, grad):
+        if torch.any(grad.isinf()):
+            grad = grad.nan_to_num()
+            grad /= grad.abs().max()
+            grad *= ctx.val
+        return (grad, None)
 clip_grad_value = ClipGradValue.apply
 
 # Read in training data, which consists of tokenized strings on the
@@ -39,6 +42,7 @@ for line in open(args.trainfile):
     if len(swords) == 0 or ttree is None: continue
     traindata.append((swords, ttree))
 svocab.add('<BOS>')
+svocab.add('<PAD>')
 svocab = {s:i for (i,s) in enumerate(svocab)}
 
 ### Create the encoder.
@@ -74,12 +78,22 @@ class Encoder(torch.nn.Module):
             num_layers=4
         )
         self.out = torch.nn.Linear(dim, out_size)
+        torch.nn.init.normal_(self.out.weight, 0., 0.001)
+        torch.nn.init.constant_(self.out.bias, 0.)
+        self.limit = torch.nn.Parameter(torch.empty(out_size))
+        torch.nn.init.constant_(self.limit, 0.)
 
-    def forward(self, words):
-        words = ['<BOS>'] + words
-        words = [self.vocab[w] for w in words]
-        words = self.word_embedding[words] + self.pos_encoding[:len(words),:]
-        return self.out(self.transformer(words.unsqueeze(1))[0,0,:])
+    def forward(self, sents):
+        max_len = max(len(sent) for sent in sents)
+        nums = []
+        for sent in sents:
+            sent = ['<BOS>'] + sent + (max_len-len(sent)) * ['<PAD>']
+            nums.append([self.vocab[w] for w in sent])
+        nums = torch.tensor(nums)
+        vecs = self.word_embedding[nums] + self.pos_encoding[:max_len+1,:]
+        result = self.out(self.transformer(vecs.transpose(0,1))[0,:,:])
+        result = torch.minimum(result, self.limit)
+        return result
 
 # Extract CFG rules from trees. We don't need to do any binarization
 # or removal of unary rules. The fggs.factorize() routine does the
@@ -114,6 +128,7 @@ for _, tree in traindata:
             rhs = tuple(child.label for child in node.children)
             logp += math.log(pcfg[lhs][rhs])
 print(f'optimal_loss={-logp}')
+
 
 ### Construct the FGG.
 
@@ -169,7 +184,8 @@ encoder = Encoder(svocab, len(fgg.factors))
 
 opt = torch.optim.SGD(encoder.parameters(), lr=1e-2)
 for epoch in range(100):
-    weights = [clip_grad_value(encoder.out.bias, 100.)]
+    #weights = [clip_grad_value(encoder.out.bias, 100.)]
+    weights = [clip_grad_value(encoder.limit, 100.)]
     while len(weights) < args.minibatch_size:
         weights.append(torch.zeros(weights[0].size()))
     weights = torch.stack(weights, dim=0)
@@ -177,8 +193,7 @@ for epoch in range(100):
         fac.weights = weights[:,fi]
     z = fggs.sum_product(fgg, method='newton', tol=1e-3, kmax=10, semiring=fggs.LogSemiring(device=args.device))[:1]
     print(f'Z={z.item()}')
-    if not torch.isinf(z):
-        break
+    if z < math.inf: break
     opt.zero_grad()
     z.backward()
     opt.step()
@@ -195,22 +210,20 @@ def minibatches(iterable, size):
     if len(b) > 0:
         yield b
 
-opt = torch.optim.Adam(encoder.parameters(), lr=1e-3)
-for epoch in range(100):
+opt = torch.optim.Adam(encoder.parameters(), lr=0.05)
+for epoch in range(1000):
     random.shuffle(traindata)
     train_loss = 0.
     with tqdm.tqdm(total=len(traindata)) as progress:
         for minibatch in minibatches(traindata, args.minibatch_size):
             loss = 0.
-            weights = []
-            for swords, ttree in minibatch:
-                weights.append(clip_grad_value(encoder(swords), 1.))
-            while len(weights) < args.minibatch_size:
-                weights.append(torch.zeros(weights[0].size()))
-            weights = torch.stack(weights, dim=0)
+            w = encoder([swords for swords, _ in minibatch])
+            # Gradient clipping should happen right before the FGG
+            weights = clip_grad_value(w, 10.) # bug: clips whole minibatch
+            weights = torch.nn.functional.pad(weights, (0,0,0,args.minibatch_size-len(minibatch)))
             for fi, fac in enumerate(fgg.factors.values()):
                 fac.weights = weights[:,fi]
-                                  
+
             for si, (swords, ttree) in enumerate(minibatch):
                 # Compute the weight of the tree.
                 for node in ttree.bottomup():
@@ -218,9 +231,10 @@ for epoch in range(100):
                         lhs = node.label
                         rhs = tuple(child.label for child in node.children)
                         loss -= fgg.factors[rules[lhs, rhs]].weights[si]
-
+                        
             # Compute the total weight of all trees.
             loss += fggs.sum_product(fgg, method='newton', tol=1e-3, kmax=10, semiring=fggs.LogSemiring(device=args.device))[:len(minibatch)].sum()
+            
             train_loss += loss.item()
 
             opt.zero_grad()
