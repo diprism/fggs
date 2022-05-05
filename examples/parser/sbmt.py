@@ -32,6 +32,21 @@ clip_grad_value = ClipGradValue.apply
 # Read in training data, which consists of tokenized strings on the
 # source side and Penn-Treebank-style trees on the target side.
 
+def annotate(tree):
+    def visit(node):
+        if node.label == 'NP':
+            l = 1
+        else:
+            l = 0
+        for child in node.children:
+            visit(child)
+            l += child.length
+        node.length = l
+        if node.label != 'TOP':
+            node.label += f'-{l}'
+        return node
+    return visit(tree.root)
+            
 traindata = []
 svocab = set()
 for line in open(args.trainfile):
@@ -40,6 +55,7 @@ for line in open(args.trainfile):
     svocab.update(swords)
     ttree = trees.Tree.from_str(tline)
     if len(swords) == 0 or ttree is None: continue
+    ttree = annotate(ttree)
     traindata.append((swords, ttree))
 svocab.add('<BOS>')
 svocab.add('<PAD>')
@@ -79,9 +95,7 @@ class Encoder(torch.nn.Module):
         )
         self.out = torch.nn.Linear(dim, out_size)
         torch.nn.init.normal_(self.out.weight, 0., 0.001)
-        torch.nn.init.constant_(self.out.bias, 0.)
-        self.limit = torch.nn.Parameter(torch.empty(out_size))
-        torch.nn.init.constant_(self.limit, 0.)
+        torch.nn.init.normal_(self.out.bias, 0., 0.001)
 
     def forward(self, sents):
         max_len = max(len(sent) for sent in sents)
@@ -92,7 +106,6 @@ class Encoder(torch.nn.Module):
         nums = torch.tensor(nums)
         vecs = self.word_embedding[nums] + self.pos_encoding[:max_len+1,:]
         result = self.out(self.transformer(vecs.transpose(0,1))[0,:,:])
-        result = torch.minimum(result, self.limit)
         return result
 
 # Extract CFG rules from trees. We don't need to do any binarization
@@ -184,8 +197,7 @@ encoder = Encoder(svocab, len(fgg.factors))
 
 opt = torch.optim.SGD(encoder.parameters(), lr=1e-2)
 for epoch in range(100):
-    #weights = [clip_grad_value(encoder.out.bias, 100.)]
-    weights = [clip_grad_value(encoder.limit, 100.)]
+    weights = [clip_grad_value(encoder.out.bias, 100.)]
     while len(weights) < args.minibatch_size:
         weights.append(torch.zeros(weights[0].size()))
     weights = torch.stack(weights, dim=0)
@@ -210,7 +222,7 @@ def minibatches(iterable, size):
     if len(b) > 0:
         yield b
 
-opt = torch.optim.Adam(encoder.parameters(), lr=0.05)
+opt = torch.optim.Adam(encoder.parameters(), lr=3e-4)
 for epoch in range(1000):
     random.shuffle(traindata)
     train_loss = 0.

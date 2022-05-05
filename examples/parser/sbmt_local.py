@@ -14,6 +14,21 @@ args = ap.parse_args()
 # Read in training data, which consists of tokenized strings on the
 # source side and Penn-Treebank-style trees on the target side.
 
+def annotate(tree):
+    def visit(node):
+        if node.label == 'NP':
+            l = 1
+        else:
+            l = 0
+        for child in node.children:
+            visit(child)
+            l += child.length
+        node.length = l
+        if node.label != 'TOP':
+            node.label += f'-{l}'
+        return node
+    return visit(tree.root)
+            
 traindata = []
 svocab = set()
 for line in open(args.trainfile):
@@ -22,8 +37,10 @@ for line in open(args.trainfile):
     svocab.update(swords)
     ttree = trees.Tree.from_str(tline)
     if len(swords) == 0 or ttree is None: continue
+    ttree = annotate(ttree)
     traindata.append((swords, ttree))
 svocab.add('<BOS>')
+svocab.add('<PAD>')
 svocab = {s:i for (i,s) in enumerate(svocab)}
 
 ### Create the encoder.
@@ -47,7 +64,7 @@ class Encoder(torch.nn.Module):
         super().__init__()
         self.vocab = vocab
         self.cfg = cfg
-        dim = 156
+        dim = 256
         max_pos = 200
         self.word_embedding = torch.nn.Parameter(torch.empty((len(vocab), dim)))
         torch.nn.init.normal_(self.word_embedding)
@@ -56,10 +73,12 @@ class Encoder(torch.nn.Module):
             torch.cos(torch.arange(max_pos).unsqueeze(1) / 10000**(2*torch.arange(dim//2)/dim)),
         ], dim=1)
         self.transformer = torch.nn.TransformerEncoder(
-            TransformerEncoderLayer(d_model=dim, nhead=4, dropout=0.),
+            TransformerEncoderLayer(d_model=dim, nhead=4),
             num_layers=4
         )
         self.out = torch.nn.Linear(dim, sum(len(cfg[lhs]) for lhs in cfg))
+        torch.nn.init.normal_(self.out.weight, 0., 0.001)
+        torch.nn.init.normal_(self.out.bias, 0., 0.001)
 
     def forward(self, words):
         words = ['<BOS>'] + words
@@ -104,8 +123,8 @@ def minibatches(iterable, size):
         yield b
 
 encoder = Encoder(svocab, cfg)        
-opt = torch.optim.Adam(encoder.parameters(), lr=0.001)
-for epoch in range(1000):
+opt = torch.optim.Adam(encoder.parameters(), lr=3e-4)
+for epoch in range(100):
     random.shuffle(traindata)
     train_loss = 0.
     with tqdm.tqdm(total=len(traindata)) as progress:
