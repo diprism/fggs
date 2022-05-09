@@ -34,7 +34,7 @@ clip_grad_value = ClipGradValue.apply
 
 def annotate(tree):
     def visit(node):
-        if node.label == 'NP':
+        if len(node.children) == 0:
             l = 1
         else:
             l = 0
@@ -55,7 +55,7 @@ for line in open(args.trainfile):
     svocab.update(swords)
     ttree = trees.Tree.from_str(tline)
     if len(swords) == 0 or ttree is None: continue
-    ttree = annotate(ttree)
+    #ttree = annotate(ttree)
     traindata.append((swords, ttree))
 svocab.add('<BOS>')
 svocab.add('<PAD>')
@@ -190,6 +190,7 @@ for el in rules.values():
 
 fgg = fggs.factorize_fgg(fgg)
 encoder = Encoder(svocab, len(fgg.factors))
+upper = torch.nn.Parameter(torch.full(size=(len(fgg.factors),), fill_value=0.))
 
 # It's helpful (though not essential) to initialize parameters so that
 # Z is finite. To do this, we do a quick pre-training step using SGD
@@ -222,16 +223,18 @@ def minibatches(iterable, size):
     if len(b) > 0:
         yield b
 
-opt = torch.optim.Adam(encoder.parameters(), lr=3e-4)
+opt = torch.optim.Adam([{'params': encoder.parameters(), 'lr': 1e-3},
+                       {'params': [upper], 'lr': 0.05}])
 for epoch in range(1000):
     random.shuffle(traindata)
     train_loss = 0.
     with tqdm.tqdm(total=len(traindata)) as progress:
         for minibatch in minibatches(traindata, args.minibatch_size):
             loss = 0.
-            w = encoder([swords for swords, _ in minibatch])
+            weights = encoder([swords for swords, _ in minibatch])
+            weights = (-torch.nn.functional.softplus(-weights)) + upper
             # Gradient clipping should happen right before the FGG
-            weights = clip_grad_value(w, 10.) # bug: clips whole minibatch
+            weights = clip_grad_value(weights, 10.) # bug: clips whole minibatch
             weights = torch.nn.functional.pad(weights, (0,0,0,args.minibatch_size-len(minibatch)))
             for fi, fac in enumerate(fgg.factors.values()):
                 fac.weights = weights[:,fi]
@@ -248,6 +251,15 @@ for epoch in range(1000):
             loss += fggs.sum_product(fgg, method='newton', tol=1e-3, kmax=10, semiring=fggs.LogSemiring(device=args.device))[:len(minibatch)].sum()
             
             train_loss += loss.item()
+
+            def print_grad(grad):
+                for fi, (el, fac) in enumerate(fgg.factors.items()):
+                    print(el,
+                          'weight', weights[0,fi].item(),
+                          'grad', grad[0,fi].item(),
+                          'upper', upper[fi].item(),
+                          )
+            #weights.register_hook(print_grad)
 
             opt.zero_grad()
             loss.backward()

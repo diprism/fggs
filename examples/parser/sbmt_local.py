@@ -16,7 +16,7 @@ args = ap.parse_args()
 
 def annotate(tree):
     def visit(node):
-        if node.label == 'NP':
+        if len(node.children) == 0:
             l = 1
         else:
             l = 0
