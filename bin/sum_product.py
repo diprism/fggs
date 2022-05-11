@@ -37,9 +37,13 @@ if __name__ == '__main__':
 
     fgg = fggs.json_to_fgg(json.load(open(args.fgg)))
 
+    extern_weights = {}
     for name, weights in args.weights:
         el = fgg.get_edge_label(name)
         weights = string_to_tensor(weights, f"<weights> for {name}", fgg.shape(el))
+        if args.grad or args.expect:
+            weights.requires_grad_()
+        extern_weights[name] = weights
         if name not in fgg.factors:
             fgg.new_finite_factor(name, weights)
         else:
@@ -70,9 +74,7 @@ if __name__ == '__main__':
             error('the -g and -e options require the -w option')
         f = (z * out_weights).sum()
         f.backward()
-        for name, _ in args.weights:
-            el = fgg.get_edge_label(name)
-            weights = fgg.factors[el.name].weights
+        for name, weights in extern_weights.items():
             grad = weights.grad
             
             if args.grad:
