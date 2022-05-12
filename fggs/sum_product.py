@@ -360,7 +360,7 @@ def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
         all.update(zip(comp_labels, comp_values))
     return all
         
-def sum_product(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
+def sum_product(fgg: FGG, **opts) -> Tensor:
     """Compute the sum-product of an FGG.
     
     - fgg: The FGG to compute the sum-product of.
