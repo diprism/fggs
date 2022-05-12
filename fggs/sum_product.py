@@ -1,4 +1,4 @@
-__all__ = ['sum_product']
+__all__ = ['sum_product', 'sum_products']
 
 from fggs.fggs import FGG, HRG, HRGRule, EdgeLabel, Edge, Node
 from fggs.domains import FiniteDomain
@@ -324,15 +324,7 @@ class SumProduct(torch.autograd.Function):
         return (None, None, None, None) + grad_in
 
 
-def sum_product(fgg: FGG, **opts) -> Tensor:
-    """Compute the sum-product of an FGG.
-    
-    - fgg: The FGG to compute the sum-product of.
-    - method: What method to use ('linear', 'fixed-point', 'newton').
-    - tol: Iterative algorithms terminate when the L∞ distance between consecutive iterates is below tol.
-    - kmax: Number of iterations after which iterative algorithms give up.
-    """
-    
+def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
     opts.setdefault('method',   'fixed-point')
     opts.setdefault('semiring', RealSemiring())
     opts.setdefault('tol',      1e-5) # with float32, 1e-6 can fail
@@ -366,4 +358,15 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
         comp_labels = list(comp)
         comp_values = SumProduct.apply(fgg, comp_opts, inputs.keys(), comp_labels, *inputs.values())
         all.update(zip(comp_labels, comp_values))
+    return all
+        
+def sum_product(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
+    """Compute the sum-product of an FGG.
+    
+    - fgg: The FGG to compute the sum-product of.
+    - method: What method to use ('linear', 'fixed-point', 'newton').
+    - tol: Iterative algorithms terminate when the L∞ distance between consecutive iterates is below tol.
+    - kmax: Number of iterations after which iterative algorithms give up.
+    """
+    all = sum_products(fgg, **opts)
     return all[fgg.start_symbol]
