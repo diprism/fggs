@@ -31,14 +31,19 @@ if __name__ == '__main__':
     ap.add_argument('-o', metavar='<out_weights>', dest='out_weights', help='for -g and -e options, weight the elements of sum-product by <weights> (default: all 1)')
     ap.add_argument('-g', dest='grad', action='store_true', help='compute gradient with respect to factors from -w option')
     ap.add_argument('-e', dest='expect', action='store_true', help='compute expected counts of factors from -w option')
+    ap.add_argument('-t', dest='trace', action='store_true', help='print out all intermediate sum-products')
 
     args = ap.parse_args()
 
     fgg = fggs.json_to_fgg(json.load(open(args.fgg)))
 
+    extern_weights = {}
     for name, weights in args.weights:
         el = fgg.get_edge_label(name)
         weights = string_to_tensor(weights, f"<weights> for {name}", fgg.shape(el))
+        if args.grad or args.expect:
+            weights.requires_grad_()
+        extern_weights[name] = weights
         if name not in fgg.factors:
             fgg.new_finite_factor(name, weights)
         else:
@@ -55,17 +60,21 @@ if __name__ == '__main__':
         fac = fgg.factors[el.name]
         fac.weights = torch.as_tensor(fac.weights, dtype=float)
 
-    z = fggs.sum_product(fgg, method=args.method)
-    print(json.dumps(fggs.formats.weights_to_json(z)))
+    zs = fggs.sum_products(fgg, method=args.method)
+
+    if args.trace:
+        for el, zel in zs.items():
+            print(el.name, json.dumps(fggs.formats.weights_to_json(zel)))
+    else:
+        z = zs[fgg.start_symbol]
+        print(json.dumps(fggs.formats.weights_to_json(z)))
 
     if args.grad or args.expect:
         if not args.weights:
             error('the -g and -e options require the -w option')
         f = (z * out_weights).sum()
         f.backward()
-        for name, _ in args.weights:
-            el = fgg.get_edge_label(name)
-            weights = fgg.factors[el.name].weights
+        for name, weights in extern_weights.items():
             grad = weights.grad
             
             if args.grad:
