@@ -28,6 +28,7 @@ if __name__ == '__main__':
     ap.add_argument('fgg', metavar='<fgg>', help='the FGG, in JSON format')
     ap.add_argument('-m', metavar='<method>', dest='method', default='newton', choices=['fixed-point', 'linear', 'newton'], help='use <method> (fixed-point, linear, or newton)')
     ap.add_argument('-w', metavar=('<factor>', '<weights>'), dest='weights', action='append', default=[], nargs=2, help="set <factor>'s weights to <weights>")
+    ap.add_argument('-n', metavar=('<factor>', '<dim>'), dest='normalize', action='append', default=[], nargs=2, help="normalize <factor> along <dim>")
     ap.add_argument('-o', metavar='<out_weights>', dest='out_weights', help='for -g and -e options, weight the elements of sum-product by <weights> (default: all 1)')
     ap.add_argument('-g', dest='grad', action='store_true', help='compute gradient with respect to factors from -w option')
     ap.add_argument('-e', dest='expect', action='store_true', help='compute expected counts of factors from -w option')
@@ -48,6 +49,13 @@ if __name__ == '__main__':
             fgg.new_finite_factor(name, weights)
         else:
             fgg.factors[name].weights = weights
+
+    for name, dim in args.normalize:
+        if name not in fgg.factors:
+            error(f'cannot normalize nonexistent factor {name}')
+        else:
+            fgg.factors[name].weights = torch.nn.functional.normalize(
+                fgg.factors[name].weights, p=1, dim=int(dim))
 
     if args.out_weights:
         out_weights = string_to_tensor(args.out_weights, f"<out_weights>", fgg.shape(fgg.start_symbol))
