@@ -103,9 +103,9 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
 
 def log_softmax(a: Tensor, dim: int) -> Tensor:
     # If a has infinite elements, log_softmax would return all nans.
-    # In this case, make all the infinite elements 1 and the finite elements 0.
+    # In this case, make all the nonzero elements 1 and the zero elements 0.
     return torch.where(torch.any(a == inf, dim, keepdim=True),
-                       (a == inf).to(dtype=a.dtype, device=a.device),
+                       torch.log(a > -inf),
                        torch.log_softmax(a, dim))
     
 def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,

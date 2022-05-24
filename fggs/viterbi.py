@@ -1,3 +1,5 @@
+__all__ = ['viterbi']
+
 from fggs.fggs import FGG, FactorGraph, HRGRule, Node, Edge, EdgeLabel
 from fggs.semirings import Semiring
 from fggs.utils import nonterminal_graph, scc
@@ -85,7 +87,7 @@ def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring)
 
 def viterbi(fgg: FGG, start_asst: Tuple[int,...], opts: Dict) -> FGGDerivation:
     if len(start_asst) != fgg.start_symbol.arity:
-        raise ValueError("Assignment does not have same type as FGG's start symbol")
+        raise ValueError(f"Start assignment ({start_asst}) does not have same type as FGG's start symbol ({fgg.start_symbol.type})")
     
     semiring = opts['semiring']
     kmax = opts.get('kmax', 1000)

@@ -8,3 +8,5 @@ from fggs.conjunction import *
 from fggs.formats import *
 from fggs.utils import *
 from fggs.semirings import *
+from fggs.viterbi import *
+
