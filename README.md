@@ -14,3 +14,8 @@ This code is written by David Chiang, Darcey Riley, and Kenneth Sible, at the Un
 ## Building
 
 To build the documentation, run `make docs` in the project root.
+
+## Using
+
+See `examples/parser/parser.py` for an example of using the package to
+train a simple FGG.
