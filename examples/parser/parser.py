@@ -276,4 +276,4 @@ for epoch in range(100):
             opt.step()
 
             progress.update(len(minibatch))
-    print(f'epoch={epoch+1} train_loss={train_loss}')
+    print(f'epoch={epoch+1} train_loss={train_loss}', flush=True)
