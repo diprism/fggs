@@ -69,12 +69,12 @@ if __name__ == '__main__':
         fac.weights = torch.as_tensor(fac.weights, dtype=float)
 
     zs = fggs.sum_products(fgg, method=args.method)
+    z = zs[fgg.start_symbol]
 
     if args.trace:
         for el, zel in zs.items():
             print(el.name, json.dumps(fggs.formats.weights_to_json(zel)))
     else:
-        z = zs[fgg.start_symbol]
         print(json.dumps(fggs.formats.weights_to_json(z)))
 
     if args.grad or args.expect:
