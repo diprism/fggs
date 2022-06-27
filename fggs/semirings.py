@@ -180,10 +180,10 @@ class LogSemiring(Semiring):
         def callback(compute_sum):
             u = torch_semiring_einsum.utils
             max_values = compute_sum(u.max_in_place, u.max_block, multiply_in_place)
-            u.clip_max_values(max_values)
-            resized_max_values = u.resize_max_values(
+            u.clip_inf_in_place(max_values)
+            resized_max_values = torch_semiring_einsum.log_forward.resize_max_values(
                 max_values,
-                len(equation.reduce_input_to_output.reduced_variables))
+                equation)
             def sumexpsub_block(a, dims):
                 a.sub_(resized_max_values)
                 a.exp_()
