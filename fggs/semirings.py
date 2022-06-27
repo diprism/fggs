@@ -6,7 +6,8 @@ from typing import Union
 
 class Semiring(ABC):
     """A complete, commutative star-semiring (https://en.wikipedia.org/wiki/Semiring)."""
-    def __init__(self, dtype=torch.get_default_dtype(), device='cpu'):
+    def __init__(self, dtype=None, device='cpu'):
+        if dtype is None: dtype = torch.get_default_dtype()
         self.dtype = dtype
         self.device = device
         
