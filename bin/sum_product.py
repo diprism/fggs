@@ -15,7 +15,7 @@ def string_to_tensor(s, name="tensor", shape=None):
         j = json.loads(s)
     except json.decoder.JSONDecodeError as e:
         error(f"couldn't understand {name}: {e}")
-    t = torch.tensor(j, dtype=float)
+    t = torch.tensor(j, dtype=torch.get_default_dtype())
     if shape is not None and t.shape != shape:
         error(f"{name} should have shape {shape}")
     return t
@@ -33,8 +33,10 @@ if __name__ == '__main__':
     ap.add_argument('-g', dest='grad', action='store_true', help='compute gradient with respect to factors from -w option')
     ap.add_argument('-e', dest='expect', action='store_true', help='compute expected counts of factors from -w option')
     ap.add_argument('-t', dest='trace', action='store_true', help='print out all intermediate sum-products')
+    ap.add_argument('-d', dest='double', action='store_true', help='use double-precision floating-point')
 
     args = ap.parse_args()
+    if args.double: torch.set_default_dtype(torch.float64)
 
     fgg = fggs.json_to_fgg(json.load(open(args.fgg)))
 
@@ -66,16 +68,16 @@ if __name__ == '__main__':
         if el.name not in fgg.factors:
             error(f'factor {el.name} needs weights (use -w option)')
         fac = fgg.factors[el.name]
-        fac.weights = torch.as_tensor(fac.weights, dtype=float)
+        fac.weights = torch.as_tensor(fac.weights, dtype=torch.get_default_dtype())
 
     zs = fggs.sum_products(fgg, method=args.method)
     z = zs[fgg.start_symbol]
 
     if args.trace:
         for el, zel in zs.items():
-            print(el.name, json.dumps(fggs.formats.weights_to_json(zel)))
+            print(el.name, tensor_to_string(zel))
     else:
-        print(json.dumps(fggs.formats.weights_to_json(z)))
+        print(tensor_to_string(z))
 
     if args.grad or args.expect:
         if not args.weights:
