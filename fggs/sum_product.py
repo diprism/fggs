@@ -369,4 +369,6 @@ def sum_product(fgg: FGG, **opts) -> Tensor:
     - kmax: Number of iterations after which iterative algorithms give up.
     """
     all = sum_products(fgg, **opts)
+    if fgg.start is None:
+        raise ValueError("FGG must have a start symbol")
     return all[fgg.start]

@@ -153,15 +153,15 @@ class LabelingMixin:
         """Adds a node label to the set of used node labels."""
         self._node_labels[label.name] = label
 
-    def has_node_label_name(self, name):
+    def has_node_label_name(self, name: str) -> bool:
         """Returns true if there is a used node label with the given name."""
         return name in self._node_labels.keys()
 
-    def get_node_label(self, name):
+    def get_node_label(self, name: str) -> NodeLabel:
         """Returns the unique used node label with the given name."""
         return self._node_labels[name]
 
-    def node_labels(self):
+    def node_labels(self) -> Iterable[NodeLabel]:
         """Returns a view of the node labels used."""
         return self._node_labels.values()
 
@@ -172,23 +172,23 @@ class LabelingMixin:
             raise Exception(f"There is already an edge label called {name}.")
         self._edge_labels[name] = label
         
-    def has_edge_label_name(self, name):
+    def has_edge_label_name(self, name: str) -> bool:
         """Returns true if there is an edge label with the given name."""
         return name in self._edge_labels.keys()
 
-    def get_edge_label(self, name):
+    def get_edge_label(self, name: str) -> EdgeLabel:
         """Returns the unique used edge label with the given name."""
         return self._edge_labels[name]
 
-    def edge_labels(self):
+    def edge_labels(self) -> Iterable[EdgeLabel]:
         """Returns a view of the edge labels used."""
         return self._edge_labels.values()
     
-    def nonterminals(self):
+    def nonterminals(self) -> Iterable[EdgeLabel]:
         """Returns a copy of the list of nonterminals used."""
         return [el for el in self._edge_labels.values() if el.is_nonterminal]
     
-    def terminals(self):
+    def terminals(self) -> Iterable[EdgeLabel]:
         """Returns a copy of the list of terminals used."""
         return [el for el in self._edge_labels.values() if el.is_terminal]
 
@@ -376,9 +376,9 @@ class HRG(LabelingMixin, object):
         self._edge_labels: Dict[str, EdgeLabel] = dict()
         self._rules: Dict[EdgeLabel, List[HRGRule]] = dict()
         if start is not None:
-            self.start = start
+            self.start = start # type: ignore
         else:
-            self.start = None
+            self.start = None # type: ignore
 
     @property
     def start(self) -> EdgeLabel:
@@ -388,9 +388,9 @@ class HRG(LabelingMixin, object):
     @start.setter
     def start(self, start: Union[EdgeLabel, str]):
         if isinstance(start, str):
-            try:
+            if self.has_edge_label_name(start):
                 start = self.get_edge_label(start)
-            except KeyError:
+            else:
                 start = EdgeLabel(start, [], is_nonterminal=True)
         if start.is_terminal:
             raise ValueError('Start symbol must be a nonterminal')
@@ -561,9 +561,12 @@ class FactorGraph(InterpretationMixin, Graph):
         return fg
         
 class FGG(InterpretationMixin, HRG):
-    """A factor graph grammar."""
+    """A factor graph grammar. If start is a str and there isn't already
+      an EdgeLabel by that name, it's assumed that its arity is
+      zero.
+    """
     
-    def __init__(self, start: Union[EdgeLabel, str]):
+    def __init__(self, start: Union[EdgeLabel, str, None]):
         super().__init__(start)
         self.domains: Dict[str, Domain] = {}
         self.factors: Dict[str, Factor] = {}
