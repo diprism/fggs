@@ -105,7 +105,7 @@ def conjoin_hrgs(hrg1, hrg2):
         if el1.is_terminal and el2.is_terminal:
             raise ValueError(f"Cannot conjoin hrg1 and hrg2 because they each have a different terminal EdgeLabel called {el1.name}")
     nt_map = nonterminal_pairs(hrg1, hrg2)
-    new_hrg = fggs.HRG(nt_map[hrg1.start_symbol, hrg2.start_symbol])
+    new_hrg = fggs.HRG(nt_map[hrg1.start, hrg2.start])
     # add rules
     for rule1 in hrg1.all_rules():
         for rule2 in hrg2.all_rules():

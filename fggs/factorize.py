@@ -421,7 +421,7 @@ def factorize_hrg(g, method='min_fill'):
     """Factorize a HRG's rules into smaller rules, hopefully with
     lower maximum treewidth.
     """
-    gnew = fggs.HRG(g.start_symbol)
+    gnew = fggs.HRG(g.start)
     labels = set(g.edge_labels())
     for r in g.all_rules():
         for rnew in factorize_rule(r, method=method, labels=labels):

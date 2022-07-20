@@ -36,7 +36,7 @@ def start_graph(g: HRG) -> Graph:
     """Construct a graph consisting of a single Edge labeled by the start
     nonterminal symbol."""
     ret = Graph()
-    s = g.start_symbol
+    s = g.start
     e = Edge(s, [Node(l) for l in s.type])
     ret.add_edge(e)
     return ret

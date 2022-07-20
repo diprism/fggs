@@ -112,7 +112,7 @@ def hrg_to_json(g):
             'type': [l.name for l in nt.type],
         }
         
-    j['start'] = g.start_symbol.name
+    j['start'] = g.start.name
     
     j['rules'] = []
     for gr in g.all_rules():

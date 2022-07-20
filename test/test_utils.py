@@ -43,7 +43,7 @@ class TestSingleton(unittest.TestCase):
         g = singleton_hrg(self.graph)
         self.assertCountEqual(g.node_labels(), [self.nl1])
         self.assertCountEqual(g.edge_labels(), [self.el1, self.start])
-        self.assertEqual(g.start_symbol, self.start)
+        self.assertEqual(g.start, self.start)
         self.assertEqual(len(g.all_rules()), 1)
     
     def test_unique_start_name(self):
@@ -52,7 +52,7 @@ class TestSingleton(unittest.TestCase):
         self.graph.add_edge(s1_edge)
         
         g = singleton_hrg(self.graph)
-        self.assertEqual(g.start_symbol.name, "<S>_1")
+        self.assertEqual(g.start.name, "<S>_1")
 
         
 class TestSCC(unittest.TestCase):

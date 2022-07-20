@@ -372,15 +372,15 @@ class HRG(LabelingMixin, object):
             # Assume that the derived graph has no external nodes
             start = EdgeLabel(start, [], is_nonterminal=True)
         start = cast(EdgeLabel, start)
-        self.start_symbol: EdgeLabel = start
+        self.start: EdgeLabel = start
 
     @property
-    def start_symbol(self) -> EdgeLabel:
+    def start(self) -> EdgeLabel:
         """The start nonterminal symbol."""
         return self._start
 
-    @start_symbol.setter
-    def start_symbol(self, start: EdgeLabel):
+    @start.setter
+    def start(self, start: EdgeLabel):
         if not start.is_nonterminal:
             raise ValueError('Start symbol must be a nonterminal')
         self.add_edge_label(start)
@@ -416,7 +416,7 @@ class HRG(LabelingMixin, object):
     
     def copy(self):
         """Returns a copy of this HRG, whose rules are all copies of the original's."""
-        copy = HRG(self.start_symbol)
+        copy = HRG(self.start)
         copy._node_labels = self._node_labels.copy()
         copy._edge_labels = self._edge_labels.copy()
         copy._rules = {}
@@ -431,7 +431,7 @@ class HRG(LabelingMixin, object):
         equal."""
         return (isinstance(other, HRG) and
                 self._rules == other._rules and
-                self.start_symbol == other.start_symbol and
+                self.start == other.start and
                 self._node_labels == other._node_labels and
                 self._edge_labels == other._edge_labels)
     def __ne__(self, other):
@@ -445,7 +445,7 @@ class HRG(LabelingMixin, object):
         string += "\n  Edge labels:"
         for label_name in self._edge_labels.keys():
             string += f"\n{self._edge_labels[label_name].to_string(2)}"
-        string += f"\n  Start symbol {self.start_symbol.name}"
+        string += f"\n  Start symbol {self.start.name}"
         string += f"\n  Productions:"
         for nonterminal in self._rules:
             for rule in self._rules[nonterminal]:
@@ -560,14 +560,14 @@ class FGG(InterpretationMixin, HRG):
     @staticmethod
     def from_hrg(hrg: HRG):
         """Create an FGG out of an HRG and no domains and factors."""
-        fgg = FGG(hrg.start_symbol)
+        fgg = FGG(hrg.start)
         for r in hrg.all_rules():
             fgg.add_rule(r)
         return fgg
 
     def copy(self):
         """Returns a copy of this FGG."""
-        fgg = FGG(self.start_symbol)
+        fgg = FGG(self.start)
         fgg._node_labels = self._node_labels.copy()
         fgg._edge_labels = self._edge_labels.copy()
         fgg._rules = {}
