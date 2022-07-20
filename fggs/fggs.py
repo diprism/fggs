@@ -362,17 +362,23 @@ class HRGRule:
 
 
 class HRG(LabelingMixin, object):
-    """A hyperedge replacement graph grammar."""
+    """A hyperedge replacement graph grammar.
     
-    def __init__(self, start: Union[EdgeLabel, str]):
+    Arguments:
+
+    - start (EdgeLabel or str): Start nonterminal symbol. If start is
+      a str and there isn't already an EdgeLabel by that name, it's
+      assumed that its arity is zero.
+    """
+    
+    def __init__(self, start: Union[EdgeLabel, str, None]):
         self._node_labels: Dict[str, NodeLabel] = dict()
         self._edge_labels: Dict[str, EdgeLabel] = dict()
         self._rules: Dict[EdgeLabel, List[HRGRule]] = dict()
-        if isinstance(start, str):
-            # Assume that the derived graph has no external nodes
-            start = EdgeLabel(start, [], is_nonterminal=True)
-        start = cast(EdgeLabel, start)
-        self.start: EdgeLabel = start
+        if start is not None:
+            self.start = start
+        else:
+            self.start = None
 
     @property
     def start(self) -> EdgeLabel:
@@ -380,8 +386,13 @@ class HRG(LabelingMixin, object):
         return self._start
 
     @start.setter
-    def start(self, start: EdgeLabel):
-        if not start.is_nonterminal:
+    def start(self, start: Union[EdgeLabel, str]):
+        if isinstance(start, str):
+            try:
+                start = self.get_edge_label(start)
+            except KeyError:
+                start = EdgeLabel(start, [], is_nonterminal=True)
+        if start.is_terminal:
             raise ValueError('Start symbol must be a nonterminal')
         self.add_edge_label(start)
         self._start = start
