@@ -386,8 +386,8 @@ class TestHRG(unittest.TestCase):
         self.hrg.add_edge_label(self.start)
         self.hrg.add_edge_label(self.el1)
 
-    def test_set_start_symbol(self):
-        self.assertEqual(self.hrg.start_symbol, self.start)
+    def test_set_start(self):
+        self.assertEqual(self.hrg.start, self.start)
 
     def test_add_rule(self):
         all_rules = self.hrg.all_rules()
@@ -427,7 +427,7 @@ class TestHRG(unittest.TestCase):
         self.assertEqual(hrg, copy)
 
     def test_convenience(self):
-        copy = HRG(self.hrg.start_symbol.name)
+        copy = HRG(self.hrg.start.name)
         for rule in self.hrg.all_rules():
             copy.new_rule(rule.lhs.name, rule.rhs)
         self.assertEqual(self.hrg, copy)

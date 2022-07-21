@@ -103,7 +103,7 @@ class TestStartGraph(unittest.TestCase):
         self.hrg = HRG(self.start)
 
     def test_start_graph(self):
-        s = self.hrg.start_symbol
+        s = self.hrg.start
         g = start_graph(self.hrg)
         self.assertEqual([e.label for e in g.edges()], [s])
         self.assertEqual(len(g.nodes()), len(s.type))

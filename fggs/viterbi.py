@@ -86,8 +86,8 @@ def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring)
     return (Fx, lhs_pointer, rhs_pointer)
 
 def viterbi(fgg: FGG, start_asst: Tuple[int,...], opts: Dict) -> FGGDerivation:
-    if len(start_asst) != fgg.start_symbol.arity:
-        raise ValueError(f"Start assignment ({start_asst}) does not have same type as FGG's start symbol ({fgg.start_symbol.type})")
+    if len(start_asst) != fgg.start.arity:
+        raise ValueError(f"Start assignment ({start_asst}) does not have same type as FGG's start symbol ({fgg.start.type})")
     
     semiring = opts['semiring']
     kmax = opts.get('kmax', 1000)
@@ -149,5 +149,5 @@ def viterbi(fgg: FGG, start_asst: Tuple[int,...], opts: Dict) -> FGGDerivation:
         
         return FGGDerivation(fgg, rule, rhs_asst, child_derivs)
 
-    return reconstruct(fgg.start_symbol, start_asst)
+    return reconstruct(fgg.start, start_asst)
 

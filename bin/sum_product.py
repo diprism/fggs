@@ -60,7 +60,7 @@ if __name__ == '__main__':
                 fgg.factors[name].weights, p=1, dim=int(dim))
 
     if args.out_weights:
-        out_weights = string_to_tensor(args.out_weights, f"<out_weights>", fgg.shape(fgg.start_symbol))
+        out_weights = string_to_tensor(args.out_weights, f"<out_weights>", fgg.shape(fgg.start))
     else:
         out_weights = 1.
 
@@ -71,7 +71,7 @@ if __name__ == '__main__':
         fac.weights = torch.as_tensor(fac.weights, dtype=torch.get_default_dtype())
 
     zs = fggs.sum_products(fgg, method=args.method)
-    z = zs[fgg.start_symbol]
+    z = zs[fgg.start]
 
     if args.trace:
         for el, zel in zs.items():
