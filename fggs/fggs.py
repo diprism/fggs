@@ -169,7 +169,7 @@ class LabelingMixin:
         """Adds an edge label to the set of used edge labels."""
         name = label.name
         if name in self._edge_labels.keys() and self._edge_labels[name] != label:
-            raise Exception(f"There is already an edge label called {name}.")
+            raise ValueError(f"There is already an edge label called {name}.")
         self._edge_labels[name] = label
         
     def has_edge_label_name(self, name: str) -> bool:
@@ -238,6 +238,7 @@ class Graph(LabelingMixin, object):
         """Adds a node to the hypergraph."""
         if node.id in self._nodes.keys():
             raise ValueError(f"Can't have two nodes with same ID {node.id} in same Graph.")
+        self.add_node_label(node.label)
         self._nodes[node.id] = node
 
     def has_node_id(self, nid: str):
@@ -265,11 +266,10 @@ class Graph(LabelingMixin, object):
         """Adds a hyperedge to the hypergraph. If the attachment nodes are not already in the hypergraph, they are added."""
         if edge.id in self._edges.keys():
             raise ValueError(f"Can't have two edges with same ID {edge.id} in same Graph.")
-        if edge.label.name in self._edge_labels.keys() and edge.label != self._edge_labels[edge.label.name]:
-            raise ValueError(f"Can't have two edge labels with same name {edge.label.name} in same Graph.")
         for node in edge.nodes:
             if node.id not in self._nodes.keys():
                 self.add_node(node)
+        self.add_edge_label(edge.label)
         self._edges[edge.id] = edge
         self._edge_labels[edge.label.name] = edge.label
 
@@ -472,8 +472,7 @@ class InterpretationMixin(LabelingMixin):
     
     def add_domain(self, nl: NodeLabel, dom: Domain):
         """Add mapping from NodeLabel nl to Domain dom."""
-        if not self.has_node_label_name(nl.name):
-            self.add_node_label(nl)
+        self.add_node_label(nl)
         if nl.name in self.domains:
             raise ValueError(f"NodeLabel {nl} is already mapped")
         self.domains[nl.name] = dom
@@ -482,8 +481,7 @@ class InterpretationMixin(LabelingMixin):
         """Add mapping from EdgeLabel el to Factor fac."""
         if el.is_nonterminal:
             raise ValueError(f"Nonterminals cannot be mapped to Factors")
-        if not self.has_edge_label_name(el.name):
-            self.add_edge_label(el)
+        self.add_edge_label(el)
         if el in self.factors:
             raise ValueError(f"EdgeLabel {el} is already mapped")
         if fac.arity != el.arity:
