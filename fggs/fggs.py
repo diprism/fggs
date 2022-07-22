@@ -342,11 +342,14 @@ class HRGRule:
     _lhs: Optional[EdgeLabel] #: The left-hand side nonterminal.
     rhs: Graph                #: The right-hand side hypergraph fragment.
 
-    def __init__(self, lhs: Optional[EdgeLabel], rhs: Graph):
-        if lhs is not None:
+    def __init__(self, lhs: Optional[EdgeLabel] = None, rhs: Optional[Graph] = None):
+        if lhs is not None and rhs is not None:
             HRGRule._check_lhs_ext(lhs, rhs.ext)
         self._lhs = lhs
-        self.rhs = rhs
+        if rhs is None:
+            self.rhs = Graph()
+        else:
+            self.rhs = rhs
 
     @property
     def lhs(self) -> EdgeLabel:

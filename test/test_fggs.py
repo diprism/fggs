@@ -307,6 +307,10 @@ class TestHRGRule(unittest.TestCase):
         lhs = r.lhs = EdgeLabel("good", (nl1, nl1), is_nonterminal=True)
         self.assertEqual(r.lhs, lhs)
 
+    def test_optional_rhs(self):
+        r = HRGRule()
+        self.assertEqual(r.rhs, Graph())
+
     def test_set_lhs_and_ext(self):
         rule = self.rule.copy()
         good_ext = tuple(rule.rhs.nodes())
