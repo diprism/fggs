@@ -282,7 +282,7 @@ class TestHRGRule(unittest.TestCase):
         nonterminal_mismatch = EdgeLabel("nonterminal1", (nl,), is_nonterminal=True)
         nonterminal_match = EdgeLabel("nonterminal2", (nl, nl), is_nonterminal=True)
         
-        graph = Graph()
+        self.rhs = graph = Graph()
         graph.add_node(node1)
         graph.add_node(node2)
         graph.ext = [node1, node2]
@@ -299,21 +299,35 @@ class TestHRGRule(unittest.TestCase):
         self.assertNotEqual(id(rule), id(copy))
         self.assertEqual(rule, copy)
 
+    def test_optional_lhs(self):
+        nl1 = NodeLabel("nl1")
+        r = HRGRule(None, self.rhs)
+        with self.assertRaises(ValueError):
+            r.lhs
+        lhs = r.lhs = EdgeLabel("good", (nl1, nl1), is_nonterminal=True)
+        self.assertEqual(r.lhs, lhs)
+
     def test_set_lhs_and_ext(self):
         rule = self.rule.copy()
-        good_ext = list(rule.rhs.nodes())
+        good_ext = tuple(rule.rhs.nodes())
         bad_ext = good_ext[:1]
         nl1 = NodeLabel("nl1")
         good_lhs = EdgeLabel("good", (nl1, nl1), is_nonterminal=True)
         bad_lhs = EdgeLabel("good", (nl1,), is_nonterminal=True)
         rule.lhs = good_lhs
+        self.assertEqual(rule.lhs, good_lhs)
         with self.assertRaises(ValueError):
             rule.lhs = bad_lhs
         rule.set_lhs_ext(good_lhs, good_ext)
+        self.assertEqual(rule.lhs, good_lhs)
+        self.assertEqual(rule.rhs.ext, good_ext)
         with self.assertRaises(ValueError):
             rule.set_lhs_ext(bad_lhs, good_ext)
         with self.assertRaises(ValueError):
             rule.set_lhs_ext(good_lhs, bad_ext)
+        rule.set_lhs_ext(bad_lhs, bad_ext)
+        self.assertEqual(rule.lhs, bad_lhs)
+        self.assertEqual(rule.rhs.ext, bad_ext)
 
 class TestHRG(unittest.TestCase):
 

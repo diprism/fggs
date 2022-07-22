@@ -339,17 +339,21 @@ class HRGRule:
     - rhs: The right-hand side hypergraph fragment.
     """
 
-    _lhs: EdgeLabel #: The left-hand side nonterminal.
-    rhs: Graph      #: The right-hand side hypergraph fragment.
+    _lhs: Optional[EdgeLabel] #: The left-hand side nonterminal.
+    rhs: Graph                #: The right-hand side hypergraph fragment.
 
-    def __init__(self, lhs: EdgeLabel, rhs: Graph):
-        HRGRule._check_lhs_ext(lhs, rhs.ext)
+    def __init__(self, lhs: Optional[EdgeLabel], rhs: Graph):
+        if lhs is not None:
+            HRGRule._check_lhs_ext(lhs, rhs.ext)
         self._lhs = lhs
         self.rhs = rhs
 
     @property
     def lhs(self) -> EdgeLabel:
-        return self._lhs
+        if self._lhs is None:
+            raise ValueError("HRGRule does not have a left-hand side yet)")
+        else:
+            return self._lhs
 
     @lhs.setter
     def lhs(self, el: EdgeLabel):
@@ -358,7 +362,7 @@ class HRGRule:
 
     def copy(self):
         """Returns a copy of this HRGRule, whose right-hand side is a copy of the original's."""
-        return HRGRule(self.lhs, self.rhs.copy())
+        return HRGRule(self._lhs, self.rhs.copy())
 
     def __str__(self):
         return self.to_string(0)
@@ -377,9 +381,13 @@ class HRGRule:
             raise ValueError(f"HRGRule left-hand side type ({','.join(l.name for l in lhs.type)}) must match external node labels ({','.join(l.name for l in ext_type)}).")
 
     def set_lhs_ext(self, lhs: EdgeLabel, ext: Iterable[Node]):
+        """Set an HRGRule's left-hand side (LHS) and external nodes
+        simultaneously. This is useful in situations where setting the
+        LHS and external nodes one at a time would violate the
+        constraint that they must have the same node labels."""
         ext = tuple(ext)
         HRGRule._check_lhs_ext(lhs, ext)
-        self.lhs = lhs
+        self._lhs = lhs
         self.rhs.ext = ext
 
 class HRG(LabelingMixin, object):
