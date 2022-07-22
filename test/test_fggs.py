@@ -299,6 +299,22 @@ class TestHRGRule(unittest.TestCase):
         self.assertNotEqual(id(rule), id(copy))
         self.assertEqual(rule, copy)
 
+    def test_set_lhs_and_ext(self):
+        rule = self.rule.copy()
+        good_ext = list(rule.rhs.nodes())
+        bad_ext = good_ext[:1]
+        nl1 = NodeLabel("nl1")
+        good_lhs = EdgeLabel("good", (nl1, nl1), is_nonterminal=True)
+        bad_lhs = EdgeLabel("good", (nl1,), is_nonterminal=True)
+        rule.lhs = good_lhs
+        with self.assertRaises(ValueError):
+            rule.lhs = bad_lhs
+        rule.set_lhs_ext(good_lhs, good_ext)
+        with self.assertRaises(ValueError):
+            rule.set_lhs_ext(bad_lhs, good_ext)
+        with self.assertRaises(ValueError):
+            rule.set_lhs_ext(good_lhs, bad_ext)
+
 class TestHRG(unittest.TestCase):
 
     def setUp(self):

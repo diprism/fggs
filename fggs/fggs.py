@@ -339,14 +339,22 @@ class HRGRule:
     - rhs: The right-hand side hypergraph fragment.
     """
 
-    lhs: EdgeLabel #: The left-hand side nonterminal.
-    rhs: Graph     #: The right-hand side hypergraph fragment.
+    _lhs: EdgeLabel #: The left-hand side nonterminal.
+    rhs: Graph      #: The right-hand side hypergraph fragment.
 
-    def __post_init__(self):
-        if self.lhs.is_terminal:
-            raise Exception(f"Can't make HRG rule with terminal left-hand side.")
-        if (self.lhs.type != self.rhs.type):
-            raise Exception(f"Can't make HRG rule: left-hand side of type ({','.join(l.name for l in self.lhs.type)}) not compatible with right-hand side of type ({','.join(l.name for l in self.rhs.type)}).")
+    def __init__(self, lhs: EdgeLabel, rhs: Graph):
+        HRGRule._check_lhs_ext(lhs, rhs.ext)
+        self._lhs = lhs
+        self.rhs = rhs
+
+    @property
+    def lhs(self) -> EdgeLabel:
+        return self._lhs
+
+    @lhs.setter
+    def lhs(self, el: EdgeLabel):
+        HRGRule._check_lhs_ext(el, self.rhs.ext)
+        self._lhs = el
 
     def copy(self):
         """Returns a copy of this HRGRule, whose right-hand side is a copy of the original's."""
@@ -360,6 +368,19 @@ class HRGRule:
         string += self.rhs.to_string(indent+1)
         return string
 
+    @staticmethod
+    def _check_lhs_ext(lhs: EdgeLabel, ext: Tuple[Node, ...]):
+        if lhs.is_terminal:
+            raise ValueError(f"HRGRule left-hand side must be nonterminal.")
+        ext_type = tuple(v.label for v in ext)
+        if lhs.type != ext_type:
+            raise ValueError(f"HRGRule left-hand side type ({','.join(l.name for l in lhs.type)}) must match external node labels ({','.join(l.name for l in ext_type)}).")
+
+    def set_lhs_ext(self, lhs: EdgeLabel, ext: Iterable[Node]):
+        ext = tuple(ext)
+        HRGRule._check_lhs_ext(lhs, ext)
+        self.lhs = lhs
+        self.rhs.ext = ext
 
 class HRG(LabelingMixin, object):
     """A hyperedge replacement graph grammar.
