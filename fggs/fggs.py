@@ -196,12 +196,22 @@ class LabelingMixin:
 class Graph(LabelingMixin, object):
     """A hypergraph or hypergraph fragment (= hypergraph with external nodes)."""
 
-    def __init__(self):
-        self._nodes: Dict[str, Node]            = dict() # from ids to Nodes
-        self._edges: Dict[str, Edge]            = dict() # from ids to Edges
-        self._node_labels: Dict[str, NodeLabel] = dict() # from names to NodeLabels
-        self._edge_labels: Dict[str, EdgeLabel] = dict() # from names to EdgeLabels
-        self._ext: Tuple[Node, ...]             = ()
+    _nodes: Dict[str, Node]            # from ids to Nodes
+    _edges: Dict[str, Edge]            # from ids to Edges
+    _node_labels: Dict[str, NodeLabel] # from names to NodeLabels
+    _edge_labels: Dict[str, EdgeLabel] # from names to EdgeLabels
+    _ext: Tuple[Node, ...]
+        
+    def __init__(self, share_labeling_with: Optional[LabelingMixin] = None):
+        self._nodes = dict()
+        self._edges = dict()
+        if share_labeling_with is None:
+            self._node_labels = dict()
+            self._edge_labels = dict()
+        else:
+            self._node_labels = share_labeling_with._node_labels
+            self._edge_labels = share_labeling_with._edge_labels
+        self._ext = ()
     
     def nodes(self):
         """Returns a view of the nodes in the hypergraph."""
@@ -295,9 +305,14 @@ class Graph(LabelingMixin, object):
             raise ValueError(f'Graph does not contain Edge {edge}')
         del self._edges[edge.id]
 
-    def copy(self):
+    def copy(self, share_labeling: bool = False):
         """Returns a copy of this Graph."""
-        copy = Graph()
+        if share_labeling:
+            copy = Graph(share_labeling_with=self)
+        else:
+            copy = Graph()
+            copy._node_labels = self._node_labels.copy()
+            copy._edge_labels = self._edge_labels.copy()
         copy._nodes = dict(self._nodes)
         copy._edges = dict(self._edges)
         copy._ext = tuple(self._ext)
@@ -339,14 +354,25 @@ class HRGRule:
     - rhs: The right-hand side hypergraph fragment.
     """
 
-    lhs: EdgeLabel #: The left-hand side nonterminal.
-    rhs: Graph     #: The right-hand side hypergraph fragment.
+    _lhs: EdgeLabel #: The left-hand side nonterminal.
+    rhs: Graph      #: The right-hand side hypergraph fragment.
 
-    def __post_init__(self):
-        if self.lhs.is_terminal:
-            raise Exception(f"Can't make HRG rule with terminal left-hand side.")
-        if (self.lhs.type != self.rhs.type):
-            raise Exception(f"Can't make HRG rule: left-hand side of type ({','.join(l.name for l in self.lhs.type)}) not compatible with right-hand side of type ({','.join(l.name for l in self.rhs.type)}).")
+    def __init__(self, lhs: EdgeLabel, rhs: Graph):
+        self.rhs = rhs
+        self.lhs = lhs # check after rhs
+
+    @property
+    def lhs(self) -> EdgeLabel:
+        return self._lhs
+    @lhs.setter
+    def lhs(self, el):
+        if el.is_terminal:
+            raise ValueError("An HRGRule's left-hand side must be nonterminal.")
+        if el.type != self.rhs.type:
+            raise ValueError(f"HRGRule left-hand side type ({','.join(l.name for l in el.type)}) not compatible with right-hand side type ({','.join(l.name for l in self.rhs.type)}).")
+        self._lhs = el
+        # An HRGRule doesn't have its own labeling, but share its rhs's.
+        self.rhs.add_edge_label(el)
 
     def copy(self):
         """Returns a copy of this HRGRule, whose right-hand side is a copy of the original's."""
@@ -403,10 +429,14 @@ class HRG(LabelingMixin, object):
         rhs = rule.rhs
         
         self.add_edge_label(lhs)
-        for node in rhs.nodes():
-            self.add_node_label(node.label)
-        for edge in rhs.edges():
-            self.add_edge_label(edge.label)
+        for nl in rhs._node_labels.values():
+            self.add_node_label(nl)
+        for el in rhs._edge_labels.values():
+            self.add_edge_label(el)
+
+        # From now on, the rule RHS shares its labeling with the HRG
+        rhs._node_labels = self._node_labels
+        rhs._edge_labels = self._edge_labels
         
         self._rules.setdefault(lhs, []).append(rule)
 
