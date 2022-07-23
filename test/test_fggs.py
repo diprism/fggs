@@ -179,6 +179,14 @@ class TestGraph(unittest.TestCase):
     def test_set_ext(self):
         ext = self.graph.ext
         self.assertEqual(ext, (self.node2,))
+
+    def test_optional_ext(self):
+        g = Graph()
+        with self.assertRaises(ValueError):
+            g.ext
+        v = g.new_node("nl")
+        g.ext = [v]
+        self.assertEqual(g.ext, (v,))
     
     def test_add_nodes_implicitly(self):
         node3 = Node(self.nl1)
