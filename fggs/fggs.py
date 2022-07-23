@@ -305,17 +305,14 @@ class Graph(LabelingMixin, object):
             raise ValueError(f'Graph does not contain Edge {edge}')
         del self._edges[edge.id]
 
-    def copy(self, share_labeling: bool = False):
+    def copy(self):
         """Returns a copy of this Graph."""
-        if share_labeling:
-            copy = Graph(share_labeling_with=self)
-        else:
-            copy = Graph()
-            copy._node_labels = self._node_labels.copy()
-            copy._edge_labels = self._edge_labels.copy()
-        copy._nodes = dict(self._nodes)
-        copy._edges = dict(self._edges)
-        copy._ext = tuple(self._ext)
+        copy = Graph()
+        for node in self.nodes():
+            copy.add_node(node)
+        for edge in self.edges():
+            copy.add_edge(edge)
+        copy._ext = self._ext
         return copy
 
     def __eq__(self, other):
@@ -458,11 +455,8 @@ class HRG(LabelingMixin, object):
     def copy(self):
         """Returns a copy of this HRG, whose rules are all copies of the original's."""
         copy = HRG(self.start)
-        copy._node_labels = self._node_labels.copy()
-        copy._edge_labels = self._edge_labels.copy()
-        copy._rules = {}
-        for lhs in self._rules:
-            copy._rules[lhs] = [r.copy() for r in self._rules[lhs]]
+        for r in self.all_rules():
+            copy.add_rule(r.copy())
         return copy
 
     def __eq__(self, other):
@@ -583,7 +577,7 @@ class FactorGraph(InterpretationMixin, Graph):
             fg.add_node(node)
         for edge in self.edges():
             fg.add_edge(edge)
-        fg._ext = tuple(self._ext)
+        fg._ext = self._ext
         fg.domains = copy.deepcopy(self.domains)
         fg.factors = copy.deepcopy(self.factors)
         return fg
@@ -610,11 +604,8 @@ class FGG(InterpretationMixin, HRG):
     def copy(self):
         """Returns a copy of this FGG."""
         fgg = FGG(self.start)
-        fgg._node_labels = self._node_labels.copy()
-        fgg._edge_labels = self._edge_labels.copy()
-        fgg._rules = {}
-        for lhs in self._rules:
-            fgg._rules[lhs] = [r.copy() for r in self._rules[lhs]]
+        for r in self.all_rules():
+            fgg.add_rule(r.copy())
         fgg.domains = copy.deepcopy(self.domains)
         fgg.factors = copy.deepcopy(self.factors)
         return fgg
