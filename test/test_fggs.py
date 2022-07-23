@@ -307,6 +307,20 @@ class TestHRGRule(unittest.TestCase):
         with self.assertRaises(ValueError):
             rule.lhs = self.nonterminal_mismatch
 
+    def test_sharing(self):
+        el0 = EdgeLabel("el0", (), is_nonterminal=True)
+        hrg = HRG(el0)
+        r1 = HRGRule(el0, Graph())
+        r2 = HRGRule(el0, Graph())
+        hrg.add_rule(r1)
+        hrg.add_rule(r2)
+        el1 = EdgeLabel("el1", (), is_nonterminal=True)
+        el2 = EdgeLabel("el1", (), is_terminal=True)
+        r1.rhs.add_edge(Edge(el1, []))
+        with self.assertRaises(ValueError):
+            r2.rhs.add_edge(Edge(el2, []))
+
+
 class TestHRG(unittest.TestCase):
 
     def setUp(self):
