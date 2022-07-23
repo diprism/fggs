@@ -196,12 +196,18 @@ class LabelingMixin:
 class Graph(LabelingMixin, object):
     """A hypergraph or hypergraph fragment (= hypergraph with external nodes)."""
 
+    _nodes: Dict[str, Node]            # from ids to Nodes
+    _edges: Dict[str, Edge]            # from ids to Edges
+    _node_labels: Dict[str, NodeLabel] # from names to NodeLabels
+    _edge_labels: Dict[str, EdgeLabel] # from names to EdgeLabels
+    _ext: Optional[Tuple[Node, ...]]   # external nodes
+    
     def __init__(self):
-        self._nodes: Dict[str, Node]            = dict() # from ids to Nodes
-        self._edges: Dict[str, Edge]            = dict() # from ids to Edges
-        self._node_labels: Dict[str, NodeLabel] = dict() # from names to NodeLabels
-        self._edge_labels: Dict[str, EdgeLabel] = dict() # from names to EdgeLabels
-        self._ext: Tuple[Node, ...]             = ()
+        self._nodes = dict()
+        self._edges = dict()
+        self._node_labels = dict()
+        self._edge_labels = dict()
+        self._ext = None
     
     def nodes(self):
         """Returns a view of the nodes in the hypergraph."""
@@ -212,9 +218,12 @@ class Graph(LabelingMixin, object):
         return self._edges.values()
 
     @property
-    def ext(self):
+    def ext(self) -> Tuple[Node, ...]:
         """Tuple of external nodes."""
-        return self._ext
+        if self._ext is None:
+            raise ValueError("Graph does not have external nodes specified yet.")
+        else:
+            return self._ext
 
     @ext.setter
     def ext(self, nodes: Iterable[Node]):
@@ -227,12 +236,12 @@ class Graph(LabelingMixin, object):
     @property
     def arity(self):
         """Returns the number of external nodes."""
-        return len(self._ext)
+        return len(self.ext)
 
     @property
     def type(self):
         """Returns the tuple of node labels of the external nodes."""
-        return tuple([node.label for node in self._ext])
+        return tuple([node.label for node in self.ext])
     
     def add_node(self, node: Node):
         """Adds a node to the hypergraph."""
@@ -575,7 +584,7 @@ class FactorGraph(InterpretationMixin, Graph):
             fg.add_node(node)
         for edge in g.edges():
             fg.add_edge(edge)
-        fg._ext = tuple(g._ext)
+        fg._ext = g._ext
         return fg
 
     def copy(self):
