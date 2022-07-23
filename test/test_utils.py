@@ -11,14 +11,9 @@ def load_fgg(filename):
         return json_to_fgg(json.load(f))
 
 class TestUniqueName(unittest.TestCase):
-    
-    def setUp(self):
-        self.el1 = EdgeLabel("e", [], is_terminal=True)
-        self.el2 = EdgeLabel("e_1", [], is_terminal=True)
-        
-    def test_unique_label_name(self):
-        self.assertEqual(unique_label_name("e", [self.el1, self.el2]), "e_2")
-        self.assertEqual(unique_label_name("f", [self.el1, self.el2]), "f")
+    def test_unique_name(self):
+        self.assertEqual(unique_name("e", ["e", "e_1"]), "e_2")
+        self.assertEqual(unique_name("f", ["e", "e_1"]), "f")
 
 
 class TestSingleton(unittest.TestCase):

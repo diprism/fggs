@@ -1,19 +1,12 @@
 __all__ = ['NodeLabel', 'EdgeLabel', 'Node', 'Edge', 'Graph', 'HRGRule', 'HRG', 'FactorGraph', 'FGG']
 
-from typing import Optional, Iterable, Tuple, Union, Dict, Sequence, List, cast
+from typing import Optional, Iterable, Tuple, Union, Dict, Sequence, List, cast, NewType, Set
 from dataclasses import dataclass, field
 from fggs.domains import Domain, FiniteDomain
 from fggs.factors import Factor, FiniteFactor
 import copy
 
-@dataclass(frozen=True)
-class NodeLabel:
-    """A node label. This is currently just a thin wrapper around strings."""
-    
-    name: str
-    
-    def __str__(self):
-        return f"NodeLabel {self.name}"
+NodeLabel = NewType('NodeLabel', str)
 
 
 @dataclass(frozen=True, init=False)
@@ -27,7 +20,7 @@ class EdgeLabel:
     """
     
     name: str
-    node_labels: Iterable[NodeLabel]
+    node_labels: Tuple[NodeLabel, ...]
     is_terminal: bool                #: Whether the edge label is a terminal symbol.
 
     def __init__(self, name: str,
@@ -46,17 +39,17 @@ class EdgeLabel:
         object.__setattr__(self, 'is_terminal', is_terminal)
 
     @property
-    def is_nonterminal(self):
+    def is_nonterminal(self) -> bool:
         """Whether the edge label is a nonterminal symbol."""
         return not self.is_terminal
 
     @property
-    def arity(self):
+    def arity(self) -> int:
         """The arity of the edge label (how many attachment nodes an edge with this label must have)."""
         return len(self.node_labels)
 
     @property
-    def type(self):
+    def type(self) -> Tuple[NodeLabel, ...]:
         """The tuple of node labels that the attachment nodes an edge with this label must have."""
         return self.node_labels
 
@@ -126,7 +119,7 @@ class Edge:
             object.__setattr__(self, 'persist_id', True)
 
         if label.type != tuple([node.label for node in nodes]):
-            raise ValueError(f"Can't use edge label {label.name} with nodes labeled ({','.join(node.label.name for node in nodes)}).")
+            raise ValueError(f"Can't use edge label {label} with nodes labeled ({','.join(node.label for node in nodes)}).")
 
         object.__setattr__(self, 'label', label)
         object.__setattr__(self, 'nodes', tuple(nodes))
@@ -146,24 +139,20 @@ class Edge:
 
 class LabelingMixin:
 
-    _node_labels: Dict[str, NodeLabel] # from names to NodeLabels
+    _node_labels: Set[NodeLabel]
     _edge_labels: Dict[str, EdgeLabel] # from names to EdgeLabels
         
     def add_node_label(self, label: NodeLabel):
         """Adds a node label to the set of used node labels."""
-        self._node_labels[label.name] = label
+        self._node_labels.add(label)
 
-    def has_node_label_name(self, name: str) -> bool:
-        """Returns true if there is a used node label with the given name."""
-        return name in self._node_labels.keys()
-
-    def get_node_label(self, name: str) -> NodeLabel:
-        """Returns the unique used node label with the given name."""
-        return self._node_labels[name]
+    def has_node_label(self, name: str) -> bool:
+        """Returns true if a node label is used."""
+        return name in self._node_labels
 
     def node_labels(self) -> Iterable[NodeLabel]:
         """Returns a view of the node labels used."""
-        return self._node_labels.values()
+        return self._node_labels
 
     def add_edge_label(self, label: EdgeLabel):
         """Adds an edge label to the set of used edge labels."""
@@ -199,20 +188,20 @@ class Graph(LabelingMixin, object):
     def __init__(self):
         self._nodes: Dict[str, Node]            = dict() # from ids to Nodes
         self._edges: Dict[str, Edge]            = dict() # from ids to Edges
-        self._node_labels: Dict[str, NodeLabel] = dict() # from names to NodeLabels
+        self._node_labels: Set[NodeLabel]       = set()
         self._edge_labels: Dict[str, EdgeLabel] = dict() # from names to EdgeLabels
         self._ext: Tuple[Node, ...]             = ()
     
-    def nodes(self):
+    def nodes(self) -> Iterable[Node]:
         """Returns a view of the nodes in the hypergraph."""
         return self._nodes.values()
     
-    def edges(self):
+    def edges(self) -> Iterable[Edge]:
         """Returns a view of the hyperedges in the hypergraph."""
         return self._edges.values()
 
     @property
-    def ext(self):
+    def ext(self) -> Tuple[Node, ...]:
         """Tuple of external nodes."""
         return self._ext
 
@@ -225,12 +214,12 @@ class Graph(LabelingMixin, object):
         self._ext = tuple(nodes)
     
     @property
-    def arity(self):
+    def arity(self) -> int:
         """Returns the number of external nodes."""
         return len(self._ext)
 
     @property
-    def type(self):
+    def type(self) -> Tuple[NodeLabel, ...]:
         """Returns the tuple of node labels of the external nodes."""
         return tuple([node.label for node in self._ext])
     
@@ -241,7 +230,7 @@ class Graph(LabelingMixin, object):
         self.add_node_label(node.label)
         self._nodes[node.id] = node
 
-    def has_node_id(self, nid: str):
+    def has_node_id(self, nid: str) -> bool:
         """Returns True iff the graph has a node with id `nid`."""
         return nid in self._nodes.keys()
 
@@ -295,7 +284,7 @@ class Graph(LabelingMixin, object):
             raise ValueError(f'Graph does not contain Edge {edge}')
         del self._edges[edge.id]
 
-    def copy(self):
+    def copy(self) -> 'Graph':
         """Returns a copy of this Graph."""
         copy = Graph()
         copy._nodes = dict(self._nodes)
@@ -303,7 +292,7 @@ class Graph(LabelingMixin, object):
         copy._ext = tuple(self._ext)
         return copy
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         """Tests if two Graphs are equal, including their Node and Edge ids.
 
         Runs in O(|V|+|E|) time because the ids are required to be equal."""
@@ -311,12 +300,12 @@ class Graph(LabelingMixin, object):
                 self._nodes == other._nodes and
                 self._edges == other._edges and
                 self._ext == other._ext)
-    def __ne__(self, other):
+    def __ne__(self, other) -> bool:
         return not self.__eq__(other)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.to_string(0)
-    def to_string(self, indent):
+    def to_string(self, indent: int) -> str:
         num_nodes = len(self._nodes)
         num_edges = len(self._edges)
         string = "  "*indent + f"Graph containing:"
@@ -372,7 +361,7 @@ class HRG(LabelingMixin, object):
     """
     
     def __init__(self, start: Union[EdgeLabel, str, None]):
-        self._node_labels: Dict[str, NodeLabel] = dict()
+        self._node_labels: Set[NodeLabel]       = set()
         self._edge_labels: Dict[str, EdgeLabel] = dict()
         self._rules: Dict[EdgeLabel, List[HRGRule]] = dict()
         if start is not None:
@@ -410,22 +399,22 @@ class HRG(LabelingMixin, object):
         
         self._rules.setdefault(lhs, []).append(rule)
 
-    def new_rule(self, lhs: str, rhs: Graph):
+    def new_rule(self, lhs: str, rhs: Graph) -> HRGRule:
         """Convenience function for creating and adding a Rule at the same time."""
         lhs_el = EdgeLabel(lhs, [node.label for node in rhs.ext], is_nonterminal=True)
         rule = HRGRule(lhs_el, rhs)
         self.add_rule(rule)
         return rule
 
-    def all_rules(self):
+    def all_rules(self) -> Iterable[HRGRule]:
         """Return a copy of the list of all rules."""
         return [rule for nt_name in self._rules for rule in self._rules[nt_name]]
     
-    def rules(self, lhs):
+    def rules(self, lhs) -> Iterable[HRGRule]:
         """Return a copy of the list of all rules with left-hand side `lhs`."""
         return list(self._rules.get(lhs, []))
     
-    def copy(self):
+    def copy(self) -> 'HRG':
         """Returns a copy of this HRG, whose rules are all copies of the original's."""
         copy = HRG(self.start)
         copy._node_labels = self._node_labels.copy()
@@ -435,7 +424,7 @@ class HRG(LabelingMixin, object):
             copy._rules[lhs] = [r.copy() for r in self._rules[lhs]]
         return copy
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         """Return True iff self and other are equal. If X is a nonterminal and
         self.rules(X) and other.rules(X) have the same rules but in a
         different order, then self and other are *not* considered
@@ -445,14 +434,14 @@ class HRG(LabelingMixin, object):
                 self.start == other.start and
                 self._node_labels == other._node_labels and
                 self._edge_labels == other._edge_labels)
-    def __ne__(self, other):
+    def __ne__(self, other) -> bool:
         return not self.__eq__(other)
 
-    def __str__(self):
+    def __str__(self) -> str:
         string = "HRG with:"
         string += "\n  Node labels:"
-        for label_name in self._node_labels.keys():
-            string += f"\n    {self._node_labels[label_name]}"
+        for label in self._node_labels:
+            string += f"\n    {label}"
         string += "\n  Edge labels:"
         for label_name in self._edge_labels.keys():
             string += f"\n{self._edge_labels[label_name].to_string(2)}"
@@ -473,9 +462,9 @@ class InterpretationMixin(LabelingMixin):
     def add_domain(self, nl: NodeLabel, dom: Domain):
         """Add mapping from NodeLabel nl to Domain dom."""
         self.add_node_label(nl)
-        if nl.name in self.domains:
+        if nl in self.domains:
             raise ValueError(f"NodeLabel {nl} is already mapped")
-        self.domains[nl.name] = dom
+        self.domains[nl] = dom
 
     def add_factor(self, el: EdgeLabel, fac: Factor):
         """Add mapping from EdgeLabel el to Factor fac."""
@@ -487,10 +476,10 @@ class InterpretationMixin(LabelingMixin):
         if fac.arity != el.arity:
             raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (wrong arity)')
         for nl, dom in zip(el.node_labels, fac.domains):
-            if nl.name not in self.domains:
+            if nl not in self.domains:
                 raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (NodeLabel {nl} not mapped)')
-            elif dom != self.domains[nl.name]:
-                raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} != Domain {self.domains[nl.name]})')
+            elif dom != self.domains[nl]:
+                raise ValueError(f'Cannot interpret EdgeLabel {el} as Factor {fac} (Domain {dom} != Domain {self.domains[nl]})')
         self.factors[el.name] = fac
 
     def shape(self, x: Union[Sequence[NodeLabel], Sequence[Node], EdgeLabel, Edge]):
@@ -510,7 +499,7 @@ class InterpretationMixin(LabelingMixin):
             nls = x.type
         else:
             nls = x.label.type
-        return tuple(cast(FiniteDomain, self.domains[nl.name]).size() for nl in nls)
+        return tuple(cast(FiniteDomain, self.domains[nl]).size() for nl in nls)
     
     def new_finite_domain(self, name: str, values: Sequence):
         nl = NodeLabel(name)
@@ -522,7 +511,7 @@ class InterpretationMixin(LabelingMixin):
         if not self.has_edge_label_name(name):
             raise KeyError(f"there isn't an edge label named {name}")
         el = self.get_edge_label(name)
-        doms = [self.domains[nl.name] for nl in el.node_labels]
+        doms = [self.domains[nl] for nl in el.node_labels]
         fac = FiniteFactor(doms, weights)
         self.add_factor(el, fac)
         return fac
@@ -536,7 +525,7 @@ class FactorGraph(InterpretationMixin, Graph):
         self.factors: Dict[str, Factor] = {}
 
     @staticmethod
-    def from_graph(g: Graph):
+    def from_graph(g: Graph) -> 'FactorGraph':
         """Create a FactorGraph out of a Graph and no domains and factors."""
         fg = FactorGraph()
         for node in g.nodes():
@@ -546,7 +535,7 @@ class FactorGraph(InterpretationMixin, Graph):
         fg._ext = tuple(g._ext)
         return fg
 
-    def copy(self):
+    def copy(self) -> 'FactorGraph':
         """Returns a copy of this FactorGraph."""
         fg = FactorGraph()
         for node in self.nodes():
@@ -570,14 +559,14 @@ class FGG(InterpretationMixin, HRG):
         self.factors: Dict[str, Factor] = {}
 
     @staticmethod
-    def from_hrg(hrg: HRG):
+    def from_hrg(hrg: HRG) -> 'FGG':
         """Create an FGG out of an HRG and no domains and factors."""
         fgg = FGG(hrg.start)
         for r in hrg.all_rules():
             fgg.add_rule(r)
         return fgg
 
-    def copy(self):
+    def copy(self) -> 'FGG':
         """Returns a copy of this FGG."""
         fgg = FGG(self.start)
         fgg._node_labels = self._node_labels.copy()

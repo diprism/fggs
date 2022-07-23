@@ -169,7 +169,7 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
             ext.append(ncopy)
             connected.update([n, ncopy])
             indexing.append([n, ncopy])
-            nsize = cast(FiniteDomain, fgg.domains[n.label.name]).size()
+            nsize = cast(FiniteDomain, fgg.domains[n.label]).size()
             tensors.append(semiring.eye(nsize))
         else:
             ext.append(n)
@@ -212,7 +212,7 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
     mul = 1
     for n in nodes:
         if n not in connected and n not in ext:
-            mul *= cast(FiniteDomain, fgg.domains[n.label.name]).size()
+            mul *= cast(FiniteDomain, fgg.domains[n.label]).size()
     if mul > 1:
         out = semiring.mul(out, semiring.from_int(mul))
     return out

@@ -5,16 +5,11 @@ from fggs import *
 import copy
 
 
-
 class TestNodeLabel(unittest.TestCase):
 
     def setUp(self):
         self.name = "nl"
         self.nl   = NodeLabel(self.name)
-
-    def testImmutable(self):
-        with self.assertRaises(FrozenInstanceError):
-            self.nl.name = "foo"
 
     def testEquals(self):
         nl_eq  = NodeLabel(self.name)
@@ -31,7 +26,6 @@ class TestNodeLabel(unittest.TestCase):
         d[nl_eq] = 7
         self.assertTrue(d[self.nl] == 7)
         self.assertFalse(nl_ne in d)
-
 
 
 class TestEdgeLabel(unittest.TestCase):
@@ -461,10 +455,10 @@ class TestFactorGraph(unittest.TestCase):
 
     def test_convenience(self):
         fg = self.fg
-        fg.new_finite_domain(self.nl1.name, self.dom1.values)
-        self.assertTrue(fg.domains[self.nl1.name] == self.dom1)
-        fg.new_finite_domain(self.nl2.name, self.dom2.values)
-        self.assertTrue(fg.domains[self.nl2.name] == self.dom2)
+        fg.new_finite_domain(self.nl1, self.dom1.values)
+        self.assertTrue(fg.domains[self.nl1] == self.dom1)
+        fg.new_finite_domain(self.nl2, self.dom2.values)
+        self.assertTrue(fg.domains[self.nl2] == self.dom2)
         fg.new_finite_factor(self.el1.name, self.fac1.weights)
         self.assertTrue(fg.factors[self.el1.name] == self.fac1)
 
@@ -498,10 +492,10 @@ class TestFGG(unittest.TestCase):
 
     def test_convenience(self):
         fgg = self.fgg
-        fgg.new_finite_domain(self.nl1.name, self.dom1.values)
-        self.assertTrue(fgg.domains[self.nl1.name] == self.dom1)
-        fgg.new_finite_domain(self.nl2.name, self.dom2.values)
-        self.assertTrue(fgg.domains[self.nl2.name] == self.dom2)
+        fgg.new_finite_domain(self.nl1, self.dom1.values)
+        self.assertTrue(fgg.domains[self.nl1] == self.dom1)
+        fgg.new_finite_domain(self.nl2, self.dom2.values)
+        self.assertTrue(fgg.domains[self.nl2] == self.dom2)
         fgg.new_finite_factor(self.el1.name, self.fac1.weights)
         self.assertTrue(fgg.factors[self.el1.name] == self.fac1)
 
