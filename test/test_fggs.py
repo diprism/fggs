@@ -323,26 +323,14 @@ class TestHRG(unittest.TestCase):
         self.rule2 = HRGRule(self.el2, self.graph2)
 
         self.hrg = HRG(self.start)
-        self.hrg.add_node_label(self.nl1)
-        self.hrg.add_node_label(self.nl2)
+        self.hrg.node_labels.add(self.nl1)
+        self.hrg.node_labels.add(self.nl2)
         self.hrg.add_edge_label(self.el1)
         self.hrg.add_edge_label(self.el2)
         self.hrg.add_edge_label(self.start)
         self.hrg.add_rule(self.rule)
         self.hrg.add_rule(self.rule2)
 
-    def test_add_node_label(self):
-        node_labels = self.hrg.node_labels()
-        self.assertEqual(len(node_labels), 2)
-        self.assertTrue(self.nl1 in node_labels)
-        self.assertTrue(self.nl2 in node_labels)
-        # add a node label which is a different object but
-        # equivalent to an existing node label; code should
-        # treat them as the same node label
-        nl3 = NodeLabel("nl1")
-        self.hrg.add_node_label(nl3)
-        self.assertEqual(len(self.hrg.node_labels()), 2)
-    
     def test_nonterminals(self):
         nonterminals = self.hrg.nonterminals()
         self.assertEqual(len(nonterminals), 2)
@@ -410,7 +398,7 @@ class TestHRG(unittest.TestCase):
         
         self.hrg.add_rule(new_rule)
         
-        self.assertTrue(new_nl in self.hrg.node_labels())
+        self.assertTrue(new_nl in self.hrg.node_labels)
         self.assertTrue(new_nt in self.hrg.nonterminals())
         self.assertTrue(new_t  in self.hrg.terminals())
         

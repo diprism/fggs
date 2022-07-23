@@ -139,21 +139,9 @@ class Edge:
 
 class LabelingMixin:
 
-    _node_labels: Set[NodeLabel]
+    node_labels: Set[NodeLabel]
     _edge_labels: Dict[str, EdgeLabel] # from names to EdgeLabels
         
-    def add_node_label(self, label: NodeLabel):
-        """Adds a node label to the set of used node labels."""
-        self._node_labels.add(label)
-
-    def has_node_label(self, name: str) -> bool:
-        """Returns true if a node label is used."""
-        return name in self._node_labels
-
-    def node_labels(self) -> Iterable[NodeLabel]:
-        """Returns a view of the node labels used."""
-        return self._node_labels
-
     def add_edge_label(self, label: EdgeLabel):
         """Adds an edge label to the set of used edge labels."""
         name = label.name
@@ -188,7 +176,7 @@ class Graph(LabelingMixin, object):
     def __init__(self):
         self._nodes: Dict[str, Node]            = dict() # from ids to Nodes
         self._edges: Dict[str, Edge]            = dict() # from ids to Edges
-        self._node_labels: Set[NodeLabel]       = set()
+        self.node_labels: Set[NodeLabel]        = set()
         self._edge_labels: Dict[str, EdgeLabel] = dict() # from names to EdgeLabels
         self._ext: Tuple[Node, ...]             = ()
     
@@ -227,7 +215,7 @@ class Graph(LabelingMixin, object):
         """Adds a node to the hypergraph."""
         if node.id in self._nodes.keys():
             raise ValueError(f"Can't have two nodes with same ID {node.id} in same Graph.")
-        self.add_node_label(node.label)
+        self.node_labels.add(node.label)
         self._nodes[node.id] = node
 
     def has_node_id(self, nid: str) -> bool:
@@ -361,7 +349,7 @@ class HRG(LabelingMixin, object):
     """
     
     def __init__(self, start: Union[EdgeLabel, str, None]):
-        self._node_labels: Set[NodeLabel]       = set()
+        self.node_labels: Set[NodeLabel]        = set()
         self._edge_labels: Dict[str, EdgeLabel] = dict()
         self._rules: Dict[EdgeLabel, List[HRGRule]] = dict()
         if start is not None:
@@ -393,7 +381,7 @@ class HRG(LabelingMixin, object):
         
         self.add_edge_label(lhs)
         for node in rhs.nodes():
-            self.add_node_label(node.label)
+            self.node_labels.add(node.label)
         for edge in rhs.edges():
             self.add_edge_label(edge.label)
         
@@ -417,7 +405,7 @@ class HRG(LabelingMixin, object):
     def copy(self) -> 'HRG':
         """Returns a copy of this HRG, whose rules are all copies of the original's."""
         copy = HRG(self.start)
-        copy._node_labels = self._node_labels.copy()
+        copy.node_labels = self.node_labels.copy()
         copy._edge_labels = self._edge_labels.copy()
         copy._rules = {}
         for lhs in self._rules:
@@ -432,7 +420,7 @@ class HRG(LabelingMixin, object):
         return (isinstance(other, HRG) and
                 self._rules == other._rules and
                 self.start == other.start and
-                self._node_labels == other._node_labels and
+                self.node_labels == other.node_labels and
                 self._edge_labels == other._edge_labels)
     def __ne__(self, other) -> bool:
         return not self.__eq__(other)
@@ -440,7 +428,7 @@ class HRG(LabelingMixin, object):
     def __str__(self) -> str:
         string = "HRG with:"
         string += "\n  Node labels:"
-        for label in self._node_labels:
+        for label in self.node_labels:
             string += f"\n    {label}"
         string += "\n  Edge labels:"
         for label_name in self._edge_labels.keys():
@@ -461,7 +449,7 @@ class InterpretationMixin(LabelingMixin):
     
     def add_domain(self, nl: NodeLabel, dom: Domain):
         """Add mapping from NodeLabel nl to Domain dom."""
-        self.add_node_label(nl)
+        self.node_labels.add(nl)
         if nl in self.domains:
             raise ValueError(f"NodeLabel {nl} is already mapped")
         self.domains[nl] = dom
@@ -569,7 +557,7 @@ class FGG(InterpretationMixin, HRG):
     def copy(self) -> 'FGG':
         """Returns a copy of this FGG."""
         fgg = FGG(self.start)
-        fgg._node_labels = self._node_labels.copy()
+        fgg.node_labels = self.node_labels.copy()
         fgg._edge_labels = self._edge_labels.copy()
         fgg._rules = {}
         for lhs in self._rules:
