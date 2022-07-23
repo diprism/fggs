@@ -6,8 +6,8 @@ from fggs.domains import Domain, FiniteDomain
 from fggs.factors import Factor, FiniteFactor
 import copy
 
-NodeLabel = NewType('NodeLabel', str)
-
+NodeLabel = str # so users do not have to write NodeLabel() everywhere
+#NodeLabel = NewType('NodeLabel', str) # uncomment this for stricter checking
 
 @dataclass(frozen=True, init=False)
 class EdgeLabel:
