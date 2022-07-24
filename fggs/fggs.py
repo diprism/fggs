@@ -412,27 +412,32 @@ class HRG(LabelingMixin, object):
       assumed that its arity is zero.
     """
     
+    _node_labels: Dict[str, NodeLabel]
+    _edge_labels: Dict[str, EdgeLabel]
+    _rules: Dict[EdgeLabel, List[HRGRule]]
+    _start: Optional[EdgeLabel]
+            
     def __init__(self, start: Union[EdgeLabel, str, None]):
-        self._node_labels: Dict[str, NodeLabel] = dict()
-        self._edge_labels: Dict[str, EdgeLabel] = dict()
-        self._rules: Dict[EdgeLabel, List[HRGRule]] = dict()
-        if start is not None:
-            self.start = start # type: ignore
-        else:
-            self.start = None # type: ignore
+        self._node_labels = dict()
+        self._edge_labels = dict()
+        self._rules = dict()
+        if isinstance(start, EdgeLabel):
+            self.start = start
+        elif isinstance(start, str):
+            self.start = EdgeLabel(start, [], is_nonterminal=True)
+        elif start is None:
+            self._start = None
 
     @property
     def start(self) -> EdgeLabel:
         """The start nonterminal symbol."""
-        return self._start
+        if self._start is None:
+            raise ValueError("HRG does not have a start symbol yet")
+        else:
+            return self._start
 
     @start.setter
-    def start(self, start: Union[EdgeLabel, str]):
-        if isinstance(start, str):
-            if self.has_edge_label_name(start):
-                start = self.get_edge_label(start)
-            else:
-                start = EdgeLabel(start, [], is_nonterminal=True)
+    def start(self, start: EdgeLabel):
         if start.is_terminal:
             raise ValueError('Start symbol must be a nonterminal')
         self.add_edge_label(start)
