@@ -605,9 +605,9 @@ class FGG(InterpretationMixin, HRG):
     def copy(self):
         """Returns a copy of this FGG."""
         fgg = FGG(self.start)
-        fgg._node_labels = hrg._node_labels.copy()
-        fgg._edge_labels = hrg._edge_labels.copy()
-        fgg._rules = hrg._rules.copy()
+        fgg._node_labels = self._node_labels.copy()
+        fgg._edge_labels = self._edge_labels.copy()
+        fgg._rules = self._rules.copy()
         fgg.domains = copy.deepcopy(self.domains)
         fgg.factors = copy.deepcopy(self.factors)
         return fgg
