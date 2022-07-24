@@ -597,15 +597,17 @@ class FGG(InterpretationMixin, HRG):
     def from_hrg(hrg: HRG):
         """Create an FGG out of an HRG and no domains and factors."""
         fgg = FGG(hrg.start)
-        for r in hrg.all_rules():
-            fgg.add_rule(r)
+        fgg._node_labels = hrg._node_labels.copy()
+        fgg._edge_labels = hrg._edge_labels.copy()
+        fgg._rules = hrg._rules.copy()
         return fgg
 
     def copy(self):
         """Returns a copy of this FGG."""
         fgg = FGG(self.start)
-        for r in self.all_rules():
-            fgg.add_rule(r.copy())
+        fgg._node_labels = hrg._node_labels.copy()
+        fgg._edge_labels = hrg._edge_labels.copy()
+        fgg._rules = hrg._rules.copy()
         fgg.domains = copy.deepcopy(self.domains)
         fgg.factors = copy.deepcopy(self.factors)
         return fgg
