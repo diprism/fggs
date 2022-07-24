@@ -309,11 +309,17 @@ class TestHRGRule(unittest.TestCase):
 
     def test_optional_lhs(self):
         nl1 = NodeLabel("nl1")
+        el1 = EdgeLabel("good", (nl1, nl1), is_nonterminal=True)
         r = HRGRule(None, self.rhs)
         with self.assertRaises(ValueError):
             r.lhs
-        lhs = r.lhs = EdgeLabel("good", (nl1, nl1), is_nonterminal=True)
-        self.assertEqual(r.lhs, lhs)
+        r.lhs = el1
+        self.assertEqual(r.lhs, el1)
+
+        hrg = HRG(el1)
+        r = HRGRule(None, self.rhs)
+        hrg.add_rule(r)
+        r.lhs = el1
 
     def test_optional_rhs(self):
         r = HRGRule()
