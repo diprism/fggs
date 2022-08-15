@@ -423,7 +423,7 @@ def factorize_hrg(g, method='min_fill'):
     """
     gnew = fggs.HRG(g.start)
     labels = set(g.edge_labels())
-    for r in g.all_rules():
+    for r in g.rules():
         for rnew in factorize_rule(r, method=method, labels=labels):
             gnew.add_rule(rnew)
     return gnew

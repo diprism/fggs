@@ -44,7 +44,7 @@ class TestSingleton(unittest.TestCase):
         self.assertCountEqual(g.node_labels(), [self.nl1])
         self.assertCountEqual(g.edge_labels(), [self.el1, self.start])
         self.assertEqual(g.start, self.start)
-        self.assertEqual(len(g.all_rules()), 1)
+        self.assertEqual(len(g.rules()), 1)
     
     def test_unique_start_name(self):
         s1_lab  = EdgeLabel("<S>", [], is_terminal=True)

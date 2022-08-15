@@ -327,25 +327,25 @@ class TestHRGRule(unittest.TestCase):
 
     def test_set_lhs_and_ext(self):
         rule = self.rule.copy()
-        good_ext = tuple(rule.rhs.nodes())
-        bad_ext = good_ext[:1]
+        ext1 = tuple(rule.rhs.nodes())
+        ext2 = ext1[:1]
         nl1 = NodeLabel("nl1")
-        good_lhs = EdgeLabel("good", (nl1, nl1), is_nonterminal=True)
-        bad_lhs = EdgeLabel("good", (nl1,), is_nonterminal=True)
-        rule.lhs = good_lhs
-        self.assertEqual(rule.lhs, good_lhs)
+        el1 = EdgeLabel("X1", (nl1, nl1), is_nonterminal=True)
+        el2 = EdgeLabel("X2", (nl1,), is_nonterminal=True)
+        rule.lhs = el1
+        self.assertEqual(rule.lhs, el1)
         with self.assertRaises(ValueError):
-            rule.lhs = bad_lhs
-        rule.set_lhs_ext(good_lhs, good_ext)
-        self.assertEqual(rule.lhs, good_lhs)
-        self.assertEqual(rule.rhs.ext, good_ext)
+            rule.lhs = el2
+        rule.set_lhs_ext(el1, ext1)
+        self.assertEqual(rule.lhs, el1)
+        self.assertEqual(rule.rhs.ext, ext1)
         with self.assertRaises(ValueError):
-            rule.set_lhs_ext(bad_lhs, good_ext)
+            rule.set_lhs_ext(el2, ext1)
         with self.assertRaises(ValueError):
-            rule.set_lhs_ext(good_lhs, bad_ext)
-        rule.set_lhs_ext(bad_lhs, bad_ext)
-        self.assertEqual(rule.lhs, bad_lhs)
-        self.assertEqual(rule.rhs.ext, bad_ext)
+            rule.set_lhs_ext(el1, ext2)
+        rule.set_lhs_ext(el2, ext2)
+        self.assertEqual(rule.lhs, el2)
+        self.assertEqual(rule.rhs.ext, ext2)
 
 class TestHRG(unittest.TestCase):
 
@@ -438,7 +438,7 @@ class TestHRG(unittest.TestCase):
         self.assertEqual(self.hrg.start, self.start)
 
     def test_add_rule(self):
-        all_rules = self.hrg.all_rules()
+        all_rules = self.hrg.rules()
         self.assertEqual(len(all_rules), 2)
         self.assertTrue(self.rule in all_rules)
         self.assertTrue(self.rule2 in all_rules)
@@ -476,7 +476,7 @@ class TestHRG(unittest.TestCase):
 
     def test_convenience(self):
         copy = HRG(self.hrg.start.name)
-        for rule in self.hrg.all_rules():
+        for rule in self.hrg.rules():
             copy.new_rule(rule.lhs.name, rule.rhs)
         self.assertEqual(self.hrg, copy)
 

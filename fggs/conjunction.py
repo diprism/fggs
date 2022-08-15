@@ -107,8 +107,8 @@ def conjoin_hrgs(hrg1, hrg2):
     nt_map = nonterminal_pairs(hrg1, hrg2)
     new_hrg = fggs.HRG(nt_map[hrg1.start, hrg2.start])
     # add rules
-    for rule1 in hrg1.all_rules():
-        for rule2 in hrg2.all_rules():
+    for rule1 in hrg1.rules():
+        for rule2 in hrg2.rules():
             if conjoinable(rule1, rule2):
                 new_hrg.add_rule(conjoin_rules(rule1, rule2, nt_map))
     return new_hrg

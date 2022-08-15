@@ -169,7 +169,7 @@ class LabelingMixin:
         """Adds an edge label to the set of used edge labels."""
         name = label.name
         if name in self._edge_labels.keys() and self._edge_labels[name] != label:
-            raise ValueError(f"There is already an edge label called {name}.")
+            raise ValueError(f"There is already an edge label called {name} ({self._edge_labels[name]} != {label})")
         self._edge_labels[name] = label
         
     def has_edge_label_name(self, name: str) -> bool:
@@ -370,6 +370,7 @@ class HRGRule:
     @lhs.setter
     def lhs(self, el: EdgeLabel):
         HRGRule._check_lhs_ext(el, self.rhs.ext)
+        self.rhs.add_edge_label(el)
         self._lhs = el
 
     def copy(self):
@@ -399,6 +400,7 @@ class HRGRule:
         constraint that they must have the same node labels."""
         ext = tuple(ext)
         HRGRule._check_lhs_ext(lhs, ext)
+        self.rhs.add_edge_label(lhs)
         self._lhs = lhs
         self.rhs.ext = ext
 
@@ -414,13 +416,13 @@ class HRG(LabelingMixin, object):
     
     _node_labels: Dict[str, NodeLabel]
     _edge_labels: Dict[str, EdgeLabel]
-    _rules: Dict[EdgeLabel, List[HRGRule]]
+    _rules: List[HRGRule]
     _start: Optional[EdgeLabel]
             
     def __init__(self, start: Union[EdgeLabel, str, None]):
         self._node_labels = dict()
         self._edge_labels = dict()
-        self._rules = dict()
+        self._rules = []
         if isinstance(start, EdgeLabel):
             self.start = start
         elif isinstance(start, str):
@@ -445,16 +447,19 @@ class HRG(LabelingMixin, object):
 
     def add_rule(self, rule: HRGRule):
         """Add a new production to the HRG."""
-        lhs = rule.lhs
+        try:
+            self.add_edge_label(rule.lhs)
+        except ValueError:
+            # rule doesn't have an LHS yet, which is okay.
+            # When 
+            pass
         rhs = rule.rhs
-        
-        self.add_edge_label(lhs)
         for node in rhs.nodes():
             self.add_node_label(node.label)
         for edge in rhs.edges():
             self.add_edge_label(edge.label)
         
-        self._rules.setdefault(lhs, []).append(rule)
+        self._rules.append(rule)
 
     def new_rule(self, lhs: str, rhs: Graph):
         """Convenience function for creating and adding a Rule at the same time."""
@@ -463,22 +468,20 @@ class HRG(LabelingMixin, object):
         self.add_rule(rule)
         return rule
 
-    def all_rules(self):
-        """Return a copy of the list of all rules."""
-        return [rule for nt_name in self._rules for rule in self._rules[nt_name]]
-    
-    def rules(self, lhs):
-        """Return a copy of the list of all rules with left-hand side `lhs`."""
-        return list(self._rules.get(lhs, []))
+    def rules(self, lhs=None):
+        """Return the list of all rules. If lhs is set, returns only those
+        rules with left-hand side lhs.."""
+        if lhs is None:
+            return self._rules
+        else:
+            return [r for r in self._rules if r.lhs == lhs]
     
     def copy(self):
         """Returns a copy of this HRG, whose rules are all copies of the original's."""
         copy = HRG(self.start)
         copy._node_labels = self._node_labels.copy()
         copy._edge_labels = self._edge_labels.copy()
-        copy._rules = {}
-        for lhs in self._rules:
-            copy._rules[lhs] = [r.copy() for r in self._rules[lhs]]
+        copy._rules = [r.copy() for r in self._rules]
         return copy
 
     def __eq__(self, other):
@@ -504,9 +507,8 @@ class HRG(LabelingMixin, object):
             string += f"\n{self._edge_labels[label_name].to_string(2)}"
         string += f"\n  Start symbol {self.start.name}"
         string += f"\n  Productions:"
-        for nonterminal in self._rules:
-            for rule in self._rules[nonterminal]:
-                string += f"\n{rule.to_string(2)}"
+        for rule in self._rules:
+            string += f"\n{rule.to_string(2)}"
         return string
 
     
@@ -619,7 +621,7 @@ class FGG(InterpretationMixin, HRG):
     def from_hrg(hrg: HRG):
         """Create an FGG out of an HRG and no domains and factors."""
         fgg = FGG(hrg.start)
-        for r in hrg.all_rules():
+        for r in hrg.rules():
             fgg.add_rule(r)
         return fgg
 
@@ -628,9 +630,7 @@ class FGG(InterpretationMixin, HRG):
         fgg = FGG(self.start)
         fgg._node_labels = self._node_labels.copy()
         fgg._edge_labels = self._edge_labels.copy()
-        fgg._rules = {}
-        for lhs in self._rules:
-            fgg._rules[lhs] = [r.copy() for r in self._rules[lhs]]
+        fgg._rules = [r.copy() for r in self._rules]
         fgg.domains = copy.deepcopy(self.domains)
         fgg.factors = copy.deepcopy(self.factors)
         return fgg

@@ -115,7 +115,7 @@ def hrg_to_json(g):
     j['start'] = g.start.name
     
     j['rules'] = []
-    for gr in g.all_rules():
+    for gr in g.rules():
         nodes = sorted(gr.rhs.nodes(), key=lambda v: str(v.id))
         node_nums = {v:vi for vi, v in enumerate(nodes)}
         jnodes = []
@@ -329,7 +329,7 @@ def hrg_to_tikz(g, factor_formats=None):
         """
     res = []
     res.append(r'\begin{align*}')
-    for r in g.all_rules():
+    for r in g.rules():
         # Build a little factor graph for the lhs
         lhs = Graph()
         lhs.add_edge(Edge(r.lhs(), [Node(x) for x in r.lhs.type]))

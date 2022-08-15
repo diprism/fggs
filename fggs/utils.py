@@ -41,7 +41,7 @@ def nonterminal_graph(hrg: HRG) -> Dict[EdgeLabel, Set[EdgeLabel]]:
     lhs x and a nonterminal y occurring on the rhs.
     """
     g: Dict[EdgeLabel, Set[EdgeLabel]] = {x:set() for x in hrg.nonterminals()}
-    for r in hrg.all_rules():
+    for r in hrg.rules():
         for e in r.rhs.edges():
             if e.label.is_nonterminal:
                 g[r.lhs].add(e.label)

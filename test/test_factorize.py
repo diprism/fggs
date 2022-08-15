@@ -93,7 +93,7 @@ class TestFactorize(unittest.TestCase):
                 with open(os.path.join(os.path.dirname(__file__), filename)) as f:
                     j = json.load(f)['grammar']
                 g = json_to_hrg(j)
-                for r in g.all_rules():
+                for r in g.rules():
                     frules = {fr.lhs:fr for fr in factorize_rule(r)}
                     def visit(fr):
                         for e in list(fr.rhs.edges()):
