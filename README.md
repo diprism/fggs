@@ -5,12 +5,6 @@ Factor graph grammars (FGGs) are hyperedge replacement graph grammars for factor
 
 This library implements FGGs in Python and is compatible with PyTorch (tested with Python >= 3.7 and PyTorch >= 3.8).
 
-FGGs are described in the following paper:
-
-David Chiang and Darcey Riley. [Factor graph grammars.](https://arxiv.org/abs/2010.12048) In Proc. NeurIPS. 2020.
-
-This code is written by David Chiang, Darcey Riley, and Kenneth Sible, at the University of Notre Dame, and is licensed under the MIT License.
-
 ## Building
 
 To build the documentation, run `make docs` in the project root.
