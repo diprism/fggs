@@ -1,6 +1,6 @@
 torch>=1.8
 pydot
 #torch-semiring-einsum
--e git+https://github.com/diprism/semiring-einsum@fgg#egg=torch-semiring-einsum
+-e ../semiring-einsum#egg=torch-semiring-einsum
 tqdm
 mypy
