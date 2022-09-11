@@ -42,6 +42,8 @@ if __name__ == '__main__':
 
     extern_weights = {}
     for name, weights in args.weights:
+        if not fgg.has_edge_label_name(name):
+            error(f'FGG does not have an edge label named {name}')
         el = fgg.get_edge_label(name)
 
         weights = string_to_tensor(weights, f"weights for {name}", fgg.shape(el))
@@ -53,6 +55,8 @@ if __name__ == '__main__':
         # If it's a nonterminal, create a rule for it that rewrites to a factor.
             
         if el.is_nonterminal:
+            if len(fgg.rules(el)) > 0:
+                error(f'FGG already has rules for nonterminal {name}')
             weights_name = name + "_weights"
             assert not fgg.has_edge_label_name(weights_name)
             rhs = fggs.Graph()
@@ -61,7 +65,9 @@ if __name__ == '__main__':
             rhs.ext = nodes
             fgg.new_rule(name, rhs)
             name = weights_name
-            
+
+        if name in fgg.factors:
+            error(f'FGG already has a factor named {name}')
         fgg.new_finite_factor(name, weights)
 
     for name, dim in args.normalize:

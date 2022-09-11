@@ -48,8 +48,8 @@ class QuadraticExample(Example):
             
         super().__init__('test/simplefgg.json', gradcheck=gradcheck)
         self.p = p
-        self.fgg.factors['fac1'].weights = p
-        self.fgg.factors['fac2'].weights = 1-p
+        self.fgg.new_finite_factor('fac1', p)
+        self.fgg.new_finite_factor('fac2', 1-p)
         
     def exact(self):
         p = self.p
@@ -143,15 +143,13 @@ class TestSumProduct(unittest.TestCase):
         
         fgg = load_fgg('test/simplefgg.json')
         # make sum-product infinite
-        fac1 = fgg.factors['fac1']
-        fac1.weights = torch.tensor(1., requires_grad=True)
-        fac2 = fgg.factors['fac2']
-        fac2.weights = torch.tensor(1., requires_grad=True)
+        fgg.new_finite_factor('fac1', torch.tensor(1., requires_grad=True))
+        fgg.new_finite_factor('fac2', torch.tensor(1., requires_grad=True))
         z = sum_product(fgg, method='newton')
         self.assertEqual(z.item(), math.inf)
         z.backward()
-        self.assertEqual(fac1.weights.grad.item(), math.inf)
-        self.assertEqual(fac2.weights.grad.item(), math.inf)
+        self.assertEqual(fgg.factors['fac1'].weights.grad.item(), math.inf)
+        self.assertEqual(fgg.factors['fac2'].weights.grad.item(), math.inf)
         
 
     def test_sum_product(self):
