@@ -1,10 +1,12 @@
 {
     "grammar": {
-        "terminals": {},
+        
+        "terminals": {
+            "fac1": { "type": [] },
+            "fac2": { "type": [] }
+        },
         "nonterminals": {
-            "S": { "type" : [] },
-            "X1": { "type": [] },
-            "X2": { "type": [] }
+            "S": { "type" : [] }
         },
         "start": "S",
         "rules": [
@@ -13,7 +15,7 @@
                 "rhs": {
                     "nodes": [],
                     "edges": [
-                        { "id": "e0", "attachments": [], "label": "X1" },
+                        { "id": "e0", "attachments": [], "label": "fac1" },
                         { "id": "e1", "attachments": [], "label": "S" },
                         { "id": "e2", "attachments": [], "label": "S" }
                     ],
@@ -25,7 +27,7 @@
                 "rhs": {
                     "nodes": [],
                     "edges": [
-                        { "id": "e0", "attachments": [], "label": "X2" }
+                        { "id": "e0", "attachments": [], "label": "fac2" }
                     ],
                     "externals": []
                 }
@@ -34,6 +36,15 @@
     },
     "interpretation": {
         "domains": {},
-        "factors": {}
+        "factors": {
+            "fac1": {
+                "function": "finite",
+                "weights": 0.8
+            },
+            "fac2": {
+                "function": "finite",
+                "weights": 0.2
+            }
+        }
     }
 }
