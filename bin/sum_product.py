@@ -43,14 +43,18 @@ if __name__ == '__main__':
     extern_weights = {}
     for name, weights in args.weights:
         el = fgg.get_edge_label(name)
-        weights = string_to_tensor(weights, f"<weights> for {name}", fgg.shape(el))
+        weights_name = name + "_weights"
+        assert not fgg.has_edge_label_name(weights_name)
+        weights = string_to_tensor(weights, f"weights for {name}", fgg.shape(el))
         if args.grad or args.expect:
             weights.requires_grad_()
         extern_weights[name] = weights
-        if name not in fgg.factors:
-            fgg.new_finite_factor(name, weights)
-        else:
-            fgg.factors[name].weights = weights
+        rhs = fggs.Graph()
+        nodes = [fggs.Node(nl) for nl in el.type]
+        rhs.new_edge(weights_name, nodes, is_terminal=True)
+        rhs.ext = nodes
+        fgg.new_rule(name, rhs)
+        fgg.new_finite_factor(weights_name, weights)
 
     for name, dim in args.normalize:
         if name not in fgg.factors:
