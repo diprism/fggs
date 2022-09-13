@@ -40,7 +40,10 @@ Factor graph grammars
 .. autoclass:: fggs.Factor
    :members:
 
-.. autoclass:: fggs.CategoricalFactor
+.. autoclass:: fggs.FiniteFactor
+   :members:
+
+.. autoclass:: fggs.FGGDerivation      
    :members:
 
 Reading and writing FGGs
@@ -54,10 +57,14 @@ Operations on FGGs
 
 .. autofunction:: fggs.start_graph
                   
-.. autofunction:: fggs.replace_edges
-                  
+.. autofunction:: fggs.replace_edge
+
 .. autofunction:: fggs.conjoin_hrgs
                   
-.. autofunction:: fggs.factorize
+.. autofunction:: fggs.factorize_rule
+                  
+.. autofunction:: fggs.factorize_hrg
+                  
+.. autofunction:: fggs.factorize_fgg
       
 .. autofunction:: fggs.sum_product
