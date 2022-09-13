@@ -1,7 +1,7 @@
 __all__ = ['viterbi']
 
 from fggs.fggs import FGG, FactorGraph, HRGRule, Node, Edge, EdgeLabel
-from fggs.semirings import Semiring
+from fggs.semirings import Semiring, ViterbiSemiring
 from fggs.utils import nonterminal_graph, scc
 from fggs.derivations import *
 from fggs.sum_product import FGGMultiShape
@@ -85,11 +85,21 @@ def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring)
 
     return (Fx, lhs_pointer, rhs_pointer)
 
-def viterbi(fgg: FGG, start_asst: Tuple[int,...], opts: Dict) -> FGGDerivation:
+def viterbi(fgg: FGG, start_asst: Tuple[int,...], **opts) -> FGGDerivation:
+    """Find the highest-weight derivation of an FGG.
+
+    Parameters:
+    - fgg: the FGG
+    - start_asst: tuple of assignments to the start nonterminal symbol
+    - opts: see documentation for `sum_product`
+
+    Returns:
+    - An FGGDerivation object representing the highest-weight derivation.
+    """
     if len(start_asst) != fgg.start.arity:
         raise ValueError(f"Start assignment ({start_asst}) does not have same type as FGG's start symbol ({fgg.start.type})")
     
-    semiring = opts['semiring']
+    semiring = opts.get('semiring', ViterbiSemiring())
     kmax = opts.get('kmax', 1000)
     tol = opts.get('tol', 1e-6)
 

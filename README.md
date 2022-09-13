@@ -134,3 +134,11 @@ The return value of `fggs.sum_product` is a tensor. If the start
 nonterminal has no external nodes (as in the original paper), the
 tensor is a scalar. It's also allowed for the start nonterminal to
 have k > 0 external nodes, so that the tensor has order k.
+
+The `ViterbiSemiring` gives the log-weight of the highest-weight
+derivation. To get the derivation itself, use `fggs.viterbi(fgg, asst,
+**opts)`, where `asst` is an assignment to the start nonterminal.
+
+    derivation = fggs.viterbi(fgg, ())
+    factorgraph = derivation.derive()
+
