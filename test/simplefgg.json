@@ -36,15 +36,6 @@
     },
     "interpretation": {
         "domains": {},
-        "factors": {
-            "fac1": {
-                "function": "finite",
-                "weights": 0.8
-            },
-            "fac2": {
-                "function": "finite",
-                "weights": 0.2
-            }
-        }
+        "factors": {}
     }
 }

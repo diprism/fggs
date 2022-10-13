@@ -27,6 +27,8 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='Compute the sum-product of an FGG.')
     ap.add_argument('fgg', metavar='<fgg>', help='the FGG, in JSON format')
     ap.add_argument('-m', metavar='<method>', dest='method', default='newton', choices=['fixed-point', 'linear', 'newton'], help='use <method> (fixed-point, linear, or newton)')
+    ap.add_argument('-l', metavar='<tol>', dest='tol', type=float, default=1e-5, help="stop iterating when change is below <tol>")
+    ap.add_argument('-k', metavar='<kmax>', dest='kmax', type=int, default=1000, help="iterate at most <kmax> times")
     ap.add_argument('-w', metavar=('<factor>', '<weights>'), dest='weights', action='append', default=[], nargs=2, help="set <factor>'s weights to <weights>")
     ap.add_argument('-n', metavar=('<factor>', '<dim>'), dest='normalize', action='append', default=[], nargs=2, help="normalize <factor> along <dim>")
     ap.add_argument('-o', metavar='<out_weights>', dest='out_weights', help='for -g and -e options, weight the elements of sum-product by <weights> (default: all 1)')
@@ -42,15 +44,33 @@ if __name__ == '__main__':
 
     extern_weights = {}
     for name, weights in args.weights:
+        if not fgg.has_edge_label_name(name):
+            error(f'FGG does not have an edge label named {name}')
         el = fgg.get_edge_label(name)
-        weights = string_to_tensor(weights, f"<weights> for {name}", fgg.shape(el))
+
+        weights = string_to_tensor(weights, f"weights for {name}", fgg.shape(el))
         if args.grad or args.expect:
             weights.requires_grad_()
         extern_weights[name] = weights
-        if name not in fgg.factors:
-            fgg.new_finite_factor(name, weights)
-        else:
-            fgg.factors[name].weights = weights
+
+        # el can either be a terminal or a nonterminal.
+        # If it's a nonterminal, create a rule for it that rewrites to a factor.
+            
+        if el.is_nonterminal:
+            if len(fgg.rules(el)) > 0:
+                error(f'FGG already has rules for nonterminal {name}')
+            weights_name = name + "_weights"
+            assert not fgg.has_edge_label_name(weights_name)
+            rhs = fggs.Graph()
+            nodes = [fggs.Node(nl) for nl in el.type]
+            rhs.new_edge(weights_name, nodes, is_terminal=True)
+            rhs.ext = nodes
+            fgg.new_rule(name, rhs)
+            name = weights_name
+
+        if name in fgg.factors:
+            error(f'FGG already has a factor named {name}')
+        fgg.new_finite_factor(name, weights)
 
     for name, dim in args.normalize:
         if name not in fgg.factors:
@@ -70,7 +90,7 @@ if __name__ == '__main__':
         fac = fgg.factors[el.name]
         fac.weights = torch.as_tensor(fac.weights, dtype=torch.get_default_dtype())
 
-    zs = fggs.sum_products(fgg, method=args.method)
+    zs = fggs.sum_products(fgg, method=args.method, tol=args.tol, kmax=args.kmax)
     z = zs[fgg.start]
 
     if args.trace:
