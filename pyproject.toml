@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fggs"
-version = "0.0.1"
+version = "0.1"
 authors = [
   { name="David Chiang", email="dchiang@nd.edu" },
   { name="Darcey Riley", email="darcey.riley@nd.edu" },
@@ -22,10 +22,13 @@ classifiers = [
 ]
 dependencies = [
     "torch>=1.8",
-    "torch-semiring-einsum",
+    "torch-semiring-einsum>=1.1",
     "pydot",
     "tqdm",
 ]
 
 [project.urls]
 "Homepage" = "https://github.com/diprism/fggs"
+
+[tool.setuptools]
+packages = ["fggs"]
