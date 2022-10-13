@@ -41,7 +41,7 @@ class TestSumProduct(unittest.TestCase):
         fgg = self.fgg.copy()
         for fac in fgg.factors.values():
             fac.weights = torch.log(torch.as_tensor(fac.weights))
-        (facgraph, asst) = viterbi(fgg, (), {'semiring': ViterbiSemiring()}).derive()
+        (facgraph, asst) = viterbi(fgg, ()).derive()
         result, m = naive_graph_isomorphism(facgraph, self.graph)
         self.assertTrue(result, m)
         for node in asst:
