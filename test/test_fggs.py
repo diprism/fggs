@@ -179,6 +179,14 @@ class TestGraph(unittest.TestCase):
     def test_set_ext(self):
         ext = self.graph.ext
         self.assertEqual(ext, (self.node2,))
+
+    def test_optional_ext(self):
+        g = Graph()
+        with self.assertRaises(ValueError):
+            g.ext
+        v = g.new_node("nl")
+        g.ext = [v]
+        self.assertEqual(g.ext, (v,))
     
     def test_add_nodes_implicitly(self):
         node3 = Node(self.nl1)
@@ -282,7 +290,7 @@ class TestHRGRule(unittest.TestCase):
         nonterminal_mismatch = EdgeLabel("nonterminal1", (nl,), is_nonterminal=True)
         nonterminal_match = EdgeLabel("nonterminal2", (nl, nl), is_nonterminal=True)
         
-        graph = Graph()
+        self.rhs = graph = Graph()
         graph.add_node(node1)
         graph.add_node(node2)
         graph.ext = [node1, node2]
@@ -298,6 +306,46 @@ class TestHRGRule(unittest.TestCase):
         copy = self.rule.copy()
         self.assertNotEqual(id(rule), id(copy))
         self.assertEqual(rule, copy)
+
+    def test_optional_lhs(self):
+        nl1 = NodeLabel("nl1")
+        el1 = EdgeLabel("good", (nl1, nl1), is_nonterminal=True)
+        r = HRGRule(None, self.rhs)
+        with self.assertRaises(ValueError):
+            r.lhs
+        r.lhs = el1
+        self.assertEqual(r.lhs, el1)
+
+        hrg = HRG(el1)
+        r = HRGRule(None, self.rhs)
+        hrg.add_rule(r)
+        r.lhs = el1
+
+    def test_optional_rhs(self):
+        r = HRGRule()
+        self.assertEqual(r.rhs, Graph())
+
+    def test_set_lhs_and_ext(self):
+        rule = self.rule.copy()
+        ext1 = tuple(rule.rhs.nodes())
+        ext2 = ext1[:1]
+        nl1 = NodeLabel("nl1")
+        el1 = EdgeLabel("X1", (nl1, nl1), is_nonterminal=True)
+        el2 = EdgeLabel("X2", (nl1,), is_nonterminal=True)
+        rule.lhs = el1
+        self.assertEqual(rule.lhs, el1)
+        with self.assertRaises(ValueError):
+            rule.lhs = el2
+        rule.set_lhs_ext(el1, ext1)
+        self.assertEqual(rule.lhs, el1)
+        self.assertEqual(rule.rhs.ext, ext1)
+        with self.assertRaises(ValueError):
+            rule.set_lhs_ext(el2, ext1)
+        with self.assertRaises(ValueError):
+            rule.set_lhs_ext(el1, ext2)
+        rule.set_lhs_ext(el2, ext2)
+        self.assertEqual(rule.lhs, el2)
+        self.assertEqual(rule.rhs.ext, ext2)
 
 class TestHRG(unittest.TestCase):
 
@@ -390,7 +438,7 @@ class TestHRG(unittest.TestCase):
         self.assertEqual(self.hrg.start, self.start)
 
     def test_add_rule(self):
-        all_rules = self.hrg.all_rules()
+        all_rules = self.hrg.rules()
         self.assertEqual(len(all_rules), 2)
         self.assertTrue(self.rule in all_rules)
         self.assertTrue(self.rule2 in all_rules)
@@ -428,7 +476,7 @@ class TestHRG(unittest.TestCase):
 
     def test_convenience(self):
         copy = HRG(self.hrg.start.name)
-        for rule in self.hrg.all_rules():
+        for rule in self.hrg.rules():
             copy.new_rule(rule.lhs.name, rule.rhs)
         self.assertEqual(self.hrg, copy)
 

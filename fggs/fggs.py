@@ -169,7 +169,7 @@ class LabelingMixin:
         """Adds an edge label to the set of used edge labels."""
         name = label.name
         if name in self._edge_labels.keys() and self._edge_labels[name] != label:
-            raise ValueError(f"There is already an edge label called {name}.")
+            raise ValueError(f"There is already an edge label called {name} ({self._edge_labels[name]} != {label})")
         self._edge_labels[name] = label
         
     def has_edge_label_name(self, name: str) -> bool:
@@ -196,12 +196,18 @@ class LabelingMixin:
 class Graph(LabelingMixin, object):
     """A hypergraph or hypergraph fragment (= hypergraph with external nodes)."""
 
+    _nodes: Dict[str, Node]            # from ids to Nodes
+    _edges: Dict[str, Edge]            # from ids to Edges
+    _node_labels: Dict[str, NodeLabel] # from names to NodeLabels
+    _edge_labels: Dict[str, EdgeLabel] # from names to EdgeLabels
+    _ext: Optional[Tuple[Node, ...]]   # external nodes
+    
     def __init__(self):
-        self._nodes: Dict[str, Node]            = dict() # from ids to Nodes
-        self._edges: Dict[str, Edge]            = dict() # from ids to Edges
-        self._node_labels: Dict[str, NodeLabel] = dict() # from names to NodeLabels
-        self._edge_labels: Dict[str, EdgeLabel] = dict() # from names to EdgeLabels
-        self._ext: Tuple[Node, ...]             = ()
+        self._nodes = dict()
+        self._edges = dict()
+        self._node_labels = dict()
+        self._edge_labels = dict()
+        self._ext = None
     
     def nodes(self):
         """Returns a view of the nodes in the hypergraph."""
@@ -212,9 +218,12 @@ class Graph(LabelingMixin, object):
         return self._edges.values()
 
     @property
-    def ext(self):
+    def ext(self) -> Tuple[Node, ...]:
         """Tuple of external nodes."""
-        return self._ext
+        if self._ext is None:
+            raise ValueError("Graph does not have external nodes specified yet.")
+        else:
+            return self._ext
 
     @ext.setter
     def ext(self, nodes: Iterable[Node]):
@@ -227,12 +236,12 @@ class Graph(LabelingMixin, object):
     @property
     def arity(self):
         """Returns the number of external nodes."""
-        return len(self._ext)
+        return len(self.ext)
 
     @property
     def type(self):
         """Returns the tuple of node labels of the external nodes."""
-        return tuple([node.label for node in self._ext])
+        return tuple([node.label for node in self.ext])
     
     def add_node(self, node: Node):
         """Adds a node to the hypergraph."""
@@ -339,18 +348,34 @@ class HRGRule:
     - rhs: The right-hand side hypergraph fragment.
     """
 
-    lhs: EdgeLabel #: The left-hand side nonterminal.
-    rhs: Graph     #: The right-hand side hypergraph fragment.
+    _lhs: Optional[EdgeLabel] #: The left-hand side nonterminal.
+    rhs: Graph                #: The right-hand side hypergraph fragment.
 
-    def __post_init__(self):
-        if self.lhs.is_terminal:
-            raise Exception(f"Can't make HRG rule with terminal left-hand side.")
-        if (self.lhs.type != self.rhs.type):
-            raise Exception(f"Can't make HRG rule: left-hand side of type ({','.join(l.name for l in self.lhs.type)}) not compatible with right-hand side of type ({','.join(l.name for l in self.rhs.type)}).")
+    def __init__(self, lhs: Optional[EdgeLabel] = None, rhs: Optional[Graph] = None):
+        if lhs is not None and rhs is not None:
+            HRGRule._check_lhs_ext(lhs, rhs.ext)
+        self._lhs = lhs
+        if rhs is None:
+            self.rhs = Graph()
+        else:
+            self.rhs = rhs
+
+    @property
+    def lhs(self) -> EdgeLabel:
+        if self._lhs is None:
+            raise ValueError("HRGRule does not have a left-hand side yet)")
+        else:
+            return self._lhs
+
+    @lhs.setter
+    def lhs(self, el: EdgeLabel):
+        HRGRule._check_lhs_ext(el, self.rhs.ext)
+        self.rhs.add_edge_label(el)
+        self._lhs = el
 
     def copy(self):
         """Returns a copy of this HRGRule, whose right-hand side is a copy of the original's."""
-        return HRGRule(self.lhs, self.rhs.copy())
+        return HRGRule(self._lhs, self.rhs.copy())
 
     def __str__(self):
         return self.to_string(0)
@@ -360,6 +385,24 @@ class HRGRule:
         string += self.rhs.to_string(indent+1)
         return string
 
+    @staticmethod
+    def _check_lhs_ext(lhs: EdgeLabel, ext: Tuple[Node, ...]):
+        if lhs.is_terminal:
+            raise ValueError(f"HRGRule left-hand side must be nonterminal.")
+        ext_type = tuple(v.label for v in ext)
+        if lhs.type != ext_type:
+            raise ValueError(f"HRGRule left-hand side type ({','.join(l.name for l in lhs.type)}) must match external node labels ({','.join(l.name for l in ext_type)}).")
+
+    def set_lhs_ext(self, lhs: EdgeLabel, ext: Iterable[Node]):
+        """Set an HRGRule's left-hand side (LHS) and external nodes
+        simultaneously. This is useful in situations where setting the
+        LHS and external nodes one at a time would violate the
+        constraint that they must have the same node labels."""
+        ext = tuple(ext)
+        HRGRule._check_lhs_ext(lhs, ext)
+        self.rhs.add_edge_label(lhs)
+        self._lhs = lhs
+        self.rhs.ext = ext
 
 class HRG(LabelingMixin, object):
     """A hyperedge replacement graph grammar.
@@ -371,27 +414,32 @@ class HRG(LabelingMixin, object):
       assumed that its arity is zero.
     """
     
+    _node_labels: Dict[str, NodeLabel]
+    _edge_labels: Dict[str, EdgeLabel]
+    _rules: List[HRGRule]
+    _start: Optional[EdgeLabel]
+            
     def __init__(self, start: Union[EdgeLabel, str, None]):
-        self._node_labels: Dict[str, NodeLabel] = dict()
-        self._edge_labels: Dict[str, EdgeLabel] = dict()
-        self._rules: Dict[EdgeLabel, List[HRGRule]] = dict()
-        if start is not None:
-            self.start = start # type: ignore
-        else:
-            self.start = None # type: ignore
+        self._node_labels = dict()
+        self._edge_labels = dict()
+        self._rules = []
+        if isinstance(start, EdgeLabel):
+            self.start = start
+        elif isinstance(start, str):
+            self.start = EdgeLabel(start, [], is_nonterminal=True)
+        elif start is None:
+            self._start = None
 
     @property
     def start(self) -> EdgeLabel:
         """The start nonterminal symbol."""
-        return self._start
+        if self._start is None:
+            raise ValueError("HRG does not have a start symbol yet")
+        else:
+            return self._start
 
     @start.setter
-    def start(self, start: Union[EdgeLabel, str]):
-        if isinstance(start, str):
-            if self.has_edge_label_name(start):
-                start = self.get_edge_label(start)
-            else:
-                start = EdgeLabel(start, [], is_nonterminal=True)
+    def start(self, start: EdgeLabel):
         if start.is_terminal:
             raise ValueError('Start symbol must be a nonterminal')
         self.add_edge_label(start)
@@ -399,16 +447,19 @@ class HRG(LabelingMixin, object):
 
     def add_rule(self, rule: HRGRule):
         """Add a new production to the HRG."""
-        lhs = rule.lhs
+        try:
+            self.add_edge_label(rule.lhs)
+        except ValueError:
+            # rule doesn't have an LHS yet, which is okay.
+            # When 
+            pass
         rhs = rule.rhs
-        
-        self.add_edge_label(lhs)
         for node in rhs.nodes():
             self.add_node_label(node.label)
         for edge in rhs.edges():
             self.add_edge_label(edge.label)
         
-        self._rules.setdefault(lhs, []).append(rule)
+        self._rules.append(rule)
 
     def new_rule(self, lhs: str, rhs: Graph):
         """Convenience function for creating and adding a Rule at the same time."""
@@ -417,22 +468,20 @@ class HRG(LabelingMixin, object):
         self.add_rule(rule)
         return rule
 
-    def all_rules(self):
-        """Return a copy of the list of all rules."""
-        return [rule for nt_name in self._rules for rule in self._rules[nt_name]]
-    
-    def rules(self, lhs):
-        """Return a copy of the list of all rules with left-hand side `lhs`."""
-        return list(self._rules.get(lhs, []))
+    def rules(self, lhs=None):
+        """Return the list of all rules. If lhs is set, returns only those
+        rules with left-hand side lhs.."""
+        if lhs is None:
+            return self._rules
+        else:
+            return [r for r in self._rules if r.lhs == lhs]
     
     def copy(self):
         """Returns a copy of this HRG, whose rules are all copies of the original's."""
         copy = HRG(self.start)
         copy._node_labels = self._node_labels.copy()
         copy._edge_labels = self._edge_labels.copy()
-        copy._rules = {}
-        for lhs in self._rules:
-            copy._rules[lhs] = [r.copy() for r in self._rules[lhs]]
+        copy._rules = [r.copy() for r in self._rules]
         return copy
 
     def __eq__(self, other):
@@ -458,9 +507,8 @@ class HRG(LabelingMixin, object):
             string += f"\n{self._edge_labels[label_name].to_string(2)}"
         string += f"\n  Start symbol {self.start.name}"
         string += f"\n  Productions:"
-        for nonterminal in self._rules:
-            for rule in self._rules[nonterminal]:
-                string += f"\n{rule.to_string(2)}"
+        for rule in self._rules:
+            string += f"\n{rule.to_string(2)}"
         return string
 
     
@@ -543,7 +591,7 @@ class FactorGraph(InterpretationMixin, Graph):
             fg.add_node(node)
         for edge in g.edges():
             fg.add_edge(edge)
-        fg._ext = tuple(g._ext)
+        fg._ext = g._ext
         return fg
 
     def copy(self):
@@ -573,7 +621,7 @@ class FGG(InterpretationMixin, HRG):
     def from_hrg(hrg: HRG):
         """Create an FGG out of an HRG and no domains and factors."""
         fgg = FGG(hrg.start)
-        for r in hrg.all_rules():
+        for r in hrg.rules():
             fgg.add_rule(r)
         return fgg
 
@@ -582,9 +630,7 @@ class FGG(InterpretationMixin, HRG):
         fgg = FGG(self.start)
         fgg._node_labels = self._node_labels.copy()
         fgg._edge_labels = self._edge_labels.copy()
-        fgg._rules = {}
-        for lhs in self._rules:
-            fgg._rules[lhs] = [r.copy() for r in self._rules[lhs]]
+        fgg._rules = [r.copy() for r in self._rules]
         fgg.domains = copy.deepcopy(self.domains)
         fgg.factors = copy.deepcopy(self.factors)
         return fgg

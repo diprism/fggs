@@ -41,7 +41,7 @@ def nonterminal_graph(hrg: HRG) -> Dict[EdgeLabel, Set[EdgeLabel]]:
     lhs x and a nonterminal y occurring on the rhs.
     """
     g: Dict[EdgeLabel, Set[EdgeLabel]] = {x:set() for x in hrg.nonterminals()}
-    for r in hrg.all_rules():
+    for r in hrg.rules():
         for e in r.rhs.edges():
             if e.label.is_nonterminal:
                 g[r.lhs].add(e.label)
@@ -115,7 +115,7 @@ def naive_graph_isomorphism(g1: Graph, g2: Graph):
     edges2 = set(edge.label for edge in g2.edges())
     if edges1 != edges2:
         return (False, f'different edge labels ({edges1} != {edges2})')
-    if g1.type != g2.type:
+    if g1._ext is not None and g2._ext is not None and g1.type != g2.type:
         return (False, f'different graph types ({g1.type} != {g2.type})')
     
     order1 = list(g1.nodes())
@@ -127,7 +127,7 @@ def naive_graph_isomorphism(g1: Graph, g2: Graph):
         edges1 = set((edge.label, tuple(map1[node] for node in edge.nodes)) for edge in g1.edges())
         edges2 = set((edge.label, tuple(map2[node] for node in edge.nodes)) for edge in g2.edges())
         if edges1 != edges2: continue
-        if [map1[node] for node in g1.ext] != [map2[node] for node in g2.ext]:
+        if g1._ext is not None and g2._ext is not None and [map1[node] for node in g1.ext] != [map2[node] for node in g2.ext]:
             continue
         return (True, dict(zip(order1, order2)))
     return(False, 'graphs are not isomorphic')
