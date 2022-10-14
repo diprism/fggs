@@ -2,13 +2,12 @@ from typing import Iterable, Union, List, Set, Dict, TypeVar, Tuple
 from fggs.fggs import *
 import itertools
 
-def unique_label_name(name: str, labs: Iterable[Union[NodeLabel, EdgeLabel]]) -> str:
+def unique_name(name: str, existing: Iterable[str]) -> str:
     """Given a name, modify it until it does not overlap with
-    a given set of NodeLabel/EdgeLabel names."""
-    names = [lab.name for lab in labs]
+    a given set of names."""
     new_name = name
     i = 1
-    while new_name in names:
+    while new_name in existing:
         new_name = f'{name}_{i}'
         i += 1
     return new_name
@@ -19,7 +18,7 @@ def singleton_hrg(graph: Graph) -> HRG:
 
     # Construct a new edge label name which is not already used in the graph
     edge_labels = graph.edge_labels()
-    start_name = unique_label_name("<S>", edge_labels)
+    start_name = unique_name("<S>", [el.name for el in edge_labels])
 
     start   = EdgeLabel(start_name, graph.type, is_nonterminal=True)
     rule    = HRGRule(start, graph)
@@ -107,14 +106,14 @@ def naive_graph_isomorphism(g1: Graph, g2: Graph):
     from nodes of g1 to nodes of g2. Else, return (False, msg) where
     msg is a string explaining why the graphs are not isomorphic.
     """
-    nodes1 = set(node.label for node in g1.nodes())
-    nodes2 = set(node.label for node in g2.nodes())
-    if nodes1 != nodes2:
-        return (False, f'different node labels ({nodes1} != {nodes2}')
-    edges1 = set(edge.label for edge in g1.edges())
-    edges2 = set(edge.label for edge in g2.edges())
-    if edges1 != edges2:
-        return (False, f'different edge labels ({edges1} != {edges2})')
+    nodelabs1 = set(node.label for node in g1.nodes())
+    nodelabs2 = set(node.label for node in g2.nodes())
+    if nodelabs1 != nodelabs2:
+        return (False, f'different node labels ({nodelabs1} != {nodelabs2}')
+    edgelabs1 = set(edge.label for edge in g1.edges())
+    edgelabs2 = set(edge.label for edge in g2.edges())
+    if edgelabs1 != edgelabs2:
+        return (False, f'different edge labels ({edgelabs1} != {edgelabs2})')
     if g1.type != g2.type:
         return (False, f'different graph types ({g1.type} != {g2.type})')
     

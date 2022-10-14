@@ -17,7 +17,7 @@ def nonterminal_pairs(hrg1, hrg2):
     for el1 in hrg1.nonterminals():
         for el2 in hrg2.nonterminals():
             new_nt_name = f'<{el1.name},{el2.name}>'
-            new_nt_name = utils.unique_label_name(new_nt_name, labels)
+            new_nt_name = utils.unique_name(new_nt_name, [el.name for el in labels])
             new_nt = fggs.EdgeLabel(new_nt_name,
                                     node_labels=el1.type,
                                     is_nonterminal=True)
@@ -27,14 +27,6 @@ def nonterminal_pairs(hrg1, hrg2):
 
 def check_namespace_collisions(hrg1, hrg2):
     """Checks whether two HRGs have any conflicting NodeLabels or EdgeLabels."""
-    # Check for conflicting NodeLabels
-    # (Currently, it's actually not possible for NodeLabels to conflict, but in the future, it might be.)
-    node_collisions = []
-    for nl1 in hrg1.node_labels():
-        if hrg2.has_node_label_name(nl1.name):
-            nl2 = hrg2.get_node_label(nl1.name)
-            if nl1 != nl2:
-                node_collisions.append((nl1, nl2))
     # Check for conflicting EdgeLabels
     edge_collisions = []
     for el1 in hrg1.edge_labels():
@@ -42,7 +34,7 @@ def check_namespace_collisions(hrg1, hrg2):
             el2 = hrg2.get_edge_label(el1.name)
             if el1 != el2:
                 edge_collisions.append((el1, el2))
-    return (node_collisions, edge_collisions)
+    return edge_collisions
 
 def conjoinable(rule1, rule2):
     """Test whether two HRG rules are conjoinable."""
@@ -98,9 +90,7 @@ def conjoin_rules(rule1, rule2, nt_map):
 
 def conjoin_hrgs(hrg1, hrg2):
     """Conjoin two HRGS."""
-    (n_col, e_col) = check_namespace_collisions(hrg1, hrg2)
-    for (nl1, nl2) in n_col:
-        raise ValueError(f"Cannot conjoin hrg1 and hrg2 because they each have a different NodeLabel called {nl1.name}")
+    e_col = check_namespace_collisions(hrg1, hrg2)
     for (el1, el2) in e_col:
         if el1.is_terminal and el2.is_terminal:
             raise ValueError(f"Cannot conjoin hrg1 and hrg2 because they each have a different terminal EdgeLabel called {el1.name}")

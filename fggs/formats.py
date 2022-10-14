@@ -2,6 +2,7 @@ __all__ = ['json_to_fgg', 'fgg_to_json', 'json_to_hrg', 'hrg_to_json', 'graph_to
 
 from fggs.fggs import *
 from fggs import domains, factors
+from typing import *
 
 ### JSON
 
@@ -10,8 +11,7 @@ def json_to_fgg(j):
     fgg = FGG.from_hrg(json_to_hrg(j['grammar']))
 
     ji = j['interpretation']
-    for name, d in ji['domains'].items():
-        nl = fgg.get_node_label(name)
+    for nl, d in ji['domains'].items():
         if d['class'] == 'finite':
             fgg.add_domain(nl, domains.FiniteDomain(d['values']))
         else:
@@ -21,7 +21,7 @@ def json_to_fgg(j):
         el = fgg.get_edge_label(name)
         if d['function'] == 'finite':
             weights = d['weights']
-            fgg.add_factor(el, factors.FiniteFactor([fgg.domains[nl.name] for nl in el.type], weights))
+            fgg.add_factor(el, factors.FiniteFactor([fgg.domains[nl] for nl in el.type], weights))
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
         
@@ -96,20 +96,20 @@ def json_to_hrg(j):
         
     return g
 
-def hrg_to_json(g):
+def hrg_to_json(g: HRG):
     """Convert an HRG to an object writable by json.dump()."""
-    j = {}
+    j: Dict[str, Any] = {}
 
     j['terminals'] = {}
     for t in g.terminals():
         j['terminals'][t.name] = {
-            'type': [l.name for l in t.type],
+            'type': [l for l in t.type],
         }
         
     j['nonterminals'] = {}
     for nt in g.nonterminals():
         j['nonterminals'][nt.name] = {
-            'type': [l.name for l in nt.type],
+            'type': [l for l in nt.type],
         }
         
     j['start'] = g.start.name
@@ -120,11 +120,11 @@ def hrg_to_json(g):
         node_nums = {v:vi for vi, v in enumerate(nodes)}
         jnodes = []
         for v in nodes:
-            jv = {'label': v.label.name}
+            jv: Dict[str, Any] = {'label': v.label}
             if v.persist_id:
                 jv['id'] = v.id
             jnodes.append(jv)
-        jr = {
+        jr: Dict[str, Any] = {
             'lhs': gr.lhs.name,
             'rhs': {
                 'nodes': jnodes,
@@ -188,7 +188,7 @@ def graph_to_dot(g: Graph, factor_formats=None, lhs=None):
                                 margin=0,
         ))
     for e in g.edges():
-        if e.label.is_terminal():
+        if e.label.is_terminal:
             dot.add_node(pydot.Node(f'e{e.id}',
                                     label='',
                                     xlabel=e.label.name,
@@ -302,7 +302,7 @@ def graph_to_tikz(g: Graph, factor_formats=None, lhs=None):
         res.append(rf'  \node [{style}] (v{v.id}) at ({x}pt,{y}pt) {{}};')
     for e in g.edges():
         x, y = positions[f'e{e.id}']
-        if e.label.is_terminal():
+        if e.label.is_terminal:
             res.append(rf'  \node [fac,label={{{e.label.name}}}] (e{e.id}) at ({x}pt,{y}pt) {{}};')
         else:
             res.append(rf'  \node [fac] (e{e.id}) at ({x}pt,{y}pt) {{{e.label.name}}};')

@@ -42,8 +42,8 @@ class TestConjunction(unittest.TestCase):
         self.nodes2 = {node.id:node for node in self.xrule2.rhs.nodes()}
 
         # extract node labels and edge labels for use in testing
-        self.nl_t = self.hmm.get_node_label("T")
-        self.nl_w = self.hmm.get_node_label("W")
+        self.nl_t = fggs.NodeLabel("T")
+        self.nl_w = fggs.NodeLabel("W")
         self.el_x1 = self.hmm.get_edge_label("X")
         self.el_x2 = self.conjunct.get_edge_label("X")
 
@@ -52,13 +52,12 @@ class TestConjunction(unittest.TestCase):
         el1 = fggs.EdgeLabel("collide_el", [nl], is_terminal=True)
         el2 = fggs.EdgeLabel("collide_el", [nl,nl], is_terminal=True)
         el3 = fggs.EdgeLabel("don't_collide", [nl], is_nonterminal=True)
-        self.hmm.add_node_label(nl)
-        self.conjunct.add_node_label(nl)
+        self.hmm.node_labels.add(nl)
+        self.conjunct.node_labels.add(nl)
         self.hmm.add_edge_label(el1)
         self.conjunct.add_edge_label(el2)
         self.conjunct.add_edge_label(el3)
-        (n, e) = check_namespace_collisions(self.hmm, self.conjunct)
-        self.assertEqual(len(n), 0)
+        e = check_namespace_collisions(self.hmm, self.conjunct)
         self.assertEqual(len(e), 1)
         with self.assertRaises(ValueError):
             conjoin_hrgs(self.hmm, self.conjunct)
