@@ -353,7 +353,8 @@ def factorize_rule(rule, method='min_fill', labels=None):
     if labels is None:
         labels = set()
     labels.add(rule.lhs)
-    labels.update(rule.rhs.nonterminals())
+    for e in rule.rhs.edges():
+        labels.add(e.label)
     
     # Find tree decomposition of rhs
     g = {}
