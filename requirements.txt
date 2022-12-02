@@ -1,4 +1,4 @@
-torch>=1.8
+torch>=1.12
 pydot
 torch-semiring-einsum>=1.1
 tqdm
