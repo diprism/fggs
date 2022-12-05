@@ -61,6 +61,7 @@ class Embedding(ABC):
         if isinstance(f, EmbeddingVar):
             subst[f] = e
             return True
+        warn(f"Attempt to unify {e} and {f} indicates index type mismatch")
         return False
 
 @dataclass(eq=False, frozen=True) # identity matters
