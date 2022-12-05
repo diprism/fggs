@@ -1,4 +1,66 @@
+"""
 # Algebraic index types
+
+A tensor dimension often corresponds to a random variable, and indices along
+the dimension often correspond to possible values of the variable.  Because the
+variable can be of product or sum type, the range of indices [0,n) is often
+[0,l*m) representing a Cartesian product, [0,l+m) representing a disjoint
+union, or a nesting of these operations.  This algebraic type structure affects
+our computations because our tensors are often (the result of einsum operations
+involving) sparse factors that pack/unpack product/sum types, such as
+eye(35).reshape(35,5,7) or eye(5,7).  We represent these sparse tensors
+compactly for asymptotic speedups.
+
+The key is the following language of "embeddings" (injective mappings) from
+"physical" indices to "virtual" indices:
+
+    Embedding ::= X(size)                      -- EmbeddingVar
+                | Embedding * ... * Embedding  -- ProductEmbedding
+                | size + Embedding + size      -- SumEmbedding
+
+For example, to describe how a 5*7 "physical" matrix stores part of a
+three-dimensional "virtual" tensor, we would use two EmbeddingVars [X(5), Y(7)]
+to build up three embeddings such as [X(5) * Y(7), X(5), Y(7)].  The three
+embeddings determine the shape of the virtual tensor to be [35, 5, 7].  Element
+(i,j) of the matrix corresponds to element (i*7+j,i,j) of the tensor.  Other
+elements of the tensor are presumed to be zero.
+
+To take another example, to describe how a length-35 vector stores the second
+diagonal of a 36*35 matrix, we would use one EmbeddingVar [Z(35)] to build up
+two embeddings [1 + Z(35) + 0, Z(35)].  The two embeddings determine the shape
+of the virtual tensor to be [36, 35].  Element k of the matrix corresponds to
+element (1+k,k) of the matrix.  Other elements of the matrix are presumed to be
+zero.
+
+So, an EmbeddingVar X(5) represents a "physical" index in the range [0,5), and
+an embedding expression represents an injective mapping from the physical
+indices represented by its "free" EmbeddingVars to a virtual index.  The
+embeddings define an affine transform from the storage offset and strides of
+the virtual tensor (if it ever gets materialized) to the storage offset and
+strides of the physical tensor (a view on the virtual).
+
+In sum, a virtual tensor is represented by
+- a physical tensor,
+- a sequence of "physical" EmbeddingVars (ordered according to the dimensions
+  of the physical tensor), and
+- a sequence of "virtual" embeddings (ordered according to the dimensions of
+  the virtual tensor) containing exactly those EmbeddingVars.
+We store these three pieces of information together in an EmbeddedTensor.
+
+To perform an einsum operation on EmbeddedTensors, we start with
+EmbeddedTensors whose sets of physical EmbeddingVars do not overlap, but then
+we *unify* the virtual embeddings that get co-indexed.  For example, if the two
+example EmbeddedTensors above were the inputs (bcd,ab->...), then we would
+unify X(5) * Y(7) with Z(35).  Hence, before we pass the einsum job to
+torch_semiring_einsum, we need to reshape (more generally, view) the second
+physical tensor -- a length-35 vector indexed by Z -- as a 5*7 matrix indexed
+by X and Y.  If unification fails, then our einsum returns zero; the only
+possible unification failure in an einsum operation that respects the algebraic
+type structure of the indices should be between inl and inr (1 + Z(35) + 0
+fails to unify with 0 + W(1) + 35).
+
+I guess addition of EmbeddedTensors calls for anti-unification...
+"""
 
 from __future__ import annotations
 from typing import Sequence, Tuple, Dict, Set, Optional
