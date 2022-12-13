@@ -227,13 +227,13 @@ class EmbeddedTensor:
 
     def to_dense(self, subst: Subst) -> Tensor:
         """Expand a physical tensor to a mostly-zero virtual tensor."""
-        if len(self.pembeds) == len(self.vembeds) and \
-           frozenset(self.pembeds) == \
-           frozenset(forwarded_vembeds := tuple(e.forward(subst) for e in self.vembeds)):
-            # vembeds is just a permutation of pembeds, so just clone view on physical
-            return project(self.physical,
-                           cast(Tuple[EmbeddingVar], forwarded_vembeds),
-                           self.pembeds, {})[0].clone()
+        if len(self.pembeds) == len(self.vembeds):
+            forwarded_vembeds = tuple(e.forward(subst) for e in self.vembeds)
+            if frozenset(self.pembeds) == frozenset(forwarded_vembeds):
+                # vembeds is just a permutation of pembeds, so just clone view on physical
+                return project(self.physical,
+                               cast(Tuple[EmbeddingVar], forwarded_vembeds),
+                               self.pembeds, {})[0].clone()
         virtual = self.physical.new_zeros(tuple(e.size() for e in self.vembeds))
         # TODO: allow pembeds_fv <= vembeds_fv by repeating self.physical?
         project(virtual, self.pembeds, self.vembeds, subst)[0].copy_(self.physical)
