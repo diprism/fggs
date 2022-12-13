@@ -53,7 +53,8 @@ from typing import Sequence, Tuple, Dict, Set, Any, Optional, cast
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from warnings import warn
-from math import prod
+from functools import reduce
+from operator import mul
 import torch
 from torch import Tensor
 import torch_semiring_einsum
@@ -160,7 +161,7 @@ class ProductEmbedding(Embedding):
     factors: Sequence[Embedding]
 
     def size(self):
-        return prod(e.size() for e in self.factors)
+        return reduce(mul, (e.size() for e in self.factors), 1)
 
     def stride(self, subst):
         offset = 0
