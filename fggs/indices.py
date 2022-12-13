@@ -49,7 +49,7 @@ We store these three pieces of information together in an EmbeddedTensor.
 """
 
 from __future__ import annotations
-from typing import Sequence, Tuple, Dict, Set, Optional
+from typing import Sequence, Tuple, Dict, Set, Any, Optional, cast
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from warnings import warn
@@ -57,7 +57,7 @@ from math import prod
 import torch
 from torch import Tensor
 import torch_semiring_einsum
-from semirings import RealSemiring
+from fggs.semirings import Semiring, RealSemiring
 
 Subst = Dict["EmbeddingVar", "Embedding"]
 
@@ -73,7 +73,7 @@ class Embedding(ABC):
         pass
 
     @abstractmethod
-    def stride(subst: Subst) -> Tuple[int, Dict[EmbeddingVar, int]]:
+    def stride(self, subst: Subst) -> Tuple[int, Dict[EmbeddingVar, int]]:
         """The coefficients of the affine map from physical to virtual indices."""
         pass
 
@@ -198,7 +198,7 @@ def project(virtual: Tensor,
     if virtual.size() != tuple(e.size() for e in vembeds):
         raise ValueError(f"project(tensor of size {virtual.size()}, ..., vembeds of size {tuple(e.size() for e in vembeds)}")
     offset = virtual.storage_offset()
-    stride = {}
+    stride : Dict[EmbeddingVar, int] = {}
     for (e, n) in zip(vembeds, virtual.stride()):
         (o, s) = e.stride(subst)
         offset += o * n
@@ -231,7 +231,9 @@ class EmbeddedTensor:
            frozenset(self.pembeds) == \
            frozenset(forwarded_vembeds := tuple(e.forward(subst) for e in self.vembeds)):
             # vembeds is just a permutation of pembeds, so just clone view on physical
-            return project(self.physical, forwarded_vembeds, self.pembeds, {})[0].clone()
+            return project(self.physical,
+                           cast(Tuple[EmbeddingVar], forwarded_vembeds),
+                           self.pembeds, {})[0].clone()
         virtual = self.physical.new_zeros(tuple(e.size() for e in self.vembeds))
         # TODO: allow pembeds_fv <= vembeds_fv by repeating self.physical?
         project(virtual, self.pembeds, self.vembeds, subst)[0].copy_(self.physical)
@@ -256,7 +258,7 @@ assert(torch.equal(diag.to_dense({}),
                                   [0,0,0,0,0,0,1,0,0]]])))
 
 k4 = EmbeddingVar(6)
-subst = {}
+subst : Subst = {}
 assert(SumEmbedding(1,k4,2).unify(SumEmbedding(1,ProductEmbedding((k2,k3)),2), subst) and
        subst == {k4: ProductEmbedding((k2,k3))} and
        SumEmbedding(1,k4,2).unify(SumEmbedding(1,ProductEmbedding((k2,k3)),2), subst) and
@@ -292,9 +294,9 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     """
     if len(tensors) == 0:
         return semiring.from_int(1)
-    pembeds_fv = set()
-    index_to_vembed = {}
-    subst = {}
+    pembeds_fv : Set[EmbeddingVar] = set()
+    index_to_vembed : Dict[Any, Embedding] = {}
+    subst : Subst = {}
     for (i, (tensor, input)) in enumerate(zip(tensors, inputs)):
         if pembeds_fv.isdisjoint(tensor.pembeds):
             pembeds_fv.update(tensor.pembeds)
@@ -352,7 +354,7 @@ def add(t: EmbeddedTensor, u: EmbeddedTensor) -> EmbeddedTensor:
     Add two EmbeddedTensors. We use anti-unification to compute how much they
     need to be expanded in order to match.
     """
-    antisubst = ({}, {})
+    antisubst : AntiSubst = ({}, {})
     lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
     (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
     t0 = EmbeddedTensor(t.physical, t.pembeds, es)
