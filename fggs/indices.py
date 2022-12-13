@@ -46,20 +46,6 @@ In sum, a virtual tensor is represented by
 - a sequence of "virtual" embeddings (ordered according to the dimensions of
   the virtual tensor) containing exactly those EmbeddingVars.
 We store these three pieces of information together in an EmbeddedTensor.
-
-To perform an einsum operation on EmbeddedTensors, we start with
-EmbeddedTensors whose sets of physical EmbeddingVars do not overlap, but then
-we *unify* the virtual embeddings that get co-indexed.  For example, if the two
-example EmbeddedTensors above were the inputs (bcd,ab->...), then we would
-unify X(5) * Y(7) with Z(35).  Hence, before we pass the einsum job to
-torch_semiring_einsum, we need to reshape (more generally, view) the second
-physical tensor -- a length-35 vector indexed by Z -- as a 5*7 matrix indexed
-by X and Y.  If unification fails, then our einsum returns zero; the only
-possible unification failure in an einsum operation that respects the algebraic
-type structure of the indices should be between inl and inr (1 + Z(35) + 0
-fails to unify with 0 + W(1) + 35).
-
-I guess addition of EmbeddedTensors calls for anti-unification...
 """
 
 from __future__ import annotations
@@ -74,6 +60,9 @@ import torch_semiring_einsum
 from semirings import RealSemiring
 
 Subst = Dict["EmbeddingVar", "Embedding"]
+
+AntiSubst = Tuple[Dict[Tuple["Embedding", "Embedding"], "EmbeddingVar"],
+                  Dict["EmbeddingVar", Tuple["Embedding", "Embedding"]]]
 
 class Embedding(ABC):
     """An injective mapping from physical indices to virtual indices."""
@@ -126,9 +115,31 @@ class Embedding(ABC):
         warn(f"Attempt to unify {e} and {f} indicates index type mismatch")
         return False
 
+    def antiunify(e: Embedding, f: Embedding, antisubst: AntiSubst) -> Embedding:
+        """Antiunify the two embeddings by extending antisubst.  Return least
+           general generalization (whose variables are all in antisubst)."""
+        if e.size() != f.size():
+            warn(f"Attempt to antiunify {e} and {f} indicates index type mismatch")
+        if isinstance(e, ProductEmbedding) and isinstance(f, ProductEmbedding) and \
+           len(e.factors) == len(f.factors):
+            return ProductEmbedding(tuple(e1.antiunify(f1, antisubst)
+                                          for (e1, f1) in zip(e.factors, f.factors)))
+        if isinstance(e, SumEmbedding) and isinstance(f, SumEmbedding) and \
+           e.before == f.before and e.after == f.after:
+            return SumEmbedding(e.before, e.term.antiunify(f.term, antisubst), e.after)
+        if (e, f) in antisubst[0]:
+            return antisubst[0][(e, f)]
+        new = EmbeddingVar(e.size())
+        antisubst[0][(e, f)] = new
+        antisubst[1][new] = (e, f)
+        return new
+
 @dataclass(eq=False, frozen=True) # identity matters
 class EmbeddingVar(Embedding):
     _size: int
+
+    def __repr__(self) -> str:
+        return f"EmbeddingVar(size={self._size}, id={id(self)})"
 
     def size(self):
         return self._size
@@ -216,6 +227,11 @@ class EmbeddedTensor:
 
     def to_dense(self, subst: Subst) -> Tensor:
         """Expand a physical tensor to a mostly-zero virtual tensor."""
+        if len(self.pembeds) == len(self.vembeds) and \
+           frozenset(self.pembeds) == \
+           frozenset(forwarded_vembeds := tuple(e.forward(subst) for e in self.vembeds)):
+            # vembeds is just a permutation of pembeds, so just clone view on physical
+            return project(self.physical, forwarded_vembeds, self.pembeds, {})[0].clone()
         virtual = self.physical.new_zeros(tuple(e.size() for e in self.vembeds))
         # TODO: allow pembeds_fv <= vembeds_fv by repeating self.physical?
         project(virtual, self.pembeds, self.vembeds, subst)[0].copy_(self.physical)
@@ -261,6 +277,19 @@ def einsum(tensors: Sequence[EmbeddedTensor],
            inputs: Sequence[Sequence[Any]], 
            output: Sequence[Any],
            semiring: Semiring) -> EmbeddedTensor:
+    """
+    To perform an einsum operation on EmbeddedTensors, we start with
+    EmbeddedTensors whose sets of physical EmbeddingVars do not overlap, but
+    then we *unify* the virtual embeddings that get co-indexed.  For example,
+    if the two example EmbeddedTensors above were the inputs (bcd,ab->...),
+    then we would unify X(5) * Y(7) with Z(35).  Hence, before we pass the
+    einsum job to torch_semiring_einsum, we need to reshape (more generally,
+    view) the second physical tensor -- a length-35 vector indexed by Z -- as a
+    5*7 matrix indexed by X and Y.  If unification fails, then our einsum
+    returns zero; the only possible unification failure in an einsum operation
+    that respects the algebraic type structure of the indices should be between
+    inl and inr (1 + Z(35) + 0 fails to unify with 0 + W(1) + 35).
+    """
     if len(tensors) == 0:
         return semiring.from_int(1)
     pembeds_fv = set()
@@ -270,6 +299,7 @@ def einsum(tensors: Sequence[EmbeddedTensor],
         if pembeds_fv.isdisjoint(tensor.pembeds):
             pembeds_fv.update(tensor.pembeds)
         else:
+            # TODO: freshen rather than error
             raise ValueError(f"einsum(tensor {i} whose pembeds are not disjoint, ..., ...)")
         if len(tensor.vembeds) != len(input):
             raise ValueError(f"einsum(tensor {i} with {len(tensor.vembeds)} virtual dimensions, input {i} with {len(input)} indices, ...)")
@@ -284,14 +314,14 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     pembed_to_char = {k: chr(ord('a') + i)
                       for i, k in enumerate(frozenset(k for (view, pembeds) in projected_tensors
                                                         for k in pembeds))}
-    output_pembeds = list(frozenset(k for index in output
-                                      for k in index_to_vembed[index].stride(subst)[1]))
+    output_pembeds = tuple(frozenset(k for index in output
+                                       for k in index_to_vembed[index].stride(subst)[1]))
     equation = ','.join(''.join(pembed_to_char[k] for k in pembeds)
                         for (view, pembeds) in projected_tensors) \
              + '->' + ''.join(pembed_to_char[k] for k in output_pembeds)
     compiled = torch_semiring_einsum.compile_equation(equation)
     out = semiring.einsum(compiled, *(view for (view, pembed) in projected_tensors))
-    return EmbeddedTensor(out, output_pembeds, list(index_to_vembed[index] for index in output))
+    return EmbeddedTensor(out, output_pembeds, tuple(index_to_vembed[index] for index in output))
 
 matrix = torch.randn(36)
 vector = torch.randn(7)
@@ -316,3 +346,37 @@ assert(1e-5 > (matrix[1:].reshape((5,7)).matmul(vector) -
                       [["maybe-f"], ["i"], ["maybe-f","f"], ["f","o","i"]],
                       ["o"],
                       semiring).to_dense({})).abs().max())
+
+def add(t: EmbeddedTensor, u: EmbeddedTensor) -> EmbeddedTensor:
+    """
+    Add two EmbeddedTensors. We use anti-unification to compute how much they
+    need to be expanded in order to match.
+    """
+    antisubst = ({}, {})
+    lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
+    (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
+    t0 = EmbeddedTensor(t.physical, t.pembeds, es)
+    u0 = EmbeddedTensor(u.physical, u.pembeds, fs)
+    if t.physical.numel() >= u.physical.numel():
+        td = t0.to_dense({})
+        project(td, u.pembeds, fs, {})[0].add_(u.physical)
+        return EmbeddedTensor(td, gs, lggs)
+    else:
+        ud = u0.to_dense({})
+        project(ud, t.pembeds, es, {})[0].add_(t.physical)
+        return EmbeddedTensor(ud, gs, lggs)
+
+k1_   = EmbeddingVar(5)
+phys2 = torch.randn(5,5)
+virt2 = EmbeddedTensor(phys2, (k1,k1_), (SumEmbedding(0,ProductEmbedding(()),1),k1_,k1))
+assert(torch.equal(add(virt, virt2).to_dense({}),
+                   torch.add(virt.to_dense({}), virt2.to_dense({}))))
+assert(torch.equal(add(virt2, virt).to_dense({}),
+                   torch.add(virt2.to_dense({}), virt.to_dense({}))))
+
+phys3 = torch.arange(0.0,500,10).reshape(5,2,5)
+virt3 = EmbeddedTensor(phys3, (k1,k2,k1_), (k2,k1_,k1))
+assert(torch.equal(add(virt, virt3).to_dense({}),
+                   torch.add(virt.to_dense({}), virt3.to_dense({}))))
+assert(torch.equal(add(virt3, virt).to_dense({}),
+                   torch.add(virt3.to_dense({}), virt.to_dense({}))))
