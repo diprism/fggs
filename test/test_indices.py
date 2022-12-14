@@ -44,7 +44,7 @@ class TestEmbeddedTensor(unittest.TestCase):
                                          [0,0,0,1,0,0,0,0,0]],
                                         [[0,0,0,0,1,0,0,0,0],
                                          [0,0,0,0,0,1,0,0,0],
-                                         [0,0,0,0,0,0,1,0,0]]]))
+                                         [0,0,0,0,0,0,1,0,0.0]]]))
 
     def test_unify_1(self):
         subst : Subst = {}
