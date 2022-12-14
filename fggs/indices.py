@@ -240,42 +240,6 @@ class EmbeddedTensor:
         project(virtual, self.pembeds, self.vembeds, subst)[0].copy_(self.physical)
         return virtual
 
-k1 = EmbeddingVar(5)
-k2 = EmbeddingVar(2)
-phys = torch.randn(5,2)
-virt = EmbeddedTensor(phys, (k1,k2), (k2,k1,k1))
-assert(torch.equal(virt.to_dense({}),
-                   phys.t().diag_embed(dim1=1, dim2=2)))
-
-ones = torch.ones(2,3)
-k3 = EmbeddingVar(3)
-diag = EmbeddedTensor(ones, (k2,k3), (k2,k3,SumEmbedding(1,ProductEmbedding((k2,k3)),2)))
-assert(torch.equal(diag.to_dense({}),
-                   torch.tensor([[[0,1,0,0,0,0,0,0,0],
-                                  [0,0,1,0,0,0,0,0,0],
-                                  [0,0,0,1,0,0,0,0,0]],
-                                 [[0,0,0,0,1,0,0,0,0],
-                                  [0,0,0,0,0,1,0,0,0],
-                                  [0,0,0,0,0,0,1,0,0]]])))
-
-k4 = EmbeddingVar(6)
-subst : Subst = {}
-assert(SumEmbedding(1,k4,2).unify(SumEmbedding(1,ProductEmbedding((k2,k3)),2), subst) and
-       subst == {k4: ProductEmbedding((k2,k3))} and
-       SumEmbedding(1,k4,2).unify(SumEmbedding(1,ProductEmbedding((k2,k3)),2), subst) and
-       subst == {k4: ProductEmbedding((k2,k3))})
-subst = {}
-assert(SumEmbedding(1,ProductEmbedding((k2,k3)),2).unify(SumEmbedding(1,k4,2), subst) and
-       subst == {k4: ProductEmbedding((k2,k3))} and
-       SumEmbedding(1,ProductEmbedding((k2,k3)),2).unify(SumEmbedding(1,k4,2), subst) and
-       subst == {k4: ProductEmbedding((k2,k3))})
-subst = {}
-assert(not SumEmbedding(1,k4,2).unify(SumEmbedding(7,k2,0), subst))
-k2_ = EmbeddingVar(2)
-k3_ = EmbeddingVar(3)
-assert(SumEmbedding(1,ProductEmbedding((k2_,k3_)),2).unify(SumEmbedding(1,ProductEmbedding((k2,k3)),2), subst) and
-       subst == {k2_: k2, k3_: k3})
-
 def einsum(tensors: Sequence[EmbeddedTensor],
            inputs: Sequence[Sequence[Any]], 
            output: Sequence[Any],
@@ -326,30 +290,6 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     out = semiring.einsum(compiled, *(view for (view, pembed) in projected_tensors))
     return EmbeddedTensor(out, output_pembeds, tuple(index_to_vembed[index] for index in output))
 
-matrix = torch.randn(36)
-vector = torch.randn(7)
-k5 = EmbeddingVar(5)
-k5_= EmbeddingVar(5)
-k6 = EmbeddingVar(35)
-k7 = EmbeddingVar(7)
-k7_= EmbeddingVar(7)
-k8 = EmbeddingVar(36)
-semiring = RealSemiring(dtype=matrix.dtype, device=matrix.device)
-assert(1e-5 > (matrix[1:].reshape((5,7)).matmul(vector) -
-               einsum([EmbeddedTensor(matrix, (k8,), (k8,)),
-                       EmbeddedTensor(vector, (k7,), (k7,)),
-                       # Here's a sum-type factor represented compactly:
-                       EmbeddedTensor(torch.tensor(1).unsqueeze_(0).expand([35]),
-                                      (k6,),
-                                      (SumEmbedding(1,k6,0),k6)),
-                       # Here's a product-type factor represented compactly:
-                       EmbeddedTensor(torch.tensor(1).unsqueeze_(0).unsqueeze_(0).expand([5,7]),
-                                      (k5_,k7_),
-                                      (ProductEmbedding((k5_,k7_)),k5_,k7_))],
-                      [["maybe-f"], ["i"], ["maybe-f","f"], ["f","o","i"]],
-                      ["o"],
-                      semiring).to_dense({})).abs().max())
-
 def add(t: EmbeddedTensor, u: EmbeddedTensor) -> EmbeddedTensor:
     """
     Add two EmbeddedTensors. We use anti-unification to compute how much they
@@ -369,17 +309,3 @@ def add(t: EmbeddedTensor, u: EmbeddedTensor) -> EmbeddedTensor:
         project(ud, t.pembeds, es, {})[0].add_(t.physical)
         return EmbeddedTensor(ud, gs, lggs)
 
-k1_   = EmbeddingVar(5)
-phys2 = torch.randn(5,5)
-virt2 = EmbeddedTensor(phys2, (k1,k1_), (SumEmbedding(0,ProductEmbedding(()),1),k1_,k1))
-assert(torch.equal(add(virt, virt2).to_dense({}),
-                   torch.add(virt.to_dense({}), virt2.to_dense({}))))
-assert(torch.equal(add(virt2, virt).to_dense({}),
-                   torch.add(virt2.to_dense({}), virt.to_dense({}))))
-
-phys3 = torch.arange(0.0,500,10).reshape(5,2,5)
-virt3 = EmbeddedTensor(phys3, (k1,k2,k1_), (k2,k1_,k1))
-assert(torch.equal(add(virt, virt3).to_dense({}),
-                   torch.add(virt.to_dense({}), virt3.to_dense({}))))
-assert(torch.equal(add(virt3, virt).to_dense({}),
-                   torch.add(virt3.to_dense({}), virt.to_dense({}))))
