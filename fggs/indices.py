@@ -14,9 +14,9 @@ compactly for asymptotic speedups.
 The key is the following language of "embeddings" (injective mappings) from
 "physical" indices to "virtual" indices:
 
-    Embedding ::= X(size)                      -- EmbeddingVar
+    Embedding ::= X(numel)                     -- EmbeddingVar
                 | Embedding * ... * Embedding  -- ProductEmbedding
-                | size + Embedding + size      -- SumEmbedding
+                | numel + Embedding + numel    -- SumEmbedding
 
 For example, to describe how a 5*7 "physical" matrix stores part of a
 three-dimensional "virtual" tensor, we would use two EmbeddingVars [X(5), Y(7)]
@@ -56,7 +56,7 @@ from warnings import warn
 from functools import reduce
 from operator import mul
 import torch
-from torch import Tensor
+from torch import Tensor, Size
 import torch_semiring_einsum
 from fggs.semirings import Semiring, RealSemiring
 
@@ -69,8 +69,8 @@ class Embedding(ABC):
     """An injective mapping from physical indices to virtual indices."""
 
     @abstractmethod
-    def size(self) -> int:
-        """The virtual indices in the image of this mapping lie in [0,size())."""
+    def numel(self) -> int:
+        """The virtual indices in the image of this mapping lie in [0,numel())."""
         pass
 
     @abstractmethod
@@ -99,13 +99,13 @@ class Embedding(ABC):
             if e.before == f.before and e.after == f.after:
                 return e.term.unify(f.term, subst)
             else:
-                ets = e.term.size()
-                fts = f.term.size()
-                if e.before + ets + e.after != f.before + fts + f.after \
-                   or e.before + ets > f.before and f.before + fts > e.before:
+                etn = e.term.numel()
+                ftn = f.term.numel()
+                if e.before + etn + e.after != f.before + ftn + f.after \
+                   or e.before + etn > f.before and f.before + ftn > e.before:
                     warn(f"Attempt to unify {e} and {f} indicates index type mismatch")
                 return False
-        if e.size() != f.size():
+        if e.numel() != f.numel():
             warn(f"Attempt to unify {e} and {f} indicates index type mismatch")
         if isinstance(e, EmbeddingVar):
             subst[e] = f
@@ -119,7 +119,7 @@ class Embedding(ABC):
     def antiunify(e: Embedding, f: Embedding, antisubst: AntiSubst) -> Embedding:
         """Antiunify the two embeddings by extending antisubst.  Return least
            general generalization (whose variables are all in antisubst)."""
-        if e.size() != f.size():
+        if e.numel() != f.numel():
             warn(f"Attempt to antiunify {e} and {f} indicates index type mismatch")
         if isinstance(e, ProductEmbedding) and isinstance(f, ProductEmbedding) and \
            len(e.factors) == len(f.factors):
@@ -130,20 +130,20 @@ class Embedding(ABC):
             return SumEmbedding(e.before, e.term.antiunify(f.term, antisubst), e.after)
         if (e, f) in antisubst[0]:
             return antisubst[0][(e, f)]
-        new = EmbeddingVar(e.size())
+        new = EmbeddingVar(e.numel())
         antisubst[0][(e, f)] = new
         antisubst[1][new] = (e, f)
         return new
 
 @dataclass(eq=False, frozen=True) # identity matters
 class EmbeddingVar(Embedding):
-    _size: int
+    _numel: int
 
     def __repr__(self) -> str:
-        return f"EmbeddingVar(size={self._size}, id={id(self)})"
+        return f"EmbeddingVar(numel={self._numel}, id={id(self)})"
 
-    def size(self):
-        return self._size
+    def numel(self):
+        return self._numel
 
     def stride(self, subst):
         fwd = self.forward(subst)
@@ -160,15 +160,15 @@ class EmbeddingVar(Embedding):
 class ProductEmbedding(Embedding):
     factors: Sequence[Embedding]
 
-    def size(self):
-        return reduce(mul, (e.size() for e in self.factors), 1)
+    def numel(self):
+        return reduce(mul, (e.numel() for e in self.factors), 1)
 
     def stride(self, subst):
         offset = 0
         stride = {}
         for e in self.factors:
             if offset or stride:
-                n = e.size()
+                n = e.numel()
                 offset *= n
                 for k in stride: stride[k] *= n
             (o, s) = e.stride(subst)
@@ -182,8 +182,8 @@ class SumEmbedding(Embedding):
     term: Embedding
     after: int
 
-    def size(self):
-        return self.before + self.term.size() + self.after
+    def numel(self):
+        return self.before + self.term.numel() + self.after
 
     def stride(self, subst):
         (o, s) = self.term.stride(subst)
@@ -196,8 +196,8 @@ def project(virtual: Tensor,
     """Extract a view of the given tensor, so that indexing into the returned
        tensor according to pembeds is equivalent to indexing into the given
        tensor according to vembeds."""
-    if virtual.size() != tuple(e.size() for e in vembeds):
-        raise ValueError(f"project(tensor of size {virtual.size()}, ..., vembeds of size {tuple(e.size() for e in vembeds)}")
+    if virtual.size() != Size(e.numel() for e in vembeds):
+        raise ValueError(f"project(tensor of {virtual.size()}, ..., vembeds of {Size(e.numel() for e in vembeds)}")
     offset = virtual.storage_offset()
     stride : Dict[EmbeddingVar, int] = {}
     for (e, n) in zip(vembeds, virtual.stride()):
@@ -211,7 +211,7 @@ def project(virtual: Tensor,
         pembeds_fv = frozenset(pembeds)
         if vembeds_fv != pembeds_fv:
             raise ValueError(f"project(..., pembeds with {pembeds_fv}, vembeds with {vembeds_fv})")
-    return (virtual.as_strided(tuple(k.size() for k in pembeds),
+    return (virtual.as_strided(Size(k.numel() for k in pembeds),
                                tuple(stride[k] for k in pembeds),
                                offset),
             pembeds)
@@ -223,8 +223,11 @@ class EmbeddedTensor:
     vembeds: Sequence[Embedding]
 
     def __post_init__(self):
-        if self.physical.size() != tuple(k.size() for k in self.pembeds):
-            raise ValueError(f"EmbeddedTensor(tensor of size {self.physical.size()}, pembeds of size {tuple(k.size() for k in self.pembeds)}, ...)")
+        if self.physical.size() != Size(k.numel() for k in self.pembeds):
+            raise ValueError(f"EmbeddedTensor(tensor of {self.physical.size()}, pembeds of {Size(k.numel() for k in self.pembeds)}, ...)")
+
+    def size(self) -> Size:
+        return Size(e.numel() for e in self.vembeds)
 
     def to_dense(self, subst: Subst) -> Tensor:
         """Expand a physical tensor to a mostly-zero virtual tensor."""
@@ -235,7 +238,7 @@ class EmbeddedTensor:
                 return project(self.physical,
                                cast(Tuple[EmbeddingVar], forwarded_vembeds),
                                self.pembeds, {})[0].clone()
-        virtual = self.physical.new_zeros(tuple(e.size() for e in self.vembeds))
+        virtual = self.physical.new_zeros(self.size())
         # TODO: allow pembeds_fv <= vembeds_fv by repeating self.physical?
         project(virtual, self.pembeds, self.vembeds, subst)[0].copy_(self.physical)
         return virtual
