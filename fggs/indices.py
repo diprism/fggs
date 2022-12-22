@@ -216,15 +216,20 @@ def project(virtual: Tensor,
                                offset),
             pembeds)
 
-@dataclass(frozen=True)
+@dataclass
 class EmbeddedTensor:
     physical: Tensor
-    pembeds: Sequence[EmbeddingVar]
-    vembeds: Sequence[Embedding]
+    pembeds: Sequence[EmbeddingVar] = None
+    vembeds: Sequence[Embedding]    = None
 
     def __post_init__(self):
-        if self.physical.size() != Size(k.numel() for k in self.pembeds):
+        # Default to the trivial (dense) embedding
+        if self.pembeds is None:
+            self.pembeds = tuple(EmbeddingVar(n) for n in self.physical.size())
+        elif self.physical.size() != Size(k.numel() for k in self.pembeds):
             raise ValueError(f"EmbeddedTensor(tensor of {self.physical.size()}, pembeds of {Size(k.numel() for k in self.pembeds)}, ...)")
+        if self.vembeds is None:
+            self.vembeds = self.pembeds
 
     def size(self) -> Size:
         return Size(e.numel() for e in self.vembeds)
