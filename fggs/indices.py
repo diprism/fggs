@@ -49,7 +49,7 @@ We store these three pieces of information together in an EmbeddedTensor.
 """
 
 from __future__ import annotations
-from typing import Sequence, Tuple, Dict, Set, Any, Optional, cast
+from typing import Sequence, Tuple, Dict, Set, Any, Optional, Union, cast
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from warnings import warn
@@ -261,7 +261,7 @@ class EmbeddedTensor:
     vembeds: Sequence[Embedding]    = cast(Sequence[Embedding],    None) #-/
 
     def __post_init__(self):
-        # Default to the trivial (dense) embedding
+        # Default to the trivial (dense) embedding, to convert from Tensor
         if self.pembeds is None:
             self.pembeds = tuple(EmbeddingVar(n) for n in self.physical.size())
         elif self.physical.size() != Size(k.numel() for k in self.pembeds):
@@ -275,6 +275,16 @@ class EmbeddedTensor:
 
     def size(self) -> Size:
         return Size(e.numel() for e in self.vembeds)
+
+    def freshen(self) -> EmbeddedTensor:
+        rename : Rename = {}
+        return EmbeddedTensor(self.physical,
+                              tuple(k.freshen(rename) for k in self.pembeds),
+                              tuple(e.freshen(rename) for e in self.vembeds))
+
+    def isdisjoint(self, other: Union[Set[EmbeddingVar], EmbeddedTensor]) -> bool:
+        return (frozenset(other.pembeds) if isinstance(other, EmbeddedTensor) else other) \
+               .isdisjoint(self.pembeds)
 
     def to_dense(self, subst: Subst) -> Tensor:
         """Expand a physical tensor to a mostly-zero virtual tensor."""
@@ -292,9 +302,7 @@ class EmbeddedTensor:
 
     def equal(self, other: EmbeddedTensor) -> bool:
         if self.size() != other.size(): return False
-        if not frozenset(self.pembeds).isdisjoint(other.pembeds):
-            # TODO: freshen rather than error
-            raise ValueError(f"equal(tensors whose pembeds are not disjoint)")
+        if not self.isdisjoint(other): other = other.freshen()
         selfzero  = self .physical == 0
         otherzero = other.physical == 0
         # Compare overlapping parts to each other
@@ -311,9 +319,7 @@ class EmbeddedTensor:
 
     def allclose(self, other: EmbeddedTensor, rtol=1e-05, atol=1e-08, equal_nan=False) -> bool:
         if self.size() != other.size(): return False
-        if not frozenset(self.pembeds).isdisjoint(other.pembeds):
-            # TODO: freshen rather than error
-            raise ValueError(f"allclose(tensors whose pembeds are not disjoint)")
+        if not self.isdisjoint(other): other = other.freshen()
         selfzero  = (self .physical >= -atol).min(self .physical <= atol)
         otherzero = (other.physical >= -atol).min(other.physical <= atol)
         # Compare overlapping parts to each other
@@ -350,12 +356,11 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     pembeds_fv : Set[EmbeddingVar] = set()
     index_to_vembed : Dict[Any, Embedding] = {}
     subst : Subst = {}
+    freshened_tensors = []
     for (i, (tensor, input)) in enumerate(zip(tensors, inputs)):
-        if pembeds_fv.isdisjoint(tensor.pembeds):
-            pembeds_fv.update(tensor.pembeds)
-        else:
-            # TODO: freshen rather than error
-            raise ValueError(f"einsum(tensor {i} whose pembeds are not disjoint, ..., ...)")
+        if not tensor.isdisjoint(pembeds_fv): tensor = tensor.freshen()
+        freshened_tensors.append(tensor)
+        pembeds_fv.update(tensor.pembeds)
         if len(tensor.vembeds) != len(input):
             raise ValueError(f"einsum(tensor {i} with {len(tensor.vembeds)} virtual dimensions, input {i} with {len(input)} indices, ...)")
         for (vembed, index) in zip(tensor.vembeds, input):
@@ -365,7 +370,7 @@ def einsum(tensors: Sequence[EmbeddedTensor],
             else:
                 index_to_vembed[index] = vembed
     projected_tensors = [project(tensor.physical, None, tensor.pembeds, subst)
-                         for tensor in tensors]
+                         for tensor in freshened_tensors]
     pembed_to_char = {k: chr(ord('a') + i)
                       for i, k in enumerate(frozenset(k for (view, pembeds) in projected_tensors
                                                         for k in pembeds))}

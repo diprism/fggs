@@ -98,10 +98,8 @@ class TestEmbeddedTensor(unittest.TestCase):
         self.k3_ = EmbeddingVar(3)
         self.k4  = EmbeddingVar(6)
         self.k5  = EmbeddingVar(5)
-        self.k5_ = EmbeddingVar(5)
         self.k6  = EmbeddingVar(35)
         self.k7  = EmbeddingVar(7)
-        self.k7_ = EmbeddingVar(7)
         self.k8  = EmbeddingVar(36)
 
     def test_diag(self):
@@ -137,15 +135,15 @@ class TestEmbeddedTensor(unittest.TestCase):
         self.assertFalse(t1.equal(t2))
         self.assertFalse(t2.equal(t1))
         t1 = EmbeddedTensor(torch.Tensor([5,6,7]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3))
-        t2 = EmbeddedTensor(torch.Tensor([5,6,7]), (self.k3_,), (self.k3_, SumEmbedding(0,ProductEmbedding(()),2)))
+        t2 = EmbeddedTensor(torch.Tensor([5,6,7]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)))
         self.assertFalse(t1.equal(t2))
         self.assertFalse(t2.equal(t1))
         t1 = EmbeddedTensor(torch.Tensor([0,6,0]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3))
-        t2 = EmbeddedTensor(torch.Tensor([0,6,0]), (self.k3_,), (self.k3_, SumEmbedding(0,ProductEmbedding(()),2)))
+        t2 = EmbeddedTensor(torch.Tensor([0,6,0]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)))
         self.assertFalse(t1.equal(t2))
         self.assertFalse(t2.equal(t1))
         t1 = EmbeddedTensor(torch.Tensor([5,0,0]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3))
-        t2 = EmbeddedTensor(torch.Tensor([5,0,0]), (self.k3_,), (self.k3_, SumEmbedding(0,ProductEmbedding(()),2)))
+        t2 = EmbeddedTensor(torch.Tensor([5,0,0]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)))
         self.assertTrue(t1.equal(t2))
         self.assertTrue(t2.equal(t1))
 
@@ -161,15 +159,15 @@ class TestEmbeddedTensor(unittest.TestCase):
         self.assertFalse(t1.allclose(t2, atol=0.2))
         self.assertFalse(t2.allclose(t1, atol=0.2))
         t1 = EmbeddedTensor(torch.Tensor([5,6,7]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3))
-        t2 = EmbeddedTensor(torch.Tensor([5.1,6.1,7.1]), (self.k3_,), (self.k3_, SumEmbedding(0,ProductEmbedding(()),2)))
+        t2 = EmbeddedTensor(torch.Tensor([5.1,6.1,7.1]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)))
         self.assertFalse(t1.allclose(t2, atol=0.2))
         self.assertFalse(t2.allclose(t1, atol=0.2))
         t1 = EmbeddedTensor(torch.Tensor([0,6,0]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3))
-        t2 = EmbeddedTensor(torch.Tensor([0.1,6.1,0.1]), (self.k3_,), (self.k3_, SumEmbedding(0,ProductEmbedding(()),2)))
+        t2 = EmbeddedTensor(torch.Tensor([0.1,6.1,0.1]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)))
         self.assertFalse(t1.allclose(t2, atol=0.2))
         self.assertFalse(t2.allclose(t1, atol=0.2))
         t1 = EmbeddedTensor(torch.Tensor([5,0,0]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3))
-        t2 = EmbeddedTensor(torch.Tensor([5,0.1,0.1]), (self.k3_,), (self.k3_, SumEmbedding(0,ProductEmbedding(()),2)))
+        t2 = EmbeddedTensor(torch.Tensor([5,0.1,0.1]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)))
         self.assertTrue(t1.allclose(t2, atol=0.1000001, rtol=0))
         self.assertTrue(t2.allclose(t1, atol=0.1000001, rtol=0))
 
@@ -186,8 +184,8 @@ class TestEmbeddedTensor(unittest.TestCase):
                                                  (SumEmbedding(1,self.k6,0),self.k6)),
                                   # Here's a product-type factor represented compactly:
                                   EmbeddedTensor(torch.tensor(1).unsqueeze_(0).unsqueeze_(0).expand([5,7]),
-                                                 (self.k5_,self.k7_),
-                                                 (ProductEmbedding((self.k5_,self.k7_)),self.k5_,self.k7_))],
+                                                 (self.k5,self.k7),
+                                                 (ProductEmbedding((self.k5,self.k7)),self.k5,self.k7))],
                                  [["maybe-f"], ["i"], ["maybe-f","f"], ["f","o","i"]],
                                  ["o"],
                                  semiring).to_dense({}))
