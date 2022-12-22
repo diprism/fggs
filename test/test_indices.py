@@ -2,6 +2,85 @@ import unittest
 
 from fggs.indices import *
 
+class TestEmbedding(unittest.TestCase):
+
+    def setUp(self):
+        self.k1  = EmbeddingVar(5)
+        self.k1_ = EmbeddingVar(5)
+        self.k2  = EmbeddingVar(2)
+        self.k2_ = EmbeddingVar(2)
+        self.k3  = EmbeddingVar(3)
+        self.k3_ = EmbeddingVar(3)
+        self.k4  = EmbeddingVar(6)
+
+    def test_alpha(self):
+        rename = {self.k2: self.k2_, self.k3: self.k3_}
+        self.assertTrue (SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3 )),5).alpha(
+                         SumEmbedding(4,ProductEmbedding((self.k2_,self.k3_)),5), rename))
+        self.assertFalse(SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3 )),5).alpha(
+                         SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3 )),5), rename))
+        self.assertFalse(SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3 )),5).alpha(
+                         SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3 )),5), {}))
+        self.assertFalse(SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3 )),5).alpha(
+                         SumEmbedding(4,ProductEmbedding((self.k3_,self.k2_)),5), rename))
+        self.assertFalse(SumEmbedding(4,ProductEmbedding((self.k2_,self.k3 )),5).alpha(
+                         SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3_)),5), rename))
+        self.assertFalse(SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3_)),5).alpha(
+                         SumEmbedding(4,ProductEmbedding((self.k2_,self.k3 )),5), rename))
+        self.assertFalse(SumEmbedding(4,ProductEmbedding((self.k2_,self.k3_)),5).alpha(
+                         SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3 )),5), rename))
+        self.assertFalse(SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3 )),5).alpha(
+                         SumEmbedding(3,ProductEmbedding((self.k2_,self.k3_)),5), rename))
+        self.assertFalse(SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3 )),5).alpha(
+                         SumEmbedding(4,ProductEmbedding((self.k2_,self.k3_)),6), rename))
+        self.assertFalse(SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3 )),5).alpha(
+                         SumEmbedding(4,self.k4                              ,5), rename))
+        self.assertFalse(SumEmbedding(4,self.k4                              ,5).alpha(
+                         SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3 )),5), rename))
+        self.assertFalse(SumEmbedding(1,self.k2,0).alpha(self.k3, rename))
+        self.assertFalse(self.k3.alpha(SumEmbedding(1,self.k2,0), rename))
+        self.assertFalse(ProductEmbedding((self.k2,self.k3)).alpha(SumEmbedding(1,self.k1,0), rename))
+        self.assertFalse(SumEmbedding(1,self.k1,0).alpha(ProductEmbedding((self.k2,self.k3)), rename))
+
+    def test_freshen(self):
+        for e in [self.k1, SumEmbedding(4,ProductEmbedding((self.k2,self.k3)),5)]:
+            rename = {}
+            f = e.freshen(rename)
+            self.assertTrue(frozenset(rename.keys()).isdisjoint(rename.values()) and
+                            len(rename) == len(frozenset(rename.values())) and
+                            e.alpha(f, rename))
+            self.assertFalse(f.alpha(e, rename))
+            self.assertFalse(e.alpha(f, {}))
+
+    def test_unify_1(self):
+        subst : Subst = {}
+        self.assertTrue(SumEmbedding(1,self.k4                            ,2).unify(
+                        SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2), subst))
+        self.assertEqual(subst, {self.k4: ProductEmbedding((self.k2,self.k3))})
+        self.assertTrue(SumEmbedding(1,self.k4                            ,2).unify(
+                        SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2), subst))
+        self.assertEqual(subst, {self.k4: ProductEmbedding((self.k2,self.k3))})
+
+    def test_unify_2(self):
+        subst : Subst = {}
+        self.assertTrue(SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2).unify(
+                        SumEmbedding(1,self.k4                            ,2), subst))
+        self.assertEqual(subst, {self.k4: ProductEmbedding((self.k2,self.k3))})
+        self.assertTrue(SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2).unify(
+                        SumEmbedding(1,self.k4                            ,2), subst))
+        self.assertEqual(subst, {self.k4: ProductEmbedding((self.k2,self.k3))})
+
+    def test_unify_3(self):
+        subst : Subst = {}
+        self.assertFalse(SumEmbedding(1,self.k4,2).unify(
+                         SumEmbedding(7,self.k2,0), subst))
+
+    def test_unify_4(self):
+        subst : Subst = {}
+        self.assertTrue(SumEmbedding(1,ProductEmbedding((self.k2_,self.k3_)),2).unify(
+                        SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2), subst))
+        self.assertEqual(subst, {self.k2_: self.k2, self.k3_: self.k3})
+
 class TestEmbeddedTensor(unittest.TestCase):
 
     def assertTEqual(self, input: Tensor, other: Tensor) -> bool:
@@ -45,35 +124,6 @@ class TestEmbeddedTensor(unittest.TestCase):
                                         [[0,0,0,0,1,0,0,0,0],
                                          [0,0,0,0,0,1,0,0,0],
                                          [0,0,0,0,0,0,1,0,0.0]]]))
-
-    def test_unify_1(self):
-        subst : Subst = {}
-        self.assertTrue(SumEmbedding(1,self.k4                            ,2).unify(
-                        SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2), subst))
-        self.assertEqual(subst, {self.k4: ProductEmbedding((self.k2,self.k3))})
-        self.assertTrue(SumEmbedding(1,self.k4                            ,2).unify(
-                        SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2), subst))
-        self.assertEqual(subst, {self.k4: ProductEmbedding((self.k2,self.k3))})
-
-    def test_unify_2(self):
-        subst : Subst = {}
-        self.assertTrue(SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2).unify(
-                        SumEmbedding(1,self.k4                            ,2), subst))
-        self.assertEqual(subst, {self.k4: ProductEmbedding((self.k2,self.k3))})
-        self.assertTrue(SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2).unify(
-                        SumEmbedding(1,self.k4                            ,2), subst))
-        self.assertEqual(subst, {self.k4: ProductEmbedding((self.k2,self.k3))})
-
-    def test_unify_3(self):
-        subst : Subst = {}
-        self.assertFalse(SumEmbedding(1,self.k4,2).unify(
-                         SumEmbedding(7,self.k2,0), subst))
-
-    def test_unify_4(self):
-        subst : Subst = {}
-        self.assertTrue(SumEmbedding(1,ProductEmbedding((self.k2_,self.k3_)),2).unify(
-                        SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2), subst))
-        self.assertEqual(subst, {self.k2_: self.k2, self.k3_: self.k3})
 
     def test_equal(self):
         t1 = EmbeddedTensor(torch.diag(torch.Tensor([1,2,3])))

@@ -60,6 +60,8 @@ from torch import Tensor, Size
 import torch_semiring_einsum
 from fggs.semirings import Semiring, RealSemiring
 
+Rename = Dict["EmbeddingVar", "EmbeddingVar"]
+
 Subst = Dict["EmbeddingVar", "Embedding"]
 
 AntiSubst = Tuple[Dict[Tuple["Embedding", "Embedding"], "EmbeddingVar"],
@@ -82,6 +84,18 @@ class Embedding(ABC):
         """Look in subst for the end of the forwarding chain starting with self."""
         return self
 
+    @abstractmethod
+    def alpha(e: Embedding, f: Embedding, rename: Rename) -> bool:
+        """Check whether the given renaming turns e into f.  Each EmbeddingVar
+           in e must be a key in the given renaming, even if it's also in f."""
+        pass
+
+    @abstractmethod
+    def freshen(self, rename: Rename) -> Embedding:
+        """Copy self while performing the given renaming, extending the
+           renaming whenever necessary."""
+        pass
+
     def unify(e: Embedding, f: Embedding, subst: Subst) -> bool:
         """Unify the two embeddings by extending subst. Return success."""
         e = e.forward(subst)
@@ -89,9 +103,7 @@ class Embedding(ABC):
         if e is f: return True
         if isinstance(e, ProductEmbedding) and isinstance(f, ProductEmbedding):
             if len(e.factors) == len(f.factors):
-                for (e1, f1) in zip(e.factors, f.factors):
-                    if not e1.unify(f1, subst): return False
-                return True
+                return all(e1.unify(f1, subst) for e1, f1 in zip(e.factors, f.factors))
             else:
                 warn(f"Attempt to unify {e} and {f} indicates index type mismatch")
                 return False
@@ -156,6 +168,16 @@ class EmbeddingVar(Embedding):
         else:
             return self
 
+    def alpha(e, f, rename):
+        return rename.get(e, None) is f
+
+    def freshen(self, rename):
+        if self in rename:
+            return rename[self]
+        else:
+            rename[self] = ret = EmbeddingVar(self._numel)
+            return ret
+
 @dataclass(frozen=True)
 class ProductEmbedding(Embedding):
     factors: Sequence[Embedding]
@@ -176,6 +198,14 @@ class ProductEmbedding(Embedding):
             for k in s: stride[k] = stride.get(k, 0) + s[k]
         return (offset, stride)
 
+    def alpha(e, f, rename):
+        return isinstance(f, ProductEmbedding) and \
+               len(e.factors) == len(f.factors) and \
+               all(e1.alpha(f1, rename) for e1, f1 in zip(e.factors, f.factors))
+
+    def freshen(self, rename):
+        return ProductEmbedding(tuple(e.freshen(rename) for e in self.factors))
+
 @dataclass(frozen=True)
 class SumEmbedding(Embedding):
     before: int
@@ -188,6 +218,14 @@ class SumEmbedding(Embedding):
     def stride(self, subst):
         (o, s) = self.term.stride(subst)
         return (o + self.before, s)
+
+    def alpha(e, f, rename):
+        return isinstance(f, SumEmbedding) and \
+               e.before == f.before and e.after == f.after and \
+               e.term.alpha(f.term, rename)
+
+    def freshen(self, rename):
+        return SumEmbedding(self.before, self.term.freshen(rename), self.after)
 
 def project(virtual: Tensor,
             pembeds: Optional[Sequence[EmbeddingVar]],
@@ -254,7 +292,7 @@ class EmbeddedTensor:
 
     def equal(self, other: EmbeddedTensor) -> bool:
         if self.size() != other.size(): return False
-        if not frozenset(self.pembeds).isdisjoint(frozenset(other.pembeds)):
+        if not frozenset(self.pembeds).isdisjoint(other.pembeds):
             # TODO: freshen rather than error
             raise ValueError(f"equal(tensors whose pembeds are not disjoint)")
         selfzero  = self .physical == 0
@@ -273,7 +311,7 @@ class EmbeddedTensor:
 
     def allclose(self, other: EmbeddedTensor, rtol=1e-05, atol=1e-08, equal_nan=False) -> bool:
         if self.size() != other.size(): return False
-        if not frozenset(self.pembeds).isdisjoint(frozenset(other.pembeds)):
+        if not frozenset(self.pembeds).isdisjoint(other.pembeds):
             # TODO: freshen rather than error
             raise ValueError(f"allclose(tensors whose pembeds are not disjoint)")
         selfzero  = (self .physical >= -atol).min(self .physical <= atol)
