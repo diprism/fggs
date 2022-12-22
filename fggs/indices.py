@@ -231,6 +231,10 @@ class EmbeddedTensor:
         if self.vembeds is None:
             self.vembeds = self.pembeds
 
+    @property
+    def shape(self):
+        return self.size()
+
     def size(self) -> Size:
         return Size(e.numel() for e in self.vembeds)
 
