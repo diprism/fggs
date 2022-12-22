@@ -252,6 +252,44 @@ class EmbeddedTensor:
         project(virtual, self.pembeds, self.vembeds, subst)[0].copy_(self.physical)
         return virtual
 
+    def equal(self, other: EmbeddedTensor) -> bool:
+        if self.size() != other.size(): return False
+        if not frozenset(self.pembeds).isdisjoint(frozenset(other.pembeds)):
+            # TODO: freshen rather than error
+            raise ValueError(f"equal(tensors whose pembeds are not disjoint)")
+        selfzero  = self .physical == 0
+        otherzero = other.physical == 0
+        # Compare overlapping parts to each other
+        subst : Subst = {}
+        if all(v.unify(u, subst) for v, u in zip(self.vembeds, other.vembeds)):
+            # There is overlap
+            subself, subembeds = project(self.physical, None, self.pembeds, subst)
+            subother, _ = project(other.physical, subembeds, other.pembeds, subst)
+            if not subself.equal(subother): return False
+            project(selfzero , None, self .pembeds, subst)[0].fill_(True)
+            project(otherzero, None, other.pembeds, subst)[0].fill_(True)
+        # Compare non-overlapping parts to zero
+        return bool(selfzero.all()) and bool(otherzero.all())
+
+    def allclose(self, other: EmbeddedTensor, rtol=1e-05, atol=1e-08, equal_nan=False) -> bool:
+        if self.size() != other.size(): return False
+        if not frozenset(self.pembeds).isdisjoint(frozenset(other.pembeds)):
+            # TODO: freshen rather than error
+            raise ValueError(f"allclose(tensors whose pembeds are not disjoint)")
+        selfzero  = (self .physical >= -atol).min(self .physical <= atol)
+        otherzero = (other.physical >= -atol).min(other.physical <= atol)
+        # Compare overlapping parts to each other
+        subst : Subst = {}
+        if all(v.unify(u, subst) for v, u in zip(self.vembeds, other.vembeds)):
+            # There is overlap
+            subself, subembeds = project(self.physical, None, self.pembeds, subst)
+            subother, _ = project(other.physical, subembeds, other.pembeds, subst)
+            if not subself.allclose(subother, rtol=rtol, atol=atol, equal_nan=equal_nan): return False
+            project(selfzero , None, self .pembeds, subst)[0].fill_(True)
+            project(otherzero, None, other.pembeds, subst)[0].fill_(True)
+        # Compare non-overlapping parts to zero
+        return bool(selfzero.all()) and bool(otherzero.all())
+
 def einsum(tensors: Sequence[EmbeddedTensor],
            inputs: Sequence[Sequence[Any]], 
            output: Sequence[Any],
