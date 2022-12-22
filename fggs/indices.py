@@ -219,8 +219,8 @@ def project(virtual: Tensor,
 @dataclass
 class EmbeddedTensor:
     physical: Tensor
-    pembeds: Sequence[EmbeddingVar] = None
-    vembeds: Sequence[Embedding]    = None
+    pembeds: Sequence[EmbeddingVar] = cast(Sequence[EmbeddingVar], None) #-/
+    vembeds: Sequence[Embedding]    = cast(Sequence[Embedding],    None) #-/
 
     def __post_init__(self):
         # Default to the trivial (dense) embedding
