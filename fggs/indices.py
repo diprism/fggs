@@ -277,12 +277,39 @@ class EmbeddedTensor:
         return Size(e.numel() for e in self.vembeds)
 
     def freshen(self) -> EmbeddedTensor:
+        """Return a new EmbeddedTensor (with same underlying physical storage)
+           with fresh EmbeddingVars."""
         rename : Rename = {}
         return EmbeddedTensor(self.physical,
                               tuple(k.freshen(rename) for k in self.pembeds),
                               tuple(e.freshen(rename) for e in self.vembeds))
 
+    def clone(self) -> EmbeddedTensor:
+        rename : Rename = {}
+        return EmbeddedTensor(self.physical.clone(),
+                              tuple(k.freshen(rename) for k in self.pembeds),
+                              tuple(e.freshen(rename) for e in self.vembeds))
+
+    def copy_(self, src: EmbeddedTensor) -> None:
+        """Make self equal to src, possibly by overwriting self."""
+        p = self.physical
+        if p.numel() == src.physical.numel() and \
+           p.dtype   == src.physical.dtype: # Can we reuse self.physical?
+            l = list(enumerate(p.stride()))
+            l.sort(reverse = True, key = lambda pair: pair[1])
+            p = p.permute(tuple(dim for dim, _ in l))
+            if p.is_contiguous():
+                self.physical = p.view(src.physical.size()).copy_(src.physical)
+            else:
+                self.physical = src.physical.clone()
+        else:
+            self.physical = src.physical.clone()
+        rename : Rename = {}
+        self.pembeds = tuple(k.freshen(rename) for k in src.pembeds)
+        self.vembeds = tuple(e.freshen(rename) for e in src.vembeds)
+
     def isdisjoint(self, other: Union[Set[EmbeddingVar], EmbeddedTensor]) -> bool:
+        """Check whether the EmbeddingVars in self and other overlap."""
         return (frozenset(other.pembeds) if isinstance(other, EmbeddedTensor) else other) \
                .isdisjoint(self.pembeds)
 

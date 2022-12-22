@@ -123,6 +123,21 @@ class TestEmbeddedTensor(unittest.TestCase):
                                          [0,0,0,0,0,1,0,0,0],
                                          [0,0,0,0,0,0,1,0,0.0]]]))
 
+    def test_copy(self):
+        tensors = [EmbeddedTensor(torch.randn(5,2), (self.k1,self.k2), (self.k2,self.k1,self.k1)),
+                   EmbeddedTensor(torch.randn(2,5), (self.k2,self.k1), (self.k2,self.k1,self.k1)),
+                   EmbeddedTensor(torch.ones(2,3), (self.k2,self.k3), (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2))),
+                   EmbeddedTensor(torch.ones(1,1).expand(2,3), (self.k2,self.k3), (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2)))]
+        for t1 in tensors:
+            for t2 in tensors:
+                t1_ = t1.clone()
+                self.assertTrue(t1.equal(t1_) and t1_.equal(t1))
+                t2_ = t2.clone()
+                self.assertTrue(t2.equal(t2_) and t2_.equal(t2))
+                t1_.copy_(t2_)
+                self.assertTrue(t1_.equal(t2_) and t2_.equal(t1_))
+                self.assertTEqual(t1_.to_dense({}), t2_.to_dense({}))
+
     def test_equal(self):
         t1 = EmbeddedTensor(torch.diag(torch.Tensor([1,2,3])))
         t2 = EmbeddedTensor(torch.Tensor([1,2,3]), (self.k3,), (self.k3, self.k3))
