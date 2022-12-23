@@ -83,11 +83,23 @@ class TestEmbedding(unittest.TestCase):
 
 class TestEmbeddedTensor(unittest.TestCase):
 
-    def assertTEqual(self, input: Tensor, other: Tensor) -> bool:
+    def assertTEqual(self, input: Tensor, other: Tensor) -> None:
         self.assertTrue(torch.equal(input, other))
 
-    def assertTClose(self, input: Tensor, other: Tensor) -> bool:
+    def assertTClose(self, input: Tensor, other: Tensor) -> None:
         self.assertTrue(torch.allclose(input, other))
+
+    def assertEEqual(self, input: EmbeddedTensor, other: EmbeddedTensor) -> None:
+        self.assertTrue(input.equal(other))
+        self.assertTrue(other.equal(input))
+        self.assertTrue(input.allclose(other, atol=0.1000001, rtol=0))
+        self.assertTrue(other.allclose(input, atol=0.1000001, rtol=0))
+
+    def assertENotEqual(self, input: EmbeddedTensor, other: EmbeddedTensor) -> None:
+        self.assertFalse(input.equal(other))
+        self.assertFalse(other.equal(input))
+        self.assertFalse(input.allclose(other, atol=0.1000001, rtol=0))
+        self.assertFalse(other.allclose(input, atol=0.1000001, rtol=0))
 
     def setUp(self):
         self.k1  = EmbeddingVar(5)
@@ -107,14 +119,24 @@ class TestEmbeddedTensor(unittest.TestCase):
         virt = EmbeddedTensor(phys,
                               (self.k1,self.k2),
                               (self.k2,self.k1,self.k1))
+        self.assertEqual(virt.numel(), 50)
         self.assertTEqual(virt.to_dense({}),
                           phys.t().diag_embed(dim1=1, dim2=2))
+        virt = EmbeddedTensor(phys,
+                              (self.k1,self.k2),
+                              (self.k2,self.k1,self.k1),
+                              42)
+        self.assertEqual(virt.numel(), 50)
+        self.assertTEqual(virt.to_dense({}),
+                          ((1-torch.eye(5))*42).unsqueeze(0).expand(2,5,5)
+                          + phys.t().diag_embed(dim1=1, dim2=2))
 
     def test_algebraic(self):
         ones = torch.ones(2,3)
         diag = EmbeddedTensor(ones,
                               (self.k2,self.k3),
                               (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2)))
+        self.assertEqual(diag.numel(), 54)
         self.assertTEqual(diag.to_dense({}),
                           torch.tensor([[[0,1,0,0,0,0,0,0,0],
                                          [0,0,1,0,0,0,0,0,0],
@@ -122,12 +144,28 @@ class TestEmbeddedTensor(unittest.TestCase):
                                         [[0,0,0,0,1,0,0,0,0],
                                          [0,0,0,0,0,1,0,0,0],
                                          [0,0,0,0,0,0,1,0,0.0]]]))
+        diag = EmbeddedTensor(ones,
+                              (self.k2,self.k3),
+                              (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2)),
+                              7)
+        self.assertEqual(diag.numel(), 54)
+        self.assertTEqual(diag.to_dense({}),
+                          torch.tensor([[[7,1,7,7,7,7,7,7,7],
+                                         [7,7,1,7,7,7,7,7,7],
+                                         [7,7,7,1,7,7,7,7,7]],
+                                        [[7,7,7,7,1,7,7,7,7],
+                                         [7,7,7,7,7,1,7,7,7],
+                                         [7,7,7,7,7,7,1,7,7.0]]]))
 
     def test_copy(self):
         tensors = [EmbeddedTensor(torch.randn(5,2), (self.k1,self.k2), (self.k2,self.k1,self.k1)),
                    EmbeddedTensor(torch.randn(2,5), (self.k2,self.k1), (self.k2,self.k1,self.k1)),
                    EmbeddedTensor(torch.ones(2,3), (self.k2,self.k3), (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2))),
-                   EmbeddedTensor(torch.ones(1,1).expand(2,3), (self.k2,self.k3), (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2)))]
+                   EmbeddedTensor(torch.ones(1,1).expand(2,3), (self.k2,self.k3), (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2))),
+                   EmbeddedTensor(torch.randn(5,2), (self.k1,self.k2), (self.k2,self.k1,self.k1), 42),
+                   EmbeddedTensor(torch.randn(2,5), (self.k2,self.k1), (self.k2,self.k1,self.k1), 43),
+                   EmbeddedTensor(torch.ones(2,3), (self.k2,self.k3), (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2)), 44),
+                   EmbeddedTensor(torch.ones(1,1).expand(2,3), (self.k2,self.k3), (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2)), 45)]
         for t1 in tensors:
             for t2 in tensors:
                 t1_ = t1.clone()
@@ -141,50 +179,59 @@ class TestEmbeddedTensor(unittest.TestCase):
     def test_equal(self):
         t1 = EmbeddedTensor(torch.diag(torch.Tensor([1,2,3])))
         t2 = EmbeddedTensor(torch.Tensor([1,2,3]), (self.k3,), (self.k3, self.k3))
-        self.assertTrue(t1.equal(t2))
-        self.assertTrue(t2.equal(t1))
+        self.assertEEqual(t1, t2)
         t2 = EmbeddedTensor(torch.Tensor([1,2,3]), (self.k3,), (self.k3, SumEmbedding(0,self.k3,2)))
-        self.assertFalse(t1.equal(t2))
-        self.assertFalse(t2.equal(t1))
+        self.assertENotEqual(t1, t2)
         t2 = EmbeddedTensor(torch.Tensor([1,2,4]), (self.k3,), (self.k3, self.k3))
-        self.assertFalse(t1.equal(t2))
-        self.assertFalse(t2.equal(t1))
+        self.assertENotEqual(t1, t2)
         t1 = EmbeddedTensor(torch.Tensor([5,6,7]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3))
         t2 = EmbeddedTensor(torch.Tensor([5,6,7]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)))
-        self.assertFalse(t1.equal(t2))
-        self.assertFalse(t2.equal(t1))
+        self.assertENotEqual(t1, t2)
         t1 = EmbeddedTensor(torch.Tensor([0,6,0]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3))
         t2 = EmbeddedTensor(torch.Tensor([0,6,0]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)))
-        self.assertFalse(t1.equal(t2))
-        self.assertFalse(t2.equal(t1))
+        self.assertENotEqual(t1, t2)
         t1 = EmbeddedTensor(torch.Tensor([5,0,0]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3))
         t2 = EmbeddedTensor(torch.Tensor([5,0,0]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)))
-        self.assertTrue(t1.equal(t2))
-        self.assertTrue(t2.equal(t1))
+        self.assertEEqual(t1, t2)
+        t1 = EmbeddedTensor(torch.Tensor([1,2,3]))
+        t2 = EmbeddedTensor(torch.Tensor([1,2,3]), default=-1)
+        self.assertEEqual(t1, t2)
+        t1 = EmbeddedTensor(torch.Tensor([1,2,3]), (self.k3,), (self.k3, self.k3))
+        t2 = EmbeddedTensor(torch.Tensor([1,2,3]), (self.k3,), (self.k3, self.k3), default=-1)
+        self.assertENotEqual(t1, t2)
+        t1 = EmbeddedTensor(torch.diag(torch.Tensor([2,3,4]))-1, default=-1)
+        t2 = EmbeddedTensor(torch.Tensor([1,2,3]), (self.k3,), (self.k3, self.k3), -1)
+        self.assertEEqual(t1, t2)
+        t2 = EmbeddedTensor(torch.Tensor([1,2,3]), (self.k3,), (self.k3, self.k3))
+        self.assertENotEqual(t1, t2)
+        t2 = EmbeddedTensor(torch.Tensor([1,2,3]), (self.k3,), (self.k3, SumEmbedding(0,self.k3,2)), -1)
+        self.assertENotEqual(t1, t2)
+        t2 = EmbeddedTensor(torch.Tensor([1,2,4]), (self.k3,), (self.k3, self.k3), -1)
+        self.assertENotEqual(t1, t2)
+        t1 = EmbeddedTensor(torch.Tensor([5,6,7]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3), -1)
+        t2 = EmbeddedTensor(torch.Tensor([5,6,7]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)), -1)
+        self.assertENotEqual(t1, t2)
+        t1 = EmbeddedTensor(torch.Tensor([0,6,0]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3), -1)
+        t2 = EmbeddedTensor(torch.Tensor([0,6,0]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)), -1)
+        self.assertENotEqual(t1, t2)
+        t1 = EmbeddedTensor(torch.Tensor([5,0,0]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3), -1)
+        t2 = EmbeddedTensor(torch.Tensor([5,0,0]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)), -1)
+        self.assertENotEqual(t1, t2)
+        t1 = EmbeddedTensor(torch.Tensor([5,-1,-1]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3), -1)
+        t2 = EmbeddedTensor(torch.Tensor([5,-1,-1]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)), -1)
+        self.assertEEqual(t1, t2)
 
     def test_allclose(self):
-        t1 = EmbeddedTensor(torch.diag(torch.Tensor([1,2,3])))
-        t2 = EmbeddedTensor(torch.Tensor([1.1,2.1,3.1]), (self.k3,), (self.k3, self.k3))
-        self.assertTrue(t1.allclose(t2, atol=0.1000001, rtol=0))
-        self.assertTrue(t2.allclose(t1, atol=0.1000001, rtol=0))
-        t2 = EmbeddedTensor(torch.Tensor([1.1,2.1,3.1]), (self.k3,), (self.k3, SumEmbedding(0,self.k3,2)))
-        self.assertFalse(t1.allclose(t2, atol=0.2))
-        self.assertFalse(t2.allclose(t1, atol=0.2))
-        t2 = EmbeddedTensor(torch.Tensor([1.1,2.1,4.1]), (self.k3,), (self.k3, self.k3))
-        self.assertFalse(t1.allclose(t2, atol=0.2))
-        self.assertFalse(t2.allclose(t1, atol=0.2))
-        t1 = EmbeddedTensor(torch.Tensor([5,6,7]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3))
-        t2 = EmbeddedTensor(torch.Tensor([5.1,6.1,7.1]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)))
-        self.assertFalse(t1.allclose(t2, atol=0.2))
-        self.assertFalse(t2.allclose(t1, atol=0.2))
-        t1 = EmbeddedTensor(torch.Tensor([0,6,0]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3))
-        t2 = EmbeddedTensor(torch.Tensor([0.1,6.1,0.1]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)))
-        self.assertFalse(t1.allclose(t2, atol=0.2))
-        self.assertFalse(t2.allclose(t1, atol=0.2))
-        t1 = EmbeddedTensor(torch.Tensor([5,0,0]), (self.k3,), (SumEmbedding(0,ProductEmbedding(()),2), self.k3))
-        t2 = EmbeddedTensor(torch.Tensor([5,0.1,0.1]), (self.k3,), (self.k3, SumEmbedding(0,ProductEmbedding(()),2)))
-        self.assertTrue(t1.allclose(t2, atol=0.1000001, rtol=0))
-        self.assertTrue(t2.allclose(t1, atol=0.1000001, rtol=0))
+        t1 = EmbeddedTensor(torch.Tensor([0,1,2]), (self.k3,), (self.k3, self.k3), -0.1)
+        t2 = EmbeddedTensor(torch.Tensor([0,1,2]), (self.k3,), (self.k3, self.k3), -0.1)
+        self.assertTrue(t1.allclose(t2, atol=0, rtol=0.1))
+        self.assertTrue(t2.allclose(t1, atol=0, rtol=0.1))
+        t2 = EmbeddedTensor(torch.Tensor([0.1,1.1,2.1]), (self.k3,), (self.k3, self.k3), -0.1)
+        self.assertTrue(t1.allclose(t2, atol=0.05, rtol=0.5))
+        self.assertFalse(t2.allclose(t1, atol=0.05, rtol=0.5))
+        t2 = EmbeddedTensor(torch.Tensor([0,1,2]), (self.k3,), (self.k3, self.k3), 0)
+        self.assertFalse(t1.allclose(t2, atol=0.05, rtol=0.5))
+        self.assertTrue(t2.allclose(t1, atol=0.05, rtol=0.5))
 
     def test_einsum(self):
         matrix = torch.randn(36)

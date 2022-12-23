@@ -67,6 +67,8 @@ Subst = Dict["EmbeddingVar", "Embedding"]
 AntiSubst = Tuple[Dict[Tuple["Embedding", "Embedding"], "EmbeddingVar"],
                   Dict["EmbeddingVar", Tuple["Embedding", "Embedding"]]]
 
+NumberType = Union[bool, int, float] # omit the complex type to work around https://github.com/pytorch/pytorch/pull/91345
+
 class Embedding(ABC):
     """An injective mapping from physical indices to virtual indices."""
 
@@ -259,6 +261,7 @@ class EmbeddedTensor:
     physical: Tensor
     pembeds: Sequence[EmbeddingVar] = cast(Sequence[EmbeddingVar], None) #-/
     vembeds: Sequence[Embedding]    = cast(Sequence[Embedding],    None) #-/
+    default: NumberType = 0
 
     def __post_init__(self):
         # Default to the trivial (dense) embedding, to convert from Tensor
@@ -273,6 +276,9 @@ class EmbeddedTensor:
     def shape(self):
         return self.size()
 
+    def numel(self) -> int:
+        return reduce(mul, (e.numel() for e in self.vembeds), 1)
+
     def size(self) -> Size:
         return Size(e.numel() for e in self.vembeds)
 
@@ -282,13 +288,15 @@ class EmbeddedTensor:
         rename : Rename = {}
         return EmbeddedTensor(self.physical,
                               tuple(k.freshen(rename) for k in self.pembeds),
-                              tuple(e.freshen(rename) for e in self.vembeds))
+                              tuple(e.freshen(rename) for e in self.vembeds),
+                              self.default)
 
     def clone(self) -> EmbeddedTensor:
         rename : Rename = {}
         return EmbeddedTensor(self.physical.clone(),
                               tuple(k.freshen(rename) for k in self.pembeds),
-                              tuple(e.freshen(rename) for e in self.vembeds))
+                              tuple(e.freshen(rename) for e in self.vembeds),
+                              self.default)
 
     def copy_(self, src: EmbeddedTensor) -> None:
         """Make self equal to src, possibly by overwriting self."""
@@ -307,6 +315,7 @@ class EmbeddedTensor:
         rename : Rename = {}
         self.pembeds = tuple(k.freshen(rename) for k in src.pembeds)
         self.vembeds = tuple(e.freshen(rename) for e in src.vembeds)
+        self.default = src.default
 
     def isdisjoint(self, other: Union[Set[EmbeddingVar], EmbeddedTensor]) -> bool:
         """Check whether the EmbeddingVars in self and other overlap."""
@@ -322,16 +331,18 @@ class EmbeddedTensor:
                 return project(self.physical,
                                cast(Tuple[EmbeddingVar], forwarded_vembeds),
                                self.pembeds, {})[0].clone()
-        virtual = self.physical.new_zeros(self.size())
+        virtual = self.physical.new_full(self.size(), self.default)
         # TODO: allow pembeds_fv <= vembeds_fv by repeating self.physical?
         project(virtual, self.pembeds, self.vembeds, subst)[0].copy_(self.physical)
         return virtual
 
     def equal(self, other: EmbeddedTensor) -> bool:
-        if self.size() != other.size(): return False
+        s = self.size()
+        if s != other.size(): return False
+        s = s.numel()
         if not self.isdisjoint(other): other = other.freshen()
-        selfzero  = self .physical == 0
-        otherzero = other.physical == 0
+        selfok  = self.physical == other.default
+        otherok = self.default == other.physical
         # Compare overlapping parts to each other
         subst : Subst = {}
         if all(v.unify(u, subst) for v, u in zip(self.vembeds, other.vembeds)):
@@ -339,16 +350,21 @@ class EmbeddedTensor:
             subself, subembeds = project(self.physical, None, self.pembeds, subst)
             subother, _ = project(other.physical, subembeds, other.pembeds, subst)
             if not subself.equal(subother): return False
-            project(selfzero , None, self .pembeds, subst)[0].fill_(True)
-            project(otherzero, None, other.pembeds, subst)[0].fill_(True)
-        # Compare non-overlapping parts to zero
-        return bool(selfzero.all()) and bool(otherzero.all())
+            project(selfok , None, self .pembeds, subst)[0].fill_(True)
+            project(otherok, None, other.pembeds, subst)[0].fill_(True)
+            s += subself.numel()
+        # Compare defaults and non-overlapping parts
+        return (s <= selfok.numel() + otherok.numel() or
+                self.default == other.default) and \
+               bool(selfok.all()) and bool(otherok.all())
 
     def allclose(self, other: EmbeddedTensor, rtol=1e-05, atol=1e-08, equal_nan=False) -> bool:
-        if self.size() != other.size(): return False
+        s = self.size()
+        if s != other.size(): return False
+        s = s.numel()
         if not self.isdisjoint(other): other = other.freshen()
-        selfzero  = (self .physical >= -atol).min(self .physical <= atol)
-        otherzero = (other.physical >= -atol).min(other.physical <= atol)
+        selfok = self.physical.isclose(other.physical.new_tensor(other.default), rtol=rtol, atol=atol, equal_nan=equal_nan)
+        otherok = self.physical.new_tensor(self.default).isclose(other.physical, rtol=rtol, atol=atol, equal_nan=equal_nan)
         # Compare overlapping parts to each other
         subst : Subst = {}
         if all(v.unify(u, subst) for v, u in zip(self.vembeds, other.vembeds)):
@@ -356,16 +372,23 @@ class EmbeddedTensor:
             subself, subembeds = project(self.physical, None, self.pembeds, subst)
             subother, _ = project(other.physical, subembeds, other.pembeds, subst)
             if not subself.allclose(subother, rtol=rtol, atol=atol, equal_nan=equal_nan): return False
-            project(selfzero , None, self .pembeds, subst)[0].fill_(True)
-            project(otherzero, None, other.pembeds, subst)[0].fill_(True)
-        # Compare non-overlapping parts to zero
-        return bool(selfzero.all()) and bool(otherzero.all())
+            project(selfok , None, self .pembeds, subst)[0].fill_(True)
+            project(otherok, None, other.pembeds, subst)[0].fill_(True)
+            s += subself.numel()
+        # Compare defaults and non-overlapping parts
+        return (s <= selfok.numel() + otherok.numel() or
+                self.physical.new_tensor(self.default)
+                    .isclose(other.physical.new_tensor(other.default),
+                             rtol=rtol, atol=atol, equal_nan=equal_nan)) and \
+               bool(selfok.all()) and bool(otherok.all())
 
 def einsum(tensors: Sequence[EmbeddedTensor],
            inputs: Sequence[Sequence[Any]], 
            output: Sequence[Any],
            semiring: Semiring) -> EmbeddedTensor:
     """
+    We assume all input EmbeddedTensors have semiring.from_int(0) as default.
+
     To perform an einsum operation on EmbeddedTensors, we start with
     EmbeddedTensors whose sets of physical EmbeddingVars do not overlap, but
     then we *unify* the virtual embeddings that get co-indexed.  For example,
