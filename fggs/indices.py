@@ -339,10 +339,10 @@ class EmbeddedTensor:
     def equal(self, other: EmbeddedTensor) -> bool:
         s = self.size()
         if s != other.size(): return False
-        s = s.numel()
+        n = s.numel()
         if not self.isdisjoint(other): other = other.freshen()
         selfok  = self.physical == other.default
-        otherok = self.default == other.physical
+        otherok = other.physical == self.default
         # Compare overlapping parts to each other
         subst : Subst = {}
         if all(v.unify(u, subst) for v, u in zip(self.vembeds, other.vembeds)):
@@ -352,16 +352,16 @@ class EmbeddedTensor:
             if not subself.equal(subother): return False
             project(selfok , None, self .pembeds, subst)[0].fill_(True)
             project(otherok, None, other.pembeds, subst)[0].fill_(True)
-            s += subself.numel()
+            n += subself.numel()
         # Compare defaults and non-overlapping parts
-        return (s <= selfok.numel() + otherok.numel() or
+        return (n <= selfok.numel() + otherok.numel() or
                 self.default == other.default) and \
                bool(selfok.all()) and bool(otherok.all())
 
     def allclose(self, other: EmbeddedTensor, rtol=1e-05, atol=1e-08, equal_nan=False) -> bool:
         s = self.size()
         if s != other.size(): return False
-        s = s.numel()
+        n = s.numel()
         if not self.isdisjoint(other): other = other.freshen()
         selfok = self.physical.isclose(other.physical.new_tensor(other.default), rtol=rtol, atol=atol, equal_nan=equal_nan)
         otherok = self.physical.new_tensor(self.default).isclose(other.physical, rtol=rtol, atol=atol, equal_nan=equal_nan)
@@ -374,12 +374,12 @@ class EmbeddedTensor:
             if not subself.allclose(subother, rtol=rtol, atol=atol, equal_nan=equal_nan): return False
             project(selfok , None, self .pembeds, subst)[0].fill_(True)
             project(otherok, None, other.pembeds, subst)[0].fill_(True)
-            s += subself.numel()
+            n += subself.numel()
         # Compare defaults and non-overlapping parts
-        return (s <= selfok.numel() + otherok.numel() or
+        return (n <= selfok.numel() + otherok.numel() or
                 self.physical.new_tensor(self.default)
-                    .isclose(other.physical.new_tensor(other.default),
-                             rtol=rtol, atol=atol, equal_nan=equal_nan)) and \
+                    .allclose(other.physical.new_tensor(other.default),
+                              rtol=rtol, atol=atol, equal_nan=equal_nan)) and \
                bool(selfok.all()) and bool(otherok.all())
 
 def einsum(tensors: Sequence[EmbeddedTensor],
