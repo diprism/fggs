@@ -1,7 +1,13 @@
 import unittest
 
 from fggs.indices import *
-from math import inf
+from math import inf, nan
+import torch
+
+def nrand(*size) -> torch.Tensor:
+    s = torch.Size((*size,))
+    n = s.numel()
+    return torch.arange(0.42-n, n, 2).view(s)
 
 class TestEmbedding(unittest.TestCase):
 
@@ -88,7 +94,7 @@ class TestEmbeddedTensor(unittest.TestCase):
         self.assertTrue(torch.equal(input, other))
 
     def assertTClose(self, input: Tensor, other: Tensor) -> None:
-        self.assertTrue(torch.allclose(input, other))
+        self.assertTrue(torch.allclose(input, other, equal_nan=True))
 
     def assertEEqual(self, input: EmbeddedTensor, other: EmbeddedTensor) -> None:
         self.assertTrue(input.equal(other))
@@ -101,16 +107,6 @@ class TestEmbeddedTensor(unittest.TestCase):
         self.assertFalse(other.equal(input))
         self.assertFalse(input.allclose(other, atol=0.1000001, rtol=0))
         self.assertFalse(other.allclose(input, atol=0.1000001, rtol=0))
-
-    def assertAddOk(self, input: EmbeddedTensor, other: EmbeddedTensor) -> None:
-        self.assertTClose(input.add(other).to_dense({}),
-                          input.to_dense({}).add(other.to_dense({})))
-        self.assertTClose(other.add(input).to_dense({}),
-                          other.to_dense({}).add(input.to_dense({})))
-        self.assertTClose(input.logaddexp(other).to_dense({}),
-                          input.to_dense({}).logaddexp(other.to_dense({})))
-        self.assertTClose(other.logaddexp(input).to_dense({}),
-                          other.to_dense({}).logaddexp(input.to_dense({})))
 
     def setUp(self):
         self.k1  = EmbeddingVar(5)
@@ -126,7 +122,7 @@ class TestEmbeddedTensor(unittest.TestCase):
         self.k8  = EmbeddingVar(36)
 
     def test_diag(self):
-        phys = torch.randn(5,2)
+        phys = nrand(5,2)
         virt = EmbeddedTensor(phys,
                               (self.k1,self.k2),
                               (self.k2,self.k1,self.k1))
@@ -169,12 +165,12 @@ class TestEmbeddedTensor(unittest.TestCase):
                                          [7,7,7,7,7,7,1,7,7.0]]]))
 
     def test_copy(self):
-        tensors = [EmbeddedTensor(torch.randn(5,2), (self.k1,self.k2), (self.k2,self.k1,self.k1)),
-                   EmbeddedTensor(torch.randn(2,5), (self.k2,self.k1), (self.k2,self.k1,self.k1)),
+        tensors = [EmbeddedTensor(nrand(5,2), (self.k1,self.k2), (self.k2,self.k1,self.k1)),
+                   EmbeddedTensor(nrand(2,5), (self.k2,self.k1), (self.k2,self.k1,self.k1)),
                    EmbeddedTensor(torch.ones(2,3), (self.k2,self.k3), (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2))),
                    EmbeddedTensor(torch.ones(1,1).expand(2,3), (self.k2,self.k3), (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2))),
-                   EmbeddedTensor(torch.randn(5,2), (self.k1,self.k2), (self.k2,self.k1,self.k1), 42),
-                   EmbeddedTensor(torch.randn(2,5), (self.k2,self.k1), (self.k2,self.k1,self.k1), 43),
+                   EmbeddedTensor(nrand(5,2), (self.k1,self.k2), (self.k2,self.k1,self.k1), 42),
+                   EmbeddedTensor(nrand(2,5), (self.k2,self.k1), (self.k2,self.k1,self.k1), 43),
                    EmbeddedTensor(torch.ones(2,3), (self.k2,self.k3), (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2)), 44),
                    EmbeddedTensor(torch.ones(1,1).expand(2,3), (self.k2,self.k3), (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2)), 45)]
         for t1 in tensors:
@@ -245,8 +241,8 @@ class TestEmbeddedTensor(unittest.TestCase):
         self.assertTrue(t2.allclose(t1, atol=0.05, rtol=0.5))
 
     def test_einsum(self):
-        matrix = torch.randn(36)
-        vector = torch.randn(7)
+        matrix = nrand(36)
+        vector = nrand(7)
         semiring = RealSemiring(dtype=matrix.dtype, device=matrix.device)
         self.assertTClose(matrix[1:].reshape((5,7)).matmul(vector),
                           einsum([EmbeddedTensor(matrix, (self.k8,), (self.k8,)),
@@ -263,13 +259,13 @@ class TestEmbeddedTensor(unittest.TestCase):
                                  ["o"],
                                  semiring).to_dense({}))
 
-    def test_add(self):
-        tensors = [t for default in [-inf, -2, 0, 1]
-                     for t in [EmbeddedTensor(torch.randn(5,2),
+    def test_binary(self):
+        tensors = [t for default in [-inf, -2, 0, 1, inf, nan]
+                     for t in [EmbeddedTensor(nrand(5,2),
                                               (self.k1,self.k2),
                                               (self.k2,self.k1,self.k1),
                                               default),
-                               EmbeddedTensor(torch.randn(5,5),
+                               EmbeddedTensor(nrand(5,5),
                                               (self.k1,self.k1_),
                                               (SumEmbedding(0,ProductEmbedding(()),1),self.k1_,self.k1),
                                               default),
@@ -279,7 +275,18 @@ class TestEmbeddedTensor(unittest.TestCase):
                                               default)]]
         for t1 in tensors:
             for t2 in tensors:
-                self.assertAddOk(t1, t2)
+                self.assertTClose(t1.add(t2).to_dense({}),
+                                  t1.to_dense({}).add(t2.to_dense({})))
+                self.assertTClose(t2.add(t1).to_dense({}),
+                                  t2.to_dense({}).add(t1.to_dense({})))
+                self.assertTClose(t1.sub(t2).to_dense({}),
+                                  t1.to_dense({}).sub(t2.to_dense({})))
+                self.assertTClose(t2.sub(t1).to_dense({}),
+                                  t2.to_dense({}).sub(t1.to_dense({})))
+                self.assertTClose(t1.logaddexp(t2).to_dense({}),
+                                  t1.to_dense({}).logaddexp(t2.to_dense({})))
+                self.assertTClose(t2.logaddexp(t1).to_dense({}),
+                                  t2.to_dense({}).logaddexp(t1.to_dense({})))
 
 if __name__ == "__main__":
     unittest.main()

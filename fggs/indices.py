@@ -406,6 +406,29 @@ class EmbeddedTensor:
             up.add_(t.physical)
             return EmbeddedTensor(ud, gs, lggs, default)
 
+    def sub(t, u: EmbeddedTensor) -> EmbeddedTensor:
+        """
+        Subtract two EmbeddedTensors. We use anti-unification to compute how much they
+        need to be expanded in order to match.
+        """
+        antisubst : AntiSubst = ({}, {})
+        lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
+        (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
+        default = t.default - u.default
+        if t.default != 0 or t.physical.numel() >= u.physical.numel():
+            td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense({})
+            if u.default == 0:
+                tp = project(td, u.pembeds, fs, {})[0]
+                tp.sub_(u.physical)
+            else:
+                td.sub_(EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense({}))
+            return EmbeddedTensor(td, gs, lggs, default)
+        else:
+            ud = EmbeddedTensor(-u.physical, u.pembeds, fs, -u.default).to_dense({})
+            up = project(ud, t.pembeds, es, {})[0]
+            up.add_(t.physical)
+            return EmbeddedTensor(ud, gs, lggs, default)
+
     def logaddexp(t, u: EmbeddedTensor) -> EmbeddedTensor:
         """
         Logaddexp two EmbeddedTensors. We use anti-unification to compute how much they
