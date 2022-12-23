@@ -1,6 +1,7 @@
 import unittest
 
 from fggs.indices import *
+from math import inf
 
 class TestEmbedding(unittest.TestCase):
 
@@ -100,6 +101,16 @@ class TestEmbeddedTensor(unittest.TestCase):
         self.assertFalse(other.equal(input))
         self.assertFalse(input.allclose(other, atol=0.1000001, rtol=0))
         self.assertFalse(other.allclose(input, atol=0.1000001, rtol=0))
+
+    def assertAddOk(self, input: EmbeddedTensor, other: EmbeddedTensor) -> None:
+        self.assertTClose(input.add(other).to_dense({}),
+                          input.to_dense({}).add(other.to_dense({})))
+        self.assertTClose(other.add(input).to_dense({}),
+                          other.to_dense({}).add(input.to_dense({})))
+        self.assertTClose(input.logaddexp(other).to_dense({}),
+                          input.to_dense({}).logaddexp(other.to_dense({})))
+        self.assertTClose(other.logaddexp(input).to_dense({}),
+                          other.to_dense({}).logaddexp(input.to_dense({})))
 
     def setUp(self):
         self.k1  = EmbeddingVar(5)
@@ -252,33 +263,23 @@ class TestEmbeddedTensor(unittest.TestCase):
                                  ["o"],
                                  semiring).to_dense({}))
 
-    def test_add_dense(self):
-        phys = torch.randn(5,2)
-        virt = EmbeddedTensor(phys,
-                              (self.k1,self.k2),
-                              (self.k2,self.k1,self.k1))
-        phys2 = torch.randn(5,5)
-        virt2 = EmbeddedTensor(phys2,
-                               (self.k1,self.k1_),
-                               (SumEmbedding(0,ProductEmbedding(()),1),self.k1_,self.k1))
-        self.assertTEqual(add(virt, virt2).to_dense({}),
-                          torch.add(virt.to_dense({}), virt2.to_dense({})))
-        self.assertTEqual(add(virt2, virt).to_dense({}),
-                          torch.add(virt2.to_dense({}), virt.to_dense({})))
-
-    def test_add_sparse(self):
-        phys = torch.randn(5,2)
-        virt = EmbeddedTensor(phys,
-                              (self.k1,self.k2),
-                              (self.k2,self.k1,self.k1))
-        phys3 = torch.arange(0.0,500,10).reshape(5,2,5)
-        virt3 = EmbeddedTensor(phys3,
-                               (self.k1,self.k2,self.k1_),
-                               (self.k2,self.k1_,self.k1))
-        self.assertTEqual(add(virt, virt3).to_dense({}),
-                          torch.add(virt.to_dense({}), virt3.to_dense({})))
-        self.assertTEqual(add(virt3, virt).to_dense({}),
-                          torch.add(virt3.to_dense({}), virt.to_dense({})))
+    def test_add(self):
+        tensors = [t for default in [-inf, -2, 0, 1]
+                     for t in [EmbeddedTensor(torch.randn(5,2),
+                                              (self.k1,self.k2),
+                                              (self.k2,self.k1,self.k1),
+                                              default),
+                               EmbeddedTensor(torch.randn(5,5),
+                                              (self.k1,self.k1_),
+                                              (SumEmbedding(0,ProductEmbedding(()),1),self.k1_,self.k1),
+                                              default),
+                               EmbeddedTensor(torch.arange(0.0,500,10).reshape(5,2,5),
+                                              (self.k1,self.k2,self.k1_),
+                                              (self.k2,self.k1_,self.k1),
+                                              default)]]
+        for t1 in tensors:
+            for t2 in tensors:
+                self.assertAddOk(t1, t2)
 
 if __name__ == "__main__":
     unittest.main()

@@ -55,6 +55,7 @@ from abc import ABC, abstractmethod
 from warnings import warn
 from functools import reduce
 from operator import mul
+from math import inf
 import torch
 from torch import Tensor, Size
 import torch_semiring_einsum
@@ -382,6 +383,52 @@ class EmbeddedTensor:
                               rtol=rtol, atol=atol, equal_nan=equal_nan)) and \
                bool(selfok.all()) and bool(otherok.all())
 
+    def add(t, u: EmbeddedTensor) -> EmbeddedTensor:
+        """
+        Add two EmbeddedTensors. We use anti-unification to compute how much they
+        need to be expanded in order to match.
+        """
+        antisubst : AntiSubst = ({}, {})
+        lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
+        (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
+        default = t.default + u.default
+        if t.default != 0 or t.physical.numel() >= u.physical.numel():
+            td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense({})
+            if u.default == 0:
+                tp = project(td, u.pembeds, fs, {})[0]
+                tp.add_(u.physical)
+            else:
+                td.add_(EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense({}))
+            return EmbeddedTensor(td, gs, lggs, default)
+        else:
+            ud = EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense({})
+            up = project(ud, t.pembeds, es, {})[0]
+            up.add_(t.physical)
+            return EmbeddedTensor(ud, gs, lggs, default)
+
+    def logaddexp(t, u: EmbeddedTensor) -> EmbeddedTensor:
+        """
+        Logaddexp two EmbeddedTensors. We use anti-unification to compute how much they
+        need to be expanded in order to match.
+        """
+        antisubst : AntiSubst = ({}, {})
+        lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
+        (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
+        default = t.physical.new_tensor(t.default).logaddexp(u.physical.new_tensor(u.default)).item()
+        if t.default != -inf or t.physical.numel() >= u.physical.numel():
+            td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense({})
+            if u.default == -inf:
+                tp = project(td, u.pembeds, fs, {})[0]
+                tp.copy_(tp.logaddexp(u.physical))
+            else:
+                td.copy_(td.logaddexp(EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense({})))
+            return EmbeddedTensor(td, gs, lggs, default)
+        else:
+            ud = EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense({})
+            up = project(ud, t.pembeds, es, {})[0]
+            up.copy_(up.logaddexp(t.physical))
+            return EmbeddedTensor(ud, gs, lggs, default)
+
 def einsum(tensors: Sequence[EmbeddedTensor],
            inputs: Sequence[Sequence[Any]], 
            output: Sequence[Any],
@@ -432,23 +479,3 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     compiled = torch_semiring_einsum.compile_equation(equation)
     out = semiring.einsum(compiled, *(view for (view, pembed) in projected_tensors))
     return EmbeddedTensor(out, output_pembeds, tuple(index_to_vembed[index] for index in output))
-
-def add(t: EmbeddedTensor, u: EmbeddedTensor) -> EmbeddedTensor:
-    """
-    Add two EmbeddedTensors. We use anti-unification to compute how much they
-    need to be expanded in order to match.
-    """
-    antisubst : AntiSubst = ({}, {})
-    lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
-    (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
-    t0 = EmbeddedTensor(t.physical, t.pembeds, es)
-    u0 = EmbeddedTensor(u.physical, u.pembeds, fs)
-    if t.physical.numel() >= u.physical.numel():
-        td = t0.to_dense({})
-        project(td, u.pembeds, fs, {})[0].add_(u.physical)
-        return EmbeddedTensor(td, gs, lggs)
-    else:
-        ud = u0.to_dense({})
-        project(ud, t.pembeds, es, {})[0].add_(t.physical)
-        return EmbeddedTensor(ud, gs, lggs)
-
