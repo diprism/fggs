@@ -7,7 +7,7 @@ import torch
 def nrand(*size) -> torch.Tensor:
     s = torch.Size((*size,))
     n = s.numel()
-    return torch.arange(0.42-n, n, 2).view(s)
+    return torch.zeros(s) if n == 0 else torch.arange(0.42-n, n, 2).view(s)
 
 class TestEmbedding(unittest.TestCase):
 
@@ -19,6 +19,14 @@ class TestEmbedding(unittest.TestCase):
         self.k3  = EmbeddingVar(3)
         self.k3_ = EmbeddingVar(3)
         self.k4  = EmbeddingVar(6)
+
+    def test_prime_factors(self):
+        for e in [self.k2, self.k4, SumEmbedding(4,ProductEmbedding((self.k2 ,self.k3 )),5)]:
+            self.assertEqual([e], list(e.prime_factors({})))
+        self.assertEqual([self.k2, self.k3],
+                         list(ProductEmbedding((self.k2, self.k3)).prime_factors({})))
+        self.assertEqual([self.k2, self.k3],
+                         list(self.k4.prime_factors({self.k4: ProductEmbedding((self.k2, self.k3))})))
 
     def test_alpha(self):
         rename = {self.k2: self.k2_, self.k3: self.k3_}
@@ -109,6 +117,8 @@ class TestEmbeddedTensor(unittest.TestCase):
         self.assertFalse(other.allclose(input, atol=0.1000001, rtol=0))
 
     def setUp(self):
+        self.k0  = EmbeddingVar(0)
+        self.k0_ = EmbeddingVar(0)
         self.k1  = EmbeddingVar(5)
         self.k1_ = EmbeddingVar(5)
         self.k2  = EmbeddingVar(2)
@@ -287,6 +297,23 @@ class TestEmbeddedTensor(unittest.TestCase):
                                   t1.to_dense({}).logaddexp(t2.to_dense({})))
                 self.assertTClose(t2.logaddexp(t1).to_dense({}),
                                   t2.to_dense({}).logaddexp(t1.to_dense({})))
+
+    def test_reshape(self):
+        for vembeds, s in [((self.k2, self.k3), (6,)),
+                           ((ProductEmbedding((self.k2, self.k3)),), (6,)),
+                           ((self.k2, ProductEmbedding((self.k3_, self.k2_)), self.k3), (6,6)),
+                           ((self.k2, ProductEmbedding((self.k2_, self.k3_)), self.k3), (4,9)),
+                           ((ProductEmbedding((self.k2, self.k3_, self.k2_)), self.k3), (6,6)),
+                           ((self.k2, ProductEmbedding((self.k2_, self.k3_, self.k3))), (4,9)),
+                           ((self.k2, self.k0, self.k0_, self.k3), (0,)),
+                           ((self.k2, self.k0, self.k0_, self.k3), (2,0)),
+                           ((self.k2, self.k0, self.k0_, self.k3), (0,3)),
+                           ((self.k2, self.k0, self.k0_, self.k3), (0,0))]:
+            pembeds = tuple(frozenset(k for e in vembeds for k in e.stride({})[1]))
+            physical = nrand(*(k.numel() for k in pembeds))
+            t1 = EmbeddedTensor(physical, pembeds, vembeds, default=42)
+            t2 = t1.reshape(s)
+            self.assertTEqual(t1.to_dense({}).reshape(s), t2.to_dense({}))
 
 if __name__ == "__main__":
     unittest.main()

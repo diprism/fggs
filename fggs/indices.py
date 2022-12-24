@@ -49,7 +49,7 @@ We store these three pieces of information together in an EmbeddedTensor.
 """
 
 from __future__ import annotations
-from typing import Sequence, Tuple, Dict, Set, Any, Optional, Union, cast
+from typing import Sequence, Iterator, List, Tuple, Dict, Set, Any, Optional, Union, cast
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from warnings import warn
@@ -82,6 +82,10 @@ class Embedding(ABC):
     def stride(self, subst: Subst) -> Tuple[int, Dict[EmbeddingVar, int]]:
         """The coefficients of the affine map from physical to virtual indices."""
         pass
+
+    def prime_factors(self, subst: Subst) -> Iterator[Embedding]:
+        """Express this embedding as a product of non-product embeddings."""
+        yield self
 
     def forward(self, subst: Subst) -> Embedding:
         """Look in subst for the end of the forwarding chain starting with self."""
@@ -164,6 +168,13 @@ class EmbeddingVar(Embedding):
         fwd = self.forward(subst)
         return (0, {self: 1}) if fwd is self else fwd.stride(subst)
 
+    def prime_factors(self, subst):
+        fwd = self.forward(subst)
+        if fwd is self:
+            yield self
+        else:
+            yield from fwd.prime_factors(subst)
+
     def forward(self, subst):
         if self in subst:
             subst[self] = ret = subst[self].forward(subst)
@@ -200,6 +211,10 @@ class ProductEmbedding(Embedding):
             offset += o
             for k in s: stride[k] = stride.get(k, 0) + s[k]
         return (offset, stride)
+
+    def prime_factors(self, subst):
+        for e in self.factors:
+            yield from e.prime_factors(subst)
 
     def alpha(e, f, rename):
         return isinstance(f, ProductEmbedding) and \
@@ -384,10 +399,8 @@ class EmbeddedTensor:
                bool(selfok.all()) and bool(otherok.all())
 
     def add(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        """
-        Add two EmbeddedTensors. We use anti-unification to compute how much they
-        need to be expanded in order to match.
-        """
+        """Add two EmbeddedTensors. We use anti-unification to compute
+           how much they need to be expanded in order to match."""
         antisubst : AntiSubst = ({}, {})
         lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
         (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
@@ -407,10 +420,8 @@ class EmbeddedTensor:
             return EmbeddedTensor(ud, gs, lggs, default)
 
     def sub(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        """
-        Subtract two EmbeddedTensors. We use anti-unification to compute how much they
-        need to be expanded in order to match.
-        """
+        """Subtract two EmbeddedTensors. We use anti-unification to compute
+           how much they need to be expanded in order to match."""
         antisubst : AntiSubst = ({}, {})
         lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
         (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
@@ -430,10 +441,8 @@ class EmbeddedTensor:
             return EmbeddedTensor(ud, gs, lggs, default)
 
     def logaddexp(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        """
-        Logaddexp two EmbeddedTensors. We use anti-unification to compute how much they
-        need to be expanded in order to match.
-        """
+        """Logaddexp two EmbeddedTensors. We use anti-unification to compute
+           how much they need to be expanded in order to match."""
         antisubst : AntiSubst = ({}, {})
         lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
         (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
@@ -451,6 +460,36 @@ class EmbeddedTensor:
             up = project(ud, t.pembeds, es, {})[0]
             up.copy_(up.logaddexp(t.physical))
             return EmbeddedTensor(ud, gs, lggs, default)
+
+    def reshape(self, s: Sequence[int]) -> EmbeddedTensor:
+        """Produce a new EmbeddedTensor that differs only in vembeds and whose
+           size() is equal to s.  But if s contains 0 (so there is actually no
+           element) or is empty (meaning a scalar) then make the result anew."""
+        if len(s) == 0:
+            return EmbeddedTensor(self.physical.reshape(s), default=self.default)
+        primes : Iterator[Embedding] = (prime for e in self.vembeds
+                                              for prime in e.prime_factors({}))
+        packs : List[List[Embedding]] = []
+        for goal in s:
+            if goal == 0:
+                return EmbeddedTensor(self.physical.reshape(s), default=self.default)
+            pack = []
+            numel = 1
+            while numel != goal:
+                prime = next(primes)
+                pack.append(prime)
+                numel *= prime.numel()
+            packs.append(pack)
+        try:
+            while True:
+                packs[-1].append(next(primes))
+        except StopIteration:
+            pass
+        vembeds = tuple(pack[0] if len(pack) == 1 else ProductEmbedding(pack)
+                        for pack in packs)
+        assert(len(vembeds) == len(s) and
+               all(e.numel() == goal for e, goal in zip(vembeds, s)))
+        return EmbeddedTensor(self.physical, self.pembeds, vembeds, self.default)
 
 def einsum(tensors: Sequence[EmbeddedTensor],
            inputs: Sequence[Sequence[Any]], 
