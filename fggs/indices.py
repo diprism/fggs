@@ -467,7 +467,7 @@ class EmbeddedTensor:
            size() is equal to s.  But if s contains 0 (so there is actually no
            element) or is all 1 (meaning a scalar) then make the result anew."""
         if self.physical.numel() <= 1:
-            return EmbeddedTensor(self.physical.reshape(s), default=self.default)
+            return EmbeddedTensor(self.physical.reshape(Size(s)), default=self.default)
         primes : Iterator[Embedding] = (prime for e in self.vembeds
                                               for prime in e.prime_factors({}))
         packs : List[List[Embedding]] = []
