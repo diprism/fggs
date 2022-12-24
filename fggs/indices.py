@@ -342,7 +342,8 @@ class EmbeddedTensor:
         """Expand a physical tensor to a mostly-zero virtual tensor."""
         if len(self.pembeds) == len(self.vembeds):
             forwarded_vembeds = tuple(e.forward(subst) for e in self.vembeds)
-            if frozenset(self.pembeds) == frozenset(forwarded_vembeds):
+            if all(isinstance(e, EmbeddingVar) for e in forwarded_vembeds) and \
+               frozenset(self.pembeds) == frozenset(forwarded_vembeds):
                 # vembeds is just a permutation of pembeds, so just clone view on physical
                 return project(self.physical,
                                cast(Tuple[EmbeddingVar], forwarded_vembeds),
@@ -464,15 +465,13 @@ class EmbeddedTensor:
     def reshape(self, s: Sequence[int]) -> EmbeddedTensor:
         """Produce a new EmbeddedTensor that differs only in vembeds and whose
            size() is equal to s.  But if s contains 0 (so there is actually no
-           element) or is empty (meaning a scalar) then make the result anew."""
-        if len(s) == 0:
+           element) or is all 1 (meaning a scalar) then make the result anew."""
+        if self.physical.numel() <= 1:
             return EmbeddedTensor(self.physical.reshape(s), default=self.default)
         primes : Iterator[Embedding] = (prime for e in self.vembeds
                                               for prime in e.prime_factors({}))
         packs : List[List[Embedding]] = []
         for goal in s:
-            if goal == 0:
-                return EmbeddedTensor(self.physical.reshape(s), default=self.default)
             pack = []
             numel = 1
             while numel != goal:

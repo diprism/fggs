@@ -299,7 +299,29 @@ class TestEmbeddedTensor(unittest.TestCase):
                                   t2.to_dense({}).logaddexp(t1.to_dense({})))
 
     def test_reshape(self):
+        ki  = EmbeddingVar(1)
+        ki_ = EmbeddingVar(1)
         for vembeds, s in [((self.k2, self.k3), (6,)),
+                           ((self.k2, self.k3), (6,1)),
+                           ((self.k2, self.k3), (6,1,1)),
+                           ((self.k2, self.k3, ki), (6,)),
+                           ((self.k2, self.k3, ki), (6,1)),
+                           ((self.k2, self.k3, ki), (6,1,1)),
+                           ((self.k2, ki_, self.k3, ki), (6,)),
+                           ((self.k2, ki_, self.k3, ki), (6,1)),
+                           ((self.k2, ki_, self.k3, ki), (6,1,1)),
+                           ((self.k2, self.k3, ki, ki_), (6,)),
+                           ((self.k2, self.k3, ki, ki_), (6,1)),
+                           ((self.k2, self.k3, ki, ki_), (6,1,1)),
+                           ((), ()),
+                           ((), (1,)),
+                           ((), (1,1)),
+                           ((ki,), ()),
+                           ((ki,), (1,)),
+                           ((ki,), (1,1)),
+                           ((ki, ki_), ()),
+                           ((ki, ki_), (1,)),
+                           ((ki, ki_), (1,1)),
                            ((ProductEmbedding((self.k2, self.k3)),), (6,)),
                            ((self.k2, ProductEmbedding((self.k3_, self.k2_)), self.k3), (6,6)),
                            ((self.k2, ProductEmbedding((self.k2_, self.k3_)), self.k3), (4,9)),
