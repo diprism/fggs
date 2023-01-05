@@ -126,6 +126,7 @@ class TestEmbeddedTensor(unittest.TestCase):
         self.k3  = EmbeddingVar(3)
         self.k3_ = EmbeddingVar(3)
         self.k4  = EmbeddingVar(6)
+        self.k4_ = EmbeddingVar(6)
         self.k5  = EmbeddingVar(5)
         self.k6  = EmbeddingVar(35)
         self.k7  = EmbeddingVar(7)
@@ -266,6 +267,16 @@ class TestEmbeddedTensor(unittest.TestCase):
                                                  (self.k5,self.k7),
                                                  (ProductEmbedding((self.k5,self.k7)),self.k5,self.k7))],
                                  [["maybe-f"], ["i"], ["maybe-f","f"], ["f","o","i"]],
+                                 ["o"],
+                                 semiring).to_dense({}))
+        self.assertTEqual(torch.ones(()),
+                          einsum([], [], [], semiring).to_dense({}))
+        self.assertTEqual(torch.zeros((6)),
+                          einsum([EmbeddedTensor(matrix.reshape((6,6)), (self.k4,self.k4_),
+                                                 (self.k4,SumEmbedding(7,self.k4_,0))),
+                                  EmbeddedTensor(vector, (self.k7,),
+                                                 (SumEmbedding(0,self.k7,6),))],
+                                 [["o","i"], ["i"]],
                                  ["o"],
                                  semiring).to_dense({}))
 

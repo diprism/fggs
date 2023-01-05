@@ -551,8 +551,6 @@ def einsum(tensors: Sequence[EmbeddedTensor],
            output: Sequence[Any],
            semiring: Semiring) -> EmbeddedTensor:
     """
-    We assume all input EmbeddedTensors have semiring.from_int(0) as default.
-
     To perform an einsum operation on EmbeddedTensors, we start with
     EmbeddedTensors whose sets of physical EmbeddingVars do not overlap, but
     then we *unify* the virtual embeddings that get co-indexed.  For example,
@@ -565,12 +563,19 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     that respects the algebraic type structure of the indices should be between
     inl and inr (1 + Z(35) + 0 fails to unify with 0 + W(1) + 35).
     """
+    assert(len(tensors) == len(inputs))
+    assert(len(tensor.vembeds) == len(input) for tensor, input in zip(tensors, inputs))
+    assert(frozenset(index for input in inputs for index in input) >= frozenset(output))
+    zero = semiring.from_int(0)
+    one  = semiring.from_int(1)
     if len(tensors) == 0:
-        return semiring.from_int(1)
+        return EmbeddedTensor(one, default=zero.item())
+    assert(all(tensor.default == zero.item() for tensor in tensors))
     pembeds_fv : Set[EmbeddingVar] = set()
     index_to_vembed : Dict[Any, Embedding] = {}
     subst : Subst = {}
     freshened_tensors = []
+    result_is_zero = False
     for (i, (tensor, input)) in enumerate(zip(tensors, inputs)):
         if not tensor.isdisjoint(pembeds_fv): tensor = tensor.freshen()
         freshened_tensors.append(tensor)
@@ -580,19 +585,23 @@ def einsum(tensors: Sequence[EmbeddedTensor],
         for (vembed, index) in zip(tensor.vembeds, input):
             if index in index_to_vembed:
                 if not index_to_vembed[index].unify(vembed, subst):
-                    return semiring.from_int(0)
+                    result_is_zero = True
             else:
                 index_to_vembed[index] = vembed
+    output_vembeds = tuple(index_to_vembed[index].clone(subst) for index in output)
+    if result_is_zero:
+        # TODO: represent all-zero tensor with empty physical?
+        return EmbeddedTensor(zero.expand(tuple(e.numel() for e in output_vembeds)),
+                              default=zero.item())
     projected_tensors = [project(tensor.physical, None, tensor.pembeds, subst)
                          for tensor in freshened_tensors]
     pembed_to_char = {k: chr(ord('a') + i)
                       for i, k in enumerate(frozenset(k for (view, pembeds) in projected_tensors
                                                         for k in pembeds))}
-    output_pembeds = tuple(frozenset(k for index in output
-                                       for k in index_to_vembed[index].stride(subst)[1]))
+    output_pembeds = tuple(frozenset(k for e in output_vembeds for k in e.stride(subst)[1]))
     equation = ','.join(''.join(pembed_to_char[k] for k in pembeds)
                         for (view, pembeds) in projected_tensors) \
              + '->' + ''.join(pembed_to_char[k] for k in output_pembeds)
     compiled = torch_semiring_einsum.compile_equation(equation)
     out = semiring.einsum(compiled, *(view for (view, pembed) in projected_tensors))
-    return EmbeddedTensor(out, output_pembeds, tuple(index_to_vembed[index] for index in output))
+    return EmbeddedTensor(out, output_pembeds, output_vembeds)

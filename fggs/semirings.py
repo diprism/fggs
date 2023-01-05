@@ -12,7 +12,7 @@ class Semiring(ABC):
         self.device = device
         
     @abstractmethod
-    def from_int(self, n: Union[int, torch.Tensor]):
+    def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
         """Map 0 to the semiring's zero element, 1 to the semiring's one element,
         2 to 1 + 1, and so on."""
         pass
