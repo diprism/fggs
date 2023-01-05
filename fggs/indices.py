@@ -354,19 +354,18 @@ class EmbeddedTensor:
         return (frozenset(other.pembeds) if isinstance(other, EmbeddedTensor) else other) \
                .isdisjoint(self.pembeds)
 
-    def to_dense(self, subst: Subst) -> Tensor:
+    def to_dense(self) -> Tensor:
         """Expand a physical tensor to a mostly-zero virtual tensor."""
         if len(self.pembeds) == len(self.vembeds):
-            forwarded_vembeds = tuple(e.forward(subst) for e in self.vembeds)
-            if all(isinstance(e, EmbeddingVar) for e in forwarded_vembeds) and \
-               frozenset(self.pembeds) == frozenset(forwarded_vembeds):
+            if all(isinstance(e, EmbeddingVar) for e in self.vembeds) and \
+               frozenset(self.pembeds) == frozenset(self.vembeds):
                 # vembeds is just a permutation of pembeds, so just clone view on physical
                 return project(self.physical,
-                               cast(Tuple[EmbeddingVar], forwarded_vembeds),
+                               cast(Tuple[EmbeddingVar], self.vembeds),
                                self.pembeds, {})[0].clone()
         virtual = self.physical.new_full(self.size(), self.default)
         # TODO: allow pembeds_fv <= vembeds_fv by repeating self.physical?
-        project(virtual, self.pembeds, self.vembeds, subst)[0].copy_(self.physical)
+        project(virtual, self.pembeds, self.vembeds, {})[0].copy_(self.physical)
         return virtual
 
     def equal(self, other: EmbeddedTensor) -> bool:
@@ -423,15 +422,15 @@ class EmbeddedTensor:
         (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
         default = t.default + u.default
         if t.default != 0 or t.physical.numel() >= u.physical.numel():
-            td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense({})
+            td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense()
             if u.default == 0:
                 tp = project(td, u.pembeds, fs, {})[0]
                 tp.add_(u.physical)
             else:
-                td.add_(EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense({}))
+                td.add_(EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense())
             return EmbeddedTensor(td, gs, lggs, default)
         else:
-            ud = EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense({})
+            ud = EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense()
             up = project(ud, t.pembeds, es, {})[0]
             up.add_(t.physical)
             return EmbeddedTensor(ud, gs, lggs, default)
@@ -444,15 +443,15 @@ class EmbeddedTensor:
         (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
         default = t.default - u.default
         if t.default != 0 or t.physical.numel() >= u.physical.numel():
-            td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense({})
+            td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense()
             if u.default == 0:
                 tp = project(td, u.pembeds, fs, {})[0]
                 tp.sub_(u.physical)
             else:
-                td.sub_(EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense({}))
+                td.sub_(EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense())
             return EmbeddedTensor(td, gs, lggs, default)
         else:
-            ud = EmbeddedTensor(-u.physical, u.pembeds, fs, -u.default).to_dense({})
+            ud = EmbeddedTensor(-u.physical, u.pembeds, fs, -u.default).to_dense()
             up = project(ud, t.pembeds, es, {})[0]
             up.add_(t.physical)
             return EmbeddedTensor(ud, gs, lggs, default)
@@ -465,15 +464,15 @@ class EmbeddedTensor:
         (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
         default = t.physical.new_tensor(t.default).logaddexp(u.physical.new_tensor(u.default)).item()
         if t.default != -inf or t.physical.numel() >= u.physical.numel():
-            td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense({})
+            td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense()
             if u.default == -inf:
                 tp = project(td, u.pembeds, fs, {})[0]
                 tp.copy_(tp.logaddexp(u.physical))
             else:
-                td.copy_(td.logaddexp(EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense({})))
+                td.copy_(td.logaddexp(EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense()))
             return EmbeddedTensor(td, gs, lggs, default)
         else:
-            ud = EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense({})
+            ud = EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense()
             up = project(ud, t.pembeds, es, {})[0]
             up.copy_(up.logaddexp(t.physical))
             return EmbeddedTensor(ud, gs, lggs, default)
@@ -532,7 +531,7 @@ class EmbeddedTensor:
         dense_b = EmbeddedTensor(projected_b[0],
                                  projected_b[1],
                                  (ProductEmbedding(fv).clone(subst),),
-                                 b.default).to_dense({})
+                                 b.default).to_dense()
         subst = {}
         if not (e0.unify(a.vembeds[0], subst) and
                 e .unify(a.vembeds[1], subst)): raise AssertionError
@@ -541,7 +540,7 @@ class EmbeddedTensor:
                                  projected_a[1],
                                  (ProductEmbedding(fv0).clone(subst),
                                   ProductEmbedding(fv ).clone(subst)),
-                                 a.default).to_dense({})
+                                 a.default).to_dense()
         x = semiring.solve(dense_a, dense_b)
         return EmbeddedTensor(x.reshape(tuple(k.numel() for k in fv)),
                               fv, (e,), b.default)

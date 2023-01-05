@@ -138,14 +138,14 @@ class TestEmbeddedTensor(unittest.TestCase):
                               (self.k1,self.k2),
                               (self.k2,self.k1,self.k1))
         self.assertEqual(virt.numel(), 50)
-        self.assertTEqual(virt.to_dense({}),
+        self.assertTEqual(virt.to_dense(),
                           phys.t().diag_embed(dim1=1, dim2=2))
         virt = EmbeddedTensor(phys,
                               (self.k1,self.k2),
                               (self.k2,self.k1,self.k1),
                               42)
         self.assertEqual(virt.numel(), 50)
-        self.assertTEqual(virt.to_dense({}),
+        self.assertTEqual(virt.to_dense(),
                           ((1-torch.eye(5))*42).unsqueeze(0).expand(2,5,5)
                           + phys.t().diag_embed(dim1=1, dim2=2))
 
@@ -155,7 +155,7 @@ class TestEmbeddedTensor(unittest.TestCase):
                               (self.k2,self.k3),
                               (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2)))
         self.assertEqual(diag.numel(), 54)
-        self.assertTEqual(diag.to_dense({}),
+        self.assertTEqual(diag.to_dense(),
                           torch.tensor([[[0,1,0,0,0,0,0,0,0],
                                          [0,0,1,0,0,0,0,0,0],
                                          [0,0,0,1,0,0,0,0,0]],
@@ -167,7 +167,7 @@ class TestEmbeddedTensor(unittest.TestCase):
                               (self.k2,self.k3,SumEmbedding(1,ProductEmbedding((self.k2,self.k3)),2)),
                               7)
         self.assertEqual(diag.numel(), 54)
-        self.assertTEqual(diag.to_dense({}),
+        self.assertTEqual(diag.to_dense(),
                           torch.tensor([[[7,1,7,7,7,7,7,7,7],
                                          [7,7,1,7,7,7,7,7,7],
                                          [7,7,7,1,7,7,7,7,7]],
@@ -192,7 +192,7 @@ class TestEmbeddedTensor(unittest.TestCase):
                 self.assertTrue(t2.equal(t2_) and t2_.equal(t2))
                 t1_.copy_(t2_)
                 self.assertTrue(t1_.equal(t2_) and t2_.equal(t1_))
-                self.assertTEqual(t1_.to_dense({}), t2_.to_dense({}))
+                self.assertTEqual(t1_.to_dense(), t2_.to_dense())
 
     def test_equal(self):
         t1 = EmbeddedTensor(torch.diag(torch.Tensor([1,2,3])))
@@ -268,9 +268,9 @@ class TestEmbeddedTensor(unittest.TestCase):
                                                  (ProductEmbedding((self.k5,self.k7)),self.k5,self.k7))],
                                  [["maybe-f"], ["i"], ["maybe-f","f"], ["f","o","i"]],
                                  ["o"],
-                                 semiring).to_dense({}))
+                                 semiring).to_dense())
         self.assertTEqual(torch.ones(()),
-                          einsum([], [], [], semiring).to_dense({}))
+                          einsum([], [], [], semiring).to_dense())
         self.assertTEqual(torch.zeros((6)),
                           einsum([EmbeddedTensor(matrix.reshape((6,6)), (self.k4,self.k4_),
                                                  (self.k4,SumEmbedding(7,self.k4_,0))),
@@ -278,7 +278,7 @@ class TestEmbeddedTensor(unittest.TestCase):
                                                  (SumEmbedding(0,self.k7,6),))],
                                  [["o","i"], ["i"]],
                                  ["o"],
-                                 semiring).to_dense({}))
+                                 semiring).to_dense())
 
     def test_binary(self):
         tensors = [t for default in [-inf, -2, 0, 1, inf, nan]
@@ -296,18 +296,18 @@ class TestEmbeddedTensor(unittest.TestCase):
                                               default)]]
         for t1 in tensors:
             for t2 in tensors:
-                self.assertTClose(t1.add(t2).to_dense({}),
-                                  t1.to_dense({}).add(t2.to_dense({})))
-                self.assertTClose(t2.add(t1).to_dense({}),
-                                  t2.to_dense({}).add(t1.to_dense({})))
-                self.assertTClose(t1.sub(t2).to_dense({}),
-                                  t1.to_dense({}).sub(t2.to_dense({})))
-                self.assertTClose(t2.sub(t1).to_dense({}),
-                                  t2.to_dense({}).sub(t1.to_dense({})))
-                self.assertTClose(t1.logaddexp(t2).to_dense({}),
-                                  t1.to_dense({}).logaddexp(t2.to_dense({})))
-                self.assertTClose(t2.logaddexp(t1).to_dense({}),
-                                  t2.to_dense({}).logaddexp(t1.to_dense({})))
+                self.assertTClose(t1.add(t2).to_dense(),
+                                  t1.to_dense().add(t2.to_dense()))
+                self.assertTClose(t2.add(t1).to_dense(),
+                                  t2.to_dense().add(t1.to_dense()))
+                self.assertTClose(t1.sub(t2).to_dense(),
+                                  t1.to_dense().sub(t2.to_dense()))
+                self.assertTClose(t2.sub(t1).to_dense(),
+                                  t2.to_dense().sub(t1.to_dense()))
+                self.assertTClose(t1.logaddexp(t2).to_dense(),
+                                  t1.to_dense().logaddexp(t2.to_dense()))
+                self.assertTClose(t2.logaddexp(t1).to_dense(),
+                                  t2.to_dense().logaddexp(t1.to_dense()))
 
     def test_reshape(self):
         ki  = EmbeddingVar(1)
@@ -346,7 +346,7 @@ class TestEmbeddedTensor(unittest.TestCase):
             physical = nrand(*(k.numel() for k in pembeds))
             t1 = EmbeddedTensor(physical, pembeds, vembeds, default=42)
             t2 = t1.reshape(s)
-            self.assertTEqual(t1.to_dense({}).reshape(s), t2.to_dense({}))
+            self.assertTEqual(t1.to_dense().reshape(s), t2.to_dense())
 
     def test_solve(self):
         a = EmbeddedTensor(nrand(7), (self.k7,),
@@ -356,8 +356,8 @@ class TestEmbeddedTensor(unittest.TestCase):
                            (ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1),
                                               SumEmbedding(0,self.k3,4))),))
         semiring = RealSemiring(dtype=b.physical.dtype, device=b.physical.device)
-        self.assertTEqual(a.solve(b, semiring).to_dense({}),
-                          semiring.solve(a.to_dense({}), b.to_dense({})))
+        self.assertTEqual(a.solve(b, semiring).to_dense(),
+                          semiring.solve(a.to_dense(), b.to_dense()))
 
 if __name__ == "__main__":
     unittest.main()
