@@ -337,5 +337,16 @@ class TestEmbeddedTensor(unittest.TestCase):
             t2 = t1.reshape(s)
             self.assertTEqual(t1.to_dense({}).reshape(s), t2.to_dense({}))
 
+    def test_solve(self):
+        a = EmbeddedTensor(nrand(7), (self.k7,),
+                           (ProductEmbedding((SumEmbedding(1,ProductEmbedding(()),0), self.k7)),
+                            ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1), self.k7))))
+        b = EmbeddedTensor(nrand(3), (self.k3,),
+                           (ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1),
+                                              SumEmbedding(0,self.k3,4))),))
+        semiring = RealSemiring(dtype=b.physical.dtype, device=b.physical.device)
+        self.assertTEqual(a.solve(b, semiring).to_dense({}),
+                          semiring.solve(a.to_dense({}), b.to_dense({})))
+
 if __name__ == "__main__":
     unittest.main()

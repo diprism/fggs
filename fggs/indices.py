@@ -92,6 +92,12 @@ class Embedding(ABC):
         return self
 
     @abstractmethod
+    def clone(self, subst: Subst) -> Embedding:
+        """Apply the given substitution, creating new Embedding objects except
+           reuse existing EmbeddingVar objects."""
+        pass
+
+    @abstractmethod
     def alpha(e: Embedding, f: Embedding, rename: Rename) -> bool:
         """Check whether the given renaming turns e into f.  Each EmbeddingVar
            in e must be a key in the given renaming, even if it's also in f."""
@@ -182,6 +188,10 @@ class EmbeddingVar(Embedding):
         else:
             return self
 
+    def clone(self, subst):
+        e = subst.get(self, self)
+        return self if e is self else e.clone(subst)
+
     def alpha(e, f, rename):
         return rename.get(e, None) is f
 
@@ -216,6 +226,9 @@ class ProductEmbedding(Embedding):
         for e in self.factors:
             yield from e.prime_factors(subst)
 
+    def clone(self, subst):
+        return ProductEmbedding(tuple(e.clone(subst) for e in self.factors))
+
     def alpha(e, f, rename):
         return isinstance(f, ProductEmbedding) and \
                len(e.factors) == len(f.factors) and \
@@ -236,6 +249,9 @@ class SumEmbedding(Embedding):
     def stride(self, subst):
         (o, s) = self.term.stride(subst)
         return (o + self.before, s)
+
+    def clone(self, subst):
+        return SumEmbedding(self.before, self.term.clone(subst), self.after)
 
     def alpha(e, f, rename):
         return isinstance(f, SumEmbedding) and \
@@ -489,6 +505,46 @@ class EmbeddedTensor:
         assert(len(vembeds) == len(s) and
                all(e.numel() == goal for e, goal in zip(vembeds, s)))
         return EmbeddedTensor(self.physical, self.pembeds, vembeds, self.default)
+
+    def solve(a, b: EmbeddedTensor, semiring: Semiring) -> EmbeddedTensor:
+        """Solve x = a @ x + b for x."""
+        assert(len(a.vembeds) == 2 and len(b.vembeds) == 1)
+        assert(a.vembeds[0].numel() == a.vembeds[1].numel() == b.vembeds[0].numel())
+        assert(a.default == b.default == semiring.from_int(0).item())
+        if not a.isdisjoint(b): b = b.freshen()
+        e = b.vembeds[0]
+        while True: # Compute least embedding for solution. TODO any easier way?
+            subst : Subst = {}
+            if e.unify(a.vembeds[1], subst):
+                antisubst : AntiSubst = ({}, {})
+                e = e.antiunify(a.vembeds[0].clone(subst), antisubst)
+                if all(isinstance(e1, EmbeddingVar) for e1, _ in antisubst[0]):
+                    break
+            else:
+                break
+        rename : Rename = {}
+        e0  = e.freshen(rename)
+        fv  = tuple(rename.keys())
+        fv0 = tuple(rename.values())
+        subst = {}
+        if not e.unify(b.vembeds[0], subst): raise AssertionError
+        projected_b = project(b.physical, None, b.pembeds, subst)
+        dense_b = EmbeddedTensor(projected_b[0],
+                                 projected_b[1],
+                                 (ProductEmbedding(fv).clone(subst),),
+                                 b.default).to_dense({})
+        subst = {}
+        if not (e0.unify(a.vembeds[0], subst) and
+                e .unify(a.vembeds[1], subst)): raise AssertionError
+        projected_a = project(a.physical, None, a.pembeds, subst)
+        dense_a = EmbeddedTensor(projected_a[0],
+                                 projected_a[1],
+                                 (ProductEmbedding(fv0).clone(subst),
+                                  ProductEmbedding(fv ).clone(subst)),
+                                 a.default).to_dense({})
+        x = semiring.solve(dense_a, dense_b)
+        return EmbeddedTensor(x.reshape(tuple(k.numel() for k in fv)),
+                              fv, (e,), b.default)
 
 def einsum(tensors: Sequence[EmbeddedTensor],
            inputs: Sequence[Sequence[Any]], 
