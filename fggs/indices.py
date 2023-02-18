@@ -369,7 +369,7 @@ class EmbeddedTensor:
         return virtual
 
     def equal_default(self) -> bool:
-        return self.physical.eq(self.default).all()
+        return self.physical.eq(self.default).all().item()
 
     def allclose_default(self, rtol=1e-05, atol=1e-08) -> bool:
         return self.physical.allclose(self.physical.new_tensor(self.default),
@@ -421,26 +421,44 @@ class EmbeddedTensor:
                               rtol=rtol, atol=atol, equal_nan=equal_nan)) and \
                bool(selfok.all()) and bool(otherok.all())
 
-    def add(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        """Add two EmbeddedTensors. We use anti-unification to compute
+    def binary(t, u: EmbeddedTensor, identity: NumberType, default: NumberType,
+               operate_: Callable[[Tensor, Tensor], None]) -> EmbeddedTensor:
+        """Apply a binary operation to two EmbeddedTensors.
+           We use anti-unification to compute
            how much they need to be expanded in order to match."""
         antisubst : AntiSubst = ({}, {})
         lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
         (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
-        default = t.default + u.default
-        if t.default != 0 or t.physical.numel() >= u.physical.numel():
+        if t.default != identity or t.physical.numel() >= u.physical.numel():
             td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense()
-            if u.default == 0:
+            if u.default == identity:
                 tp = project(td, u.pembeds, fs, {})[0]
-                tp.add_(u.physical)
+                operate_(tp, u.physical)
             else:
-                td.add_(EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense())
+                operate_(td, EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense())
             return EmbeddedTensor(td, gs, lggs, default)
         else:
             ud = EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense()
             up = project(ud, t.pembeds, es, {})[0]
-            up.add_(t.physical)
+            operate_(up, t.physical)
             return EmbeddedTensor(ud, gs, lggs, default)
+
+    def add(t, u: EmbeddedTensor) -> EmbeddedTensor:
+        return t.binary(u, 0, t.default + u.default,
+                        lambda x, y: x.add_(y))
+
+    def logaddexp(t, u: EmbeddedTensor) -> EmbeddedTensor:
+        return t.binary(u, -inf, t.physical.new_tensor(t.default).logaddexp(
+                                 u.physical.new_tensor(u.default)).item(),
+                        lambda x, y: torch.logaddexp(x, y, out=x))
+
+    def maximum(t, u: EmbeddedTensor) -> EmbeddedTensor:
+        return t.binary(u, -inf, max(t.default, u.physical),
+                        lambda x, y: torch.maximum(x, y, out=x))
+
+    def logical_or(t, u: EmbeddedTensor) -> EmbeddedTensor:
+        return t.binary(u, False, t.default or u.physical,
+                        lambda x, y: x.logical_or_(y))
 
     def sub(t, u: EmbeddedTensor) -> EmbeddedTensor:
         """Subtract two EmbeddedTensors. We use anti-unification to compute
@@ -461,27 +479,6 @@ class EmbeddedTensor:
             ud = EmbeddedTensor(-u.physical, u.pembeds, fs, -u.default).to_dense()
             up = project(ud, t.pembeds, es, {})[0]
             up.add_(t.physical)
-            return EmbeddedTensor(ud, gs, lggs, default)
-
-    def logaddexp(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        """Logaddexp two EmbeddedTensors. We use anti-unification to compute
-           how much they need to be expanded in order to match."""
-        antisubst : AntiSubst = ({}, {})
-        lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
-        (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
-        default = t.physical.new_tensor(t.default).logaddexp(u.physical.new_tensor(u.default)).item()
-        if t.default != -inf or t.physical.numel() >= u.physical.numel():
-            td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense()
-            if u.default == -inf:
-                tp = project(td, u.pembeds, fs, {})[0]
-                tp.copy_(tp.logaddexp(u.physical))
-            else:
-                td.copy_(td.logaddexp(EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense()))
-            return EmbeddedTensor(td, gs, lggs, default)
-        else:
-            ud = EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense()
-            up = project(ud, t.pembeds, es, {})[0]
-            up.copy_(up.logaddexp(t.physical))
             return EmbeddedTensor(ud, gs, lggs, default)
 
     def reshape(self, s: Sequence[int]) -> EmbeddedTensor:
