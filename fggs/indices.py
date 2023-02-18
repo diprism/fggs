@@ -49,7 +49,7 @@ We store these three pieces of information together in an EmbeddedTensor.
 """
 
 from __future__ import annotations
-from typing import Sequence, Iterator, List, Tuple, Dict, Set, Any, Optional, Union, cast
+from typing import Sequence, Iterator, List, Tuple, Dict, Set, Any, Optional, Union, Callable, cast
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from warnings import warn
@@ -369,7 +369,7 @@ class EmbeddedTensor:
         return virtual
 
     def equal_default(self) -> bool:
-        return self.physical.eq(self.default).all().item()
+        return cast(bool, self.physical.eq(self.default).all().item())
 
     def allclose_default(self, rtol=1e-05, atol=1e-08) -> bool:
         return self.physical.allclose(self.physical.new_tensor(self.default),
@@ -422,7 +422,7 @@ class EmbeddedTensor:
                bool(selfok.all()) and bool(otherok.all())
 
     def binary(t, u: EmbeddedTensor, identity: NumberType, default: NumberType,
-               operate_: Callable[[Tensor, Tensor], None]) -> EmbeddedTensor:
+               operate_: Callable[[Tensor, Tensor], Any]) -> EmbeddedTensor:
         """Apply a binary operation to two EmbeddedTensors.
            We use anti-unification to compute
            how much they need to be expanded in order to match."""
@@ -453,11 +453,11 @@ class EmbeddedTensor:
                         lambda x, y: torch.logaddexp(x, y, out=x))
 
     def maximum(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        return t.binary(u, -inf, max(t.default, u.physical),
+        return t.binary(u, -inf, max(t.default, u.default),
                         lambda x, y: torch.maximum(x, y, out=x))
 
     def logical_or(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        return t.binary(u, False, t.default or u.physical,
+        return t.binary(u, False, t.default or u.default,
                         lambda x, y: x.logical_or_(y))
 
     def sub(t, u: EmbeddedTensor) -> EmbeddedTensor:
