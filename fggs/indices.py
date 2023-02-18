@@ -368,6 +368,13 @@ class EmbeddedTensor:
         project(virtual, self.pembeds, self.vembeds, {})[0].copy_(self.physical)
         return virtual
 
+    def equal_default(self) -> bool:
+        return self.physical.eq(self.default).all()
+
+    def allclose_default(self, rtol=1e-05, atol=1e-08) -> bool:
+        return self.physical.allclose(self.physical.new_tensor(self.default),
+                                      rtol=rtol, atol=atol, equal_nan=True)
+
     def equal(self, other: EmbeddedTensor) -> bool:
         s = self.size()
         if s != other.size(): return False

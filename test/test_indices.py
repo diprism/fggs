@@ -194,6 +194,15 @@ class TestEmbeddedTensor(unittest.TestCase):
                 self.assertTrue(t1_.equal(t2_) and t2_.equal(t1_))
                 self.assertTEqual(t1_.to_dense(), t2_.to_dense())
 
+    def test_equal_default(self):
+        self.assertFalse(EmbeddedTensor(torch.Tensor([-1,0,1]), (self.k3,), (self.k3, self.k3)).equal_default())
+        self.assertTrue (EmbeddedTensor(torch.Tensor([ 0,0,0]), (self.k3,), (self.k3, self.k3)).equal_default())
+        self.assertFalse(EmbeddedTensor(torch.Tensor([-1,0,1]), (self.k3,), (self.k3, self.k3)).allclose_default())
+        self.assertFalse(EmbeddedTensor(torch.Tensor([-1,0,1]), (self.k3,), (self.k3, self.k3)).allclose_default(rtol=9))
+        self.assertTrue (EmbeddedTensor(torch.Tensor([-1,0,1]), (self.k3,), (self.k3, self.k3)).allclose_default(atol=1))
+        self.assertTrue (EmbeddedTensor(torch.Tensor([-1,0,1]), (self.k3,), (self.k3, self.k3)).allclose_default(atol=1, rtol=9))
+        self.assertTrue (EmbeddedTensor(torch.Tensor([ 0,0,0]), (self.k3,), (self.k3, self.k3)).allclose_default())
+
     def test_equal(self):
         t1 = EmbeddedTensor(torch.diag(torch.Tensor([1,2,3])))
         t2 = EmbeddedTensor(torch.Tensor([1,2,3]), (self.k3,), (self.k3, self.k3))
