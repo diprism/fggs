@@ -368,6 +368,14 @@ class EmbeddedTensor:
         project(virtual, self.pembeds, self.vembeds, {})[0].copy_(self.physical)
         return virtual
 
+    def relu_without_nan_(self) -> EmbeddedTensor:
+        self.default = max(0, self.default) # max(0, math.nan) == 0 != max(math.nan, 0)
+        self.physical.relu_().nan_to_num_(nan=0., posinf=inf)
+        return self
+
+    def logical_not(self) -> EmbeddedTensor:
+        return EmbeddedTensor(~self.physical, self.pembeds, self.vembeds, not self.default)
+
     def equal_default(self) -> bool:
         return cast(bool, self.physical.eq(self.default).all().item())
 
@@ -459,6 +467,10 @@ class EmbeddedTensor:
     def logical_or(t, u: EmbeddedTensor) -> EmbeddedTensor:
         return t.binary(u, False, t.default or u.default,
                         lambda x, y: x.logical_or_(y))
+
+    def logical_and(t, u: EmbeddedTensor) -> EmbeddedTensor:
+        return t.binary(u, True, t.default and u.default,
+                        lambda x, y: x.logical_and_(y))
 
     def sub(t, u: EmbeddedTensor) -> EmbeddedTensor:
         """Subtract two EmbeddedTensors. We use anti-unification to compute
