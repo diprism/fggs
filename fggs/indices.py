@@ -59,7 +59,7 @@ from math import inf
 import torch
 from torch import Tensor, Size
 import torch_semiring_einsum
-from fggs.semirings import Semiring, RealSemiring
+from fggs.semirings import Semiring, LogSemiring
 
 Rename = Dict["EmbeddingVar", "EmbeddingVar"]
 
@@ -431,8 +431,8 @@ class EmbeddedTensor:
 
     def binary(t, u: EmbeddedTensor, identity: NumberType, default: NumberType,
                operate_: Callable[[Tensor, Tensor], Any]) -> EmbeddedTensor:
-        """Apply a binary operation to two EmbeddedTensors.
-           We use anti-unification to compute
+        """Apply a symmetric binary operation with identity to two
+           EmbeddedTensors.  We use anti-unification to compute
            how much they need to be expanded in order to match."""
         antisubst : AntiSubst = ({}, {})
         lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
@@ -492,6 +492,20 @@ class EmbeddedTensor:
             up = project(ud, t.pembeds, es, {})[0]
             up.add_(t.physical)
             return EmbeddedTensor(ud, gs, lggs, default)
+
+    def logsubexp(t, u: EmbeddedTensor) -> EmbeddedTensor:
+        antisubst : AntiSubst = ({}, {})
+        lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
+        (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
+        default = LogSemiring.sub(t.physical.new_tensor(t.default),
+                                  u.physical.new_tensor(u.default)).item()
+        td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense()
+        if u.default == -inf:
+            tp = project(td, u.pembeds, fs, {})[0]
+            tp.copy_(LogSemiring.sub(tp, u.physical))
+        else:
+            td.copy_(LogSemiring.sub(td, EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense()))
+        return EmbeddedTensor(td, gs, lggs, default)
 
     def reshape(self, s: Sequence[int]) -> EmbeddedTensor:
         """Produce a new EmbeddedTensor that differs only in vembeds and whose

@@ -1,6 +1,7 @@
 import unittest
 
 from fggs.indices import *
+from fggs.semirings import RealSemiring
 from math import inf, nan
 import torch
 
