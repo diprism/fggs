@@ -535,6 +535,9 @@ class EmbeddedTensor:
     def T(self) -> EmbeddedTensor:
         return EmbeddedTensor(self.physical, self.pembeds, self.vembeds[::-1], self.default)
 
+    def flatten(self) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical, self.pembeds, (ProductEmbedding(self.vembeds),), self.default)
+
     def reshape(self, s: Sequence[int]) -> EmbeddedTensor:
         """Produce a new EmbeddedTensor that differs only in vembeds and whose
            size() is equal to s.  But if s contains 0 (so there is actually no
@@ -602,6 +605,12 @@ class EmbeddedTensor:
         x = semiring.solve(dense_a, dense_b)
         return EmbeddedTensor(x.reshape(tuple(k.numel() for k in fv)),
                               fv, (e,), b.default)
+
+    def mv(self, v: EmbeddedTensor, semiring: Semiring) -> EmbeddedTensor:
+        return einsum((self,v), ("ij", "j"), "i", semiring)
+
+    def mm(self, m: EmbeddedTensor, semiring: Semiring) -> EmbeddedTensor:
+        return einsum((self,m), ("ij", "jk"), "ik", semiring)
 
 def einsum(tensors: Sequence[EmbeddedTensor],
            inputs: Sequence[Sequence[Any]], 

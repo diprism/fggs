@@ -276,8 +276,8 @@ class TestEmbeddedTensor(unittest.TestCase):
                                   EmbeddedTensor(torch.tensor(1).unsqueeze_(0).unsqueeze_(0).expand([5,7]),
                                                  (self.k5,self.k7),
                                                  (ProductEmbedding((self.k5,self.k7)),self.k5,self.k7))],
-                                 [["maybe-f"], ["i"], ["maybe-f","f"], ["f","o","i"]],
-                                 ["o"],
+                                 ("m", "i", "mf", "foi"),
+                                 "o",
                                  semiring).to_dense())
         self.assertTEqual(torch.ones(()),
                           einsum([], [], [], semiring).to_dense())
@@ -331,6 +331,7 @@ class TestEmbeddedTensor(unittest.TestCase):
                                       t.to_dense().transpose(dim0,dim1))
             if t.ndim <= 2: self.assertTEqual(t.t().to_dense(), t.to_dense().t())
             self.assertTEqual(t.T.to_dense(), t.to_dense().T)
+            self.assertTEqual(t.flatten().to_dense(), t.to_dense().flatten())
 
     def test_reshape(self):
         ki  = EmbeddingVar(1)
