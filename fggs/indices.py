@@ -568,31 +568,44 @@ class EmbeddedTensor:
 
     def solve(a, b: EmbeddedTensor, semiring: Semiring) -> EmbeddedTensor:
         """Solve x = a @ x + b for x."""
-        assert(len(a.vembeds) == 2 and len(b.vembeds) == 1)
+        assert(len(a.vembeds) == 2 and len(b.vembeds) >= 1)
         assert(a.vembeds[0].numel() == a.vembeds[1].numel() == b.vembeds[0].numel())
         assert(a.default == b.default == semiring.from_int(0).item())
         if not a.isdisjoint(b): b = b.freshen()
-        e = b.vembeds[0]
+        e = b.vembeds[0] # Embedding for b + a*b + ... + a^n*b (initially n=0)
+                         # Invariant: a and e are disjoint
         while True: # Compute least embedding for solution. TODO any easier way?
+            # Update e := a*e + b
             subst : Subst = {}
             if e.unify(a.vembeds[1], subst):
                 antisubst : AntiSubst = ({}, {})
                 e = e.antiunify(a.vembeds[0].clone(subst), antisubst)
                 if all(isinstance(e1, EmbeddingVar) for e1, _ in antisubst[0]):
-                    break
+                    break # acquiescence
             else:
-                break
+                break # a*e = 0
+        # Copy e  (for naming the columns of a and rows of b)
+        #   to e0 (for naming the rows of a)
         rename : Rename = {}
         e0  = e.freshen(rename)
         fv  = tuple(rename.keys())
         fv0 = tuple(rename.values())
+        # Copy ProductEmbedding(b.vembeds[1:])
+        #   to e1 (for naming the columns of b)
+        rename = {}
+        ebs0 = tuple(eb.freshen(rename) for eb in b.vembeds[1:])
+        fvb  = tuple(rename.keys())
+        fvb0 = tuple(rename.values())
+        # Convert b to regular matrix tensor
         subst = {}
         if not e.unify(b.vembeds[0], subst): raise AssertionError
         projected_b = project(b.physical, None, b.pembeds, subst)
         dense_b = EmbeddedTensor(projected_b[0],
                                  projected_b[1],
-                                 (ProductEmbedding(fv).clone(subst),),
+                                 (ProductEmbedding(fv ).clone(subst),
+                                  ProductEmbedding(fvb).clone(subst)),
                                  b.default).to_dense()
+        # Convert relevant portion of a to regular matrix tensor
         subst = {}
         if not (e0.unify(a.vembeds[0], subst) and
                 e .unify(a.vembeds[1], subst)): raise AssertionError
@@ -602,9 +615,10 @@ class EmbeddedTensor:
                                  (ProductEmbedding(fv0).clone(subst),
                                   ProductEmbedding(fv ).clone(subst)),
                                  a.default).to_dense()
+        # Solve
         x = semiring.solve(dense_a, dense_b)
-        return EmbeddedTensor(x.reshape(tuple(k.numel() for k in fv)),
-                              fv, (e,), b.default)
+        return EmbeddedTensor(x.reshape(tuple(k.numel() for k in fv + fvb0)),
+                              fv + fvb0, (e,) + ebs0, b.default)
 
     def mv(self, v: EmbeddedTensor, semiring: Semiring) -> EmbeddedTensor:
         return einsum((self,v), ("ij", "j"), "i", semiring)

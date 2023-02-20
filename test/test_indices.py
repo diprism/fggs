@@ -100,10 +100,10 @@ class TestEmbedding(unittest.TestCase):
 class TestEmbeddedTensor(unittest.TestCase):
 
     def assertTEqual(self, input: Tensor, other: Tensor) -> None:
-        self.assertTrue(torch.equal(input, other))
+        self.assertTrue(torch.equal(input, other), (input, other))
 
     def assertTClose(self, input: Tensor, other: Tensor) -> None:
-        self.assertTrue(torch.allclose(input, other, equal_nan=True))
+        self.assertTrue(torch.allclose(input, other, equal_nan=True), (input, other))
 
     def assertEEqual(self, input: EmbeddedTensor, other: EmbeddedTensor) -> None:
         self.assertTrue(input.equal(other))
@@ -376,12 +376,28 @@ class TestEmbeddedTensor(unittest.TestCase):
         a = EmbeddedTensor(nrand(7), (self.k7,),
                            (ProductEmbedding((SumEmbedding(1,ProductEmbedding(()),0), self.k7)),
                             ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1), self.k7))))
-        b = EmbeddedTensor(nrand(3), (self.k3,),
-                           (ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1),
-                                              SumEmbedding(0,self.k3,4))),))
-        semiring = RealSemiring(dtype=b.physical.dtype, device=b.physical.device)
-        self.assertTEqual(a.solve(b, semiring).to_dense(),
-                          semiring.solve(a.to_dense(), b.to_dense()))
+        for b in [EmbeddedTensor(nrand(3), (self.k3,),
+                                 (ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1),
+                                                    SumEmbedding(0,self.k3,4))),)),
+                  EmbeddedTensor(nrand(3), (self.k3,),
+                                 (ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1),
+                                                    SumEmbedding(0,self.k3,4))),
+                                  self.k3)),
+                  EmbeddedTensor(nrand(3,5), (self.k3,self.k5),
+                                 (ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1),
+                                                    SumEmbedding(0,self.k3,4))),
+                                  self.k5)),
+                  EmbeddedTensor(nrand(3,5), (self.k3,self.k5),
+                                 (ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1),
+                                                    SumEmbedding(0,self.k3,4))),
+                                  self.k5,
+                                  self.k3))]:
+            semiring = RealSemiring(dtype=b.physical.dtype, device=b.physical.device)
+            self.assertTEqual(at_most_matrix(a.solve(b, semiring).to_dense()),
+                              semiring.solve(a.to_dense(), at_most_matrix(b.to_dense())))
+
+def at_most_matrix(t: Tensor) -> Tensor:
+    return t.flatten(start_dim=1) if t.ndim >= 2 else t
 
 if __name__ == "__main__":
     unittest.main()
