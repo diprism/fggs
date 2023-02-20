@@ -314,6 +314,11 @@ class EmbeddedTensor:
     def size(self) -> Size:
         return Size(e.numel() for e in self.vembeds)
 
+    def dim(self) -> int:
+        return len(self.vembeds)
+
+    ndim = ndimension = property(dim)
+
     def freshen(self) -> EmbeddedTensor:
         """Return a new EmbeddedTensor (with same underlying physical storage)
            with fresh EmbeddingVars."""
@@ -506,6 +511,29 @@ class EmbeddedTensor:
         else:
             td.copy_(LogSemiring.sub(td, EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense()))
         return EmbeddedTensor(td, gs, lggs, default)
+
+    def transpose(self, dim0, dim1) -> EmbeddedTensor:
+        if dim0 == dim1:
+            return self
+        else:
+            if dim0 > dim1: dim0, dim1 = dim1, dim0
+            vembeds = self.vembeds
+            assert(0 <= dim0 < dim1 < len(vembeds))
+            vembeds = (vembeds[      :dim0  ] + # type: ignore
+                       vembeds[dim1  :dim1+1] +
+                       vembeds[dim0+1:dim1  ] +
+                       vembeds[dim0  :dim0+1] +
+                       vembeds[dim1+1:      ])
+            return EmbeddedTensor(self.physical, self.pembeds, vembeds, self.default)
+
+    def t(self) -> EmbeddedTensor:
+        assert(len(self.vembeds) <= 2)
+        if len(self.vembeds) < 2: return self
+        return self.transpose(0,1)
+
+    @property
+    def T(self) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical, self.pembeds, self.vembeds[::-1], self.default)
 
     def reshape(self, s: Sequence[int]) -> EmbeddedTensor:
         """Produce a new EmbeddedTensor that differs only in vembeds and whose

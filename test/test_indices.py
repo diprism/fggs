@@ -319,6 +319,19 @@ class TestEmbeddedTensor(unittest.TestCase):
                 self.assertTClose(t2.logaddexp(t1).to_dense(),
                                   t2.to_dense().logaddexp(t1.to_dense()))
 
+    def test_transpose(self):
+        for t in [EmbeddedTensor(nrand(3,5), (self.k3,self.k5), (self.k3,self.k5), 42),
+                  EmbeddedTensor(nrand(3,5), (self.k3,self.k5), (ProductEmbedding(()),self.k3,self.k5), 42),
+                  EmbeddedTensor(nrand(3,5), (self.k3,self.k5), (self.k5,self.k5,self.k3), 42),
+                  EmbeddedTensor(nrand(3  ), (self.k3,       ), (self.k3,self.k3), 42),
+                  EmbeddedTensor(nrand(3  ), (self.k3,       ), (self.k3,), 42)]:
+            for dim0 in range(t.ndim):
+                for dim1 in range(t.ndim):
+                    self.assertTEqual(t.transpose(dim0,dim1).to_dense(),
+                                      t.to_dense().transpose(dim0,dim1))
+            if t.ndim <= 2: self.assertTEqual(t.t().to_dense(), t.to_dense().t())
+            self.assertTEqual(t.T.to_dense(), t.to_dense().T)
+
     def test_reshape(self):
         ki  = EmbeddingVar(1)
         ki_ = EmbeddingVar(1)
