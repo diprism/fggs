@@ -441,7 +441,8 @@ class EmbeddedTensor:
            how much they need to be expanded in order to match."""
         antisubst : AntiSubst = ({}, {})
         lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
-        (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
+        (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items())) \
+                       if antisubst[1] else ((), (), ())
         if t.default != identity or t.physical.numel() >= u.physical.numel():
             td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense()
             if u.default == identity:
