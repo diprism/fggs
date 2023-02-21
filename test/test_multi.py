@@ -1,5 +1,6 @@
 from fggs.multi import *
 from fggs.semirings import *
+from fggs.indices import EmbeddedTensor
 import unittest, torch, random
 
 class TestMultiTensor(unittest.TestCase):
@@ -27,9 +28,10 @@ class TestMultiTensor(unittest.TestCase):
             for k in range(m**2//2):
                 i = random.randrange(0, m)
                 j = random.randrange(0, m)
-                a_sparse[i,j] = torch.rand(shapes[i]+shapes[j])
+                t = torch.rand(shapes[i]+shapes[j])
+                a_sparse[i,j] = EmbeddedTensor(t)
                 a_dense[offsets[i]:offsets[i]+shapes[i].numel(),
-                        offsets[j]:offsets[j]+shapes[j].numel()] = a_sparse[i,j]
+                        offsets[j]:offsets[j]+shapes[j].numel()] = t
 
             a_norm = torch.linalg.norm(a_dense)
             for a in a_sparse.values():
@@ -42,15 +44,16 @@ class TestMultiTensor(unittest.TestCase):
             b_dense = torch.zeros(n)
             for k in range(m//2):
                 i = random.randrange(0, m)
-                b_sparse[i] = torch.rand(shapes[i])
-                b_dense[offsets[i]:offsets[i]+shapes[i].numel()] = b_sparse[i]
+                t = torch.rand(shapes[i])
+                b_sparse[i] = EmbeddedTensor(t)
+                b_dense[offsets[i]:offsets[i]+shapes[i].numel()] = t
             self.vectors.append((b_sparse, b_dense))
 
     def compare_vectors(self, sparse, dense):
         shapes, offsets = self.shapes, self.offsets
         for i in shapes:
             if i in sparse:
-                if not torch.allclose(sparse[i], dense[offsets[i]:offsets[i]+shapes[i].numel()]):
+                if not torch.allclose(sparse[i].to_dense(), dense[offsets[i]:offsets[i]+shapes[i].numel()]):
                     return False
             else:
                 if not torch.allclose(torch.zeros(shapes[i]), dense[offsets[i]:offsets[i]+shapes[i].numel()]):

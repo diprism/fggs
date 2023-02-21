@@ -1,6 +1,7 @@
 __all__ = ['MultiTensor', 'MultiShape', 'multi_mv', 'multi_solve']
 from typing import Union, Tuple, TypeVar, Iterator, Dict, Mapping, MutableMapping, Optional
 from fggs.semirings import Semiring
+from fggs.indices import EmbeddedTensor
 import torch
 from torch import Tensor, Size
 
@@ -8,17 +9,20 @@ T = TypeVar('T')
 MultiTensorKey = Union[T, Tuple[T,...]]
 MultiShape = Mapping[MultiTensorKey, Size]
 
-class MultiTensor(MutableMapping[MultiTensorKey, Tensor]):
-    """A mapping from keys to Tensors that supports some vector and matrix operations."""
+class MultiTensor(MutableMapping[MultiTensorKey, EmbeddedTensor]):
+    """A mapping from keys to EmbeddedTensors that supports some vector and
+       matrix operations. The keys can be thought of as partitioning the set
+       of indices into a disjoint union whose order doesn't matter."""
     def __init__(self, shapes: Union[MultiShape, Tuple[MultiShape,...]], semiring: Semiring):
         if not isinstance(shapes, tuple):
             shapes = (shapes,)
         self.shapes = shapes
         self.semiring = semiring
-        self._dict: Dict[MultiTensorKey, Tensor] = {}
+        self._dict: Dict[MultiTensorKey, EmbeddedTensor] = {}
 
-    def __getitem__(self, key: MultiTensorKey) -> Tensor:    return self._dict[key]
-    def __setitem__(self, key: MultiTensorKey, val: Tensor):
+    def __getitem__(self, key: MultiTensorKey) -> EmbeddedTensor:
+        return self._dict[key]
+    def __setitem__(self, key: MultiTensorKey, val: EmbeddedTensor):
         if isinstance(key, tuple):
             shape = sum([s[x] for s, x in zip(self.shapes, key)], ())
         else:
@@ -34,16 +38,24 @@ class MultiTensor(MutableMapping[MultiTensorKey, Tensor]):
 
     def allclose(self, other: 'MultiTensor', tol: float) -> bool:
         """Returns true if all elements of self and other are within tol of each other."""
-        if self.keys() != other.keys():
-            return False # bug: missing values and zero should compare equal
         if tol == 0:
-            for k in self:
-                if not torch.all(self[k] == other[k]):
-                    return False
+            for k, t in self.items():
+                if k in other:
+                    if not t.equal(other[k]): return False
+                else:
+                    if not t.equal_default(): return False
+            for k, t in other.items():
+                if k not in self:
+                    if not t.equal_default(): return False
         else:
-            for k in self:
-                if not torch.allclose(self[k], other[k], atol=tol, rtol=0.):
-                    return False
+            for k, t in self.items():
+                if k in other:
+                    if not t.allclose(other[k], atol=tol, rtol=0.): return False
+                else:
+                    if not t.allclose_default(atol=tol, rtol=0.): return False
+            for k, t in other.items():
+                if k not in self:
+                    if not t.allclose_default(atol=tol, rtol=0.): return False
         return True
 
     def copy_(self, other: 'MultiTensor'):
@@ -62,10 +74,10 @@ class MultiTensor(MutableMapping[MultiTensorKey, Tensor]):
         c.copy_(self)
         return c
 
-    def add_single(self, k: MultiTensorKey, v: Tensor):
+    def add_single(self, k: MultiTensorKey, v: EmbeddedTensor):
         """Add v to self[k]. If self[k] does not exist, it is initialized to zero."""
         if k in self:
-            self[k] = self.semiring.add(self[k], v)
+            self[k] = self.semiring.add_embedded(self[k], v)
         else:
             self[k] = v
 
@@ -78,7 +90,7 @@ class MultiTensor(MutableMapping[MultiTensorKey, Tensor]):
     def __sub__(self, other: 'MultiTensor') -> 'MultiTensor':
         result = self.clone()
         for x, t in other.items():
-            result[x] = self.semiring.sub(result[x], t)
+            result[x] = self.semiring.sub_embedded(result[x], t)
         return result
 
 def multi_mv(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> MultiTensor:
@@ -100,11 +112,11 @@ def multi_mv(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> MultiTe
         if transpose:
             if x in b:
                 bx = b[x].reshape(flat_ishapes[x])
-                c.add_single(y, semiring.mv(axy.T, bx).reshape(jshapes[y]))
+                c.add_single(y, axy.T.mv(bx, semiring).reshape(jshapes[y]))
         else:
             if y in b:
                 by = b[y].reshape(flat_jshapes[y])
-                c.add_single(x, semiring.mv(axy, by).reshape(ishapes[x]))
+                c.add_single(x, axy.mv(by, semiring).reshape(ishapes[x]))
     return c
 
 def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> MultiTensor:
@@ -142,21 +154,21 @@ def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> Mult
         for x in order[k+1:]:
             if (x,z) in a:
                 if (z,z) in a:
-                    a[x,z].T.copy_(semiring.solve(a[z,z].T, a[x,z].T))
+                    a[x,z].copy_(a[z,z].T.solve(a[x,z].T, semiring).T)
                 for y in order[k+1:]:
                     if (z,y) in a:
-                        a.add_single((x,y), semiring.mm(a[x,z], a[z,y]))
+                        a.add_single((x,y), a[x,z].mm(a[z,y], semiring))
                 if z in b:
-                    b.add_single(x, semiring.mv(a[x,z], b[z]))
+                    b.add_single(x, a[x,z].mv(b[z], semiring))
 
     # Solve block-triangular systems
     for k,z in reversed(list(enumerate(order))):
         if z in b:
             if (z,z) in a:
-                b[z].copy_(semiring.solve(a[z,z], b[z]))
+                b[z].copy_(a[z,z].solve(b[z], semiring))
             for x in reversed(order[:k]):
                 if (x,z) in a:
-                    b.add_single(x, semiring.mv(a[x,z], b[z]))
+                    b.add_single(x, a[x,z].mv(b[z], semiring))
 
     # Unflatten and return solution
     b.shapes = (shapes,)

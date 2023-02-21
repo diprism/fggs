@@ -378,6 +378,16 @@ class EmbeddedTensor:
         self.physical.relu_().nan_to_num_(nan=0., posinf=inf)
         return self
 
+    def __imul__(self, other: NumberType) -> EmbeddedTensor:
+        self.default  *= other
+        self.physical *= other
+        return self
+
+    def __itruediv__(self, other: NumberType) -> EmbeddedTensor:
+        self.default  /= other
+        self.physical /= other
+        return self
+
     def logical_not(self) -> EmbeddedTensor:
         return EmbeddedTensor(~self.physical, self.pembeds, self.vembeds, not self.default)
 
