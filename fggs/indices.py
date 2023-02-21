@@ -643,6 +643,36 @@ class EmbeddedTensor:
     def mm(self, m: EmbeddedTensor, semiring: Semiring) -> EmbeddedTensor:
         return einsum((self,m), ("ij", "jk"), "ik", semiring)
 
+def stack(tensors: Sequence[EmbeddedTensor], dim: int = 0) -> EmbeddedTensor:
+    """Concatenate EmbeddedTensors along a new dimension.
+       The inputs must have the same (virtual) size and default."""
+    assert(tensors)
+    head, *tail = tensors
+    size = head.size()
+    default = head.default
+    lggs = head.vembeds
+    if not tail:
+        lggs = list(lggs)
+        lggs.insert(dim, ProductEmbedding(()))
+        return EmbeddedTensor(head.physical, head.pembeds, lggs, default)
+    for t in tail: # Antiunify all input vembeds
+        assert(size == t.size())
+        assert(default == t.default)
+        antisubst : AntiSubst = ({}, {})
+        lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(lggs, t.vembeds))
+    k = EmbeddingVar(len(tensors))
+    ks = tuple(antisubst[1])
+    pembeds = list(ks)
+    pembeds.insert(0, k)
+    vembeds = list(lggs)
+    vembeds.insert(dim, k)
+    physical = head.physical.new_full(Size(e.numel() for e in pembeds), default)
+    for t, p in zip(tensors, physical):
+        subst : Subst = {}
+        if not all(e.unify(f, subst) for e, f in zip(lggs, t.vembeds)): raise AssertionError
+        project(p, tuple(e.forward(subst) for e in t.pembeds), ks, subst)[0].copy_(t.physical)
+    return EmbeddedTensor(physical, pembeds, vembeds, default)
+
 def einsum(tensors: Sequence[EmbeddedTensor],
            inputs: Sequence[Sequence[Any]], 
            output: Sequence[Any],

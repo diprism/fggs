@@ -2,6 +2,7 @@ import unittest
 
 from fggs.indices import *
 from fggs.semirings import RealSemiring
+from itertools import permutations
 from math import inf, nan
 import torch
 
@@ -371,6 +372,26 @@ class TestEmbeddedTensor(unittest.TestCase):
             t1 = EmbeddedTensor(physical, pembeds, vembeds, default=42)
             t2 = t1.reshape(s)
             self.assertTEqual(t1.to_dense().reshape(s), t2.to_dense())
+
+    def test_stack(self):
+        ts = [EmbeddedTensor(nrand(2,3,6)),
+              EmbeddedTensor(nrand(2,6,2),
+                             (self.k2_, self.k4, self.k2),
+                             (self.k2, SumEmbedding(1,self.k2_,0), self.k4)),
+              EmbeddedTensor(nrand(2,6,2),
+                             (self.k2, self.k4, self.k2_),
+                             (self.k2, SumEmbedding(1,self.k2_,0), self.k4)),
+              EmbeddedTensor(nrand(6,2),
+                             (self.k4, self.k2),
+                             (self.k2, SumEmbedding(0,ProductEmbedding(()),2), self.k4)),
+              EmbeddedTensor(nrand(3,2),
+                             (self.k3, self.k2),
+                             (self.k2, self.k3, ProductEmbedding((self.k2, self.k3))))]
+        for n in range(len(ts)):
+            for tensors in permutations(ts, n+1):
+                for dim in range(4):
+                    self.assertTEqual(stack(tensors, dim).to_dense(),
+                                      torch.stack(list(t.to_dense() for t in tensors), dim))
 
     def test_solve(self):
         a = EmbeddedTensor(nrand(7), (self.k7,),
