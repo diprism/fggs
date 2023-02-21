@@ -204,7 +204,7 @@ class EmbeddingVar(Embedding):
 
 @dataclass(frozen=True)
 class ProductEmbedding(Embedding):
-    factors: Sequence[Embedding]
+    factors: Tuple[Embedding, ...]
 
     def numel(self):
         return reduce(mul, (e.numel() for e in self.factors), 1)
@@ -536,7 +536,13 @@ class EmbeddedTensor:
         return EmbeddedTensor(self.physical, self.pembeds, self.vembeds[::-1], self.default)
 
     def flatten(self) -> EmbeddedTensor:
-        return EmbeddedTensor(self.physical, self.pembeds, (ProductEmbedding(self.vembeds),), self.default)
+        if len(self.vembeds) == 1:
+            return self
+        else:
+            return EmbeddedTensor(self.physical,
+                                  self.pembeds,
+                                  (ProductEmbedding(tuple(self.vembeds)),),
+                                  self.default)
 
     def reshape(self, s: Sequence[int]) -> EmbeddedTensor:
         """Produce a new EmbeddedTensor that differs only in vembeds and whose
@@ -560,7 +566,7 @@ class EmbeddedTensor:
                 packs[-1].append(next(primes))
         except StopIteration:
             pass
-        vembeds = tuple(pack[0] if len(pack) == 1 else ProductEmbedding(pack)
+        vembeds = tuple(pack[0] if len(pack) == 1 else ProductEmbedding(tuple(pack))
                         for pack in packs)
         assert(len(vembeds) == len(s) and
                all(e.numel() == goal for e, goal in zip(vembeds, s)))
