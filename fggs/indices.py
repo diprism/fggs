@@ -55,7 +55,7 @@ from abc import ABC, abstractmethod
 from warnings import warn
 from functools import reduce
 from operator import mul
-from math import inf, log
+from math import inf, log, exp
 import torch
 from torch import Tensor, Size
 import torch_semiring_einsum
@@ -392,6 +392,26 @@ class EmbeddedTensor:
         project(physical, self.pembeds, fv + (e_dense,), {})[0].copy_(self.physical)
         return EmbeddedTensor(physical, pembeds, vembeds, default)
 
+    def permute(self, dims: Sequence[int]) -> EmbeddedTensor:
+        assert(len(dims) == len(self.vembeds))
+        assert(frozenset(dims) == frozenset(range(0,len(dims))))
+        return EmbeddedTensor(self.physical,
+                              self.pembeds,
+                              tuple(self.vembeds[i] for i in dims),
+                              self.default)
+
+    def __iter__(self) -> Iterator[EmbeddedTensor]:
+        self = self.dim_to_dense(0)
+        vembeds = list(self.vembeds)
+        k = vembeds.pop(0)
+        assert(isinstance(k, EmbeddingVar))
+        pembeds = list(self.pembeds)
+        i = pembeds.index(k)
+        pembeds.pop(i)
+        perm = (i, *range(0, i), *range(i+1, len(self.pembeds)))
+        for p in self.physical.permute(perm):
+            yield EmbeddedTensor(p, pembeds, vembeds, self.default)
+
     def relu_without_nan_(self) -> EmbeddedTensor:
         self.default = max(0, self.default) # max(0, math.nan) == 0 != max(math.nan, 0)
         self.physical.relu_().nan_to_num_(nan=0., posinf=inf)
@@ -407,13 +427,18 @@ class EmbeddedTensor:
         self.physical /= other
         return self
 
+    def exp(self) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical.exp(), self.pembeds, self.vembeds, exp(self.default))
+
     def logical_not(self) -> EmbeddedTensor:
         return EmbeddedTensor(~self.physical, self.pembeds, self.vembeds, not self.default)
 
     def log_softmax(self, dim) -> EmbeddedTensor:
+        if dim < 0: dim += self.ndim
         self = self.dim_to_dense(dim)
         k = self.vembeds[dim]
-        return EmbeddedTensor(self.physical.log_softmax(dim = self.pembeds.index(k)),
+        i = self.pembeds.index(k)
+        return EmbeddedTensor(self.physical.log_softmax(dim = i),
                               self.pembeds, self.vembeds, -log(k.numel()))
 
     def equal_default(self) -> bool:
@@ -580,12 +605,28 @@ class EmbeddedTensor:
                                   (ProductEmbedding(tuple(self.vembeds)),),
                                   self.default)
 
+    def unsqueeze(self, dim: int) -> EmbeddedTensor:
+        if dim < 0: dim += self.ndim + 1
+        vembeds = list(self.vembeds)
+        vembeds.insert(dim, ProductEmbedding(()))
+        return EmbeddedTensor(self.physical, self.pembeds, vembeds, self.default)
+
     def reshape(self, s: Sequence[int]) -> EmbeddedTensor:
         """Produce a new EmbeddedTensor that differs only in vembeds and whose
            size() is equal to s.  But if s contains 0 (so there is actually no
            element) or is all 1 (meaning a scalar) then make the result anew."""
         if self.physical.numel() <= 1:
             return EmbeddedTensor(self.physical.reshape(Size(s)), default=self.default)
+        numel = self.numel()
+        try:
+            inferred = s.index(-1)
+        except ValueError:
+            inferred = None
+        if inferred is not None:
+            s = list(s)
+            s[inferred] = numel // reduce(mul, s, -1)
+        assert(all(goal >= 0 for goal in s))
+        assert(0 == numel % reduce(mul, s, 1))
         primes : Iterator[Embedding] = (prime for e in self.vembeds
                                               for prime in e.prime_factors({}))
         packs : List[List[Embedding]] = []

@@ -388,6 +388,9 @@ class TestEmbeddedTensor(unittest.TestCase):
                              (self.k3, self.k2),
                              (self.k2, self.k3, ProductEmbedding((self.k2, self.k3))))]
         for t in ts:
+            for d in range(-t.ndim-1, t.ndim+1):
+                self.assertTEqual(t.unsqueeze(d).to_dense(),
+                                  t.to_dense().unsqueeze(d))
             for d in range(t.ndim):
                 td = t.dim_to_dense(dim=d)
                 self.assertTEqual(td.to_dense(), t.to_dense())
@@ -395,6 +398,13 @@ class TestEmbeddedTensor(unittest.TestCase):
                 self.assertTrue(td is td.dim_to_dense(dim=d))
                 self.assertTClose(t.log_softmax(d).to_dense(),
                                   t.to_dense().log_softmax(d))
+            for p in permutations(range(t.ndim)):
+                tp = t.permute(p)
+                actual = list(tp) # test __iter__
+                expect = list(tp.to_dense())
+                self.assertEqual(len(actual), len(expect))
+                for actual_elem, expect_elem in zip(actual, expect):
+                    self.assertTEqual(actual_elem.to_dense(), expect_elem)
         for n in range(len(ts)):
             for tensors in permutations(ts, n+1):
                 for dim in range(4):
