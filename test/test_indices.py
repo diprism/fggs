@@ -387,6 +387,14 @@ class TestEmbeddedTensor(unittest.TestCase):
               EmbeddedTensor(nrand(3,2),
                              (self.k3, self.k2),
                              (self.k2, self.k3, ProductEmbedding((self.k2, self.k3))))]
+        for t in ts:
+            for d in range(t.ndim):
+                td = t.dim_to_dense(dim=d)
+                self.assertTEqual(td.to_dense(), t.to_dense())
+                self.assertTrue(isinstance(td.vembeds[d], EmbeddingVar))
+                self.assertTrue(td is td.dim_to_dense(dim=d))
+                self.assertTClose(t.log_softmax(d).to_dense(),
+                                  t.to_dense().log_softmax(d))
         for n in range(len(ts)):
             for tensors in permutations(ts, n+1):
                 for dim in range(4):

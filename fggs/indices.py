@@ -55,7 +55,7 @@ from abc import ABC, abstractmethod
 from warnings import warn
 from functools import reduce
 from operator import mul
-from math import inf
+from math import inf, log
 import torch
 from torch import Tensor, Size
 import torch_semiring_einsum
@@ -373,6 +373,25 @@ class EmbeddedTensor:
         project(virtual, self.pembeds, self.vembeds, {})[0].copy_(self.physical)
         return virtual
 
+    def dim_to_dense(self, dim) -> EmbeddedTensor:
+        """Expand to an equivalent EmbeddedTensor but make sure that the given
+           dimension is dense and independent of the other dimensions."""
+        vembeds = list(self.vembeds)
+        e_dense = vembeds.pop(dim)
+        rename : Rename = {}
+        vembeds = list(e.freshen(rename) for e in vembeds)
+        if isinstance(e_dense, EmbeddingVar) and e_dense not in rename:
+            return self
+        fv  = tuple(rename.keys())
+        fv0 = tuple(rename.values())
+        k = EmbeddingVar(e_dense.numel())
+        vembeds.insert(dim, k)
+        pembeds = fv0 + (k,)
+        default = self.default
+        physical = self.physical.new_full(Size(e.numel() for e in pembeds), default)
+        project(physical, self.pembeds, fv + (e_dense,), {})[0].copy_(self.physical)
+        return EmbeddedTensor(physical, pembeds, vembeds, default)
+
     def relu_without_nan_(self) -> EmbeddedTensor:
         self.default = max(0, self.default) # max(0, math.nan) == 0 != max(math.nan, 0)
         self.physical.relu_().nan_to_num_(nan=0., posinf=inf)
@@ -390,6 +409,12 @@ class EmbeddedTensor:
 
     def logical_not(self) -> EmbeddedTensor:
         return EmbeddedTensor(~self.physical, self.pembeds, self.vembeds, not self.default)
+
+    def log_softmax(self, dim) -> EmbeddedTensor:
+        self = self.dim_to_dense(dim)
+        k = self.vembeds[dim]
+        return EmbeddedTensor(self.physical.log_softmax(dim = self.pembeds.index(k)),
+                              self.pembeds, self.vembeds, -log(k.numel()))
 
     def equal_default(self) -> bool:
         return cast(bool, self.physical.eq(self.default).all().item())
