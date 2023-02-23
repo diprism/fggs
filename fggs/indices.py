@@ -53,6 +53,7 @@ from typing import Sequence, Iterator, List, Tuple, Dict, Set, Any, Optional, Un
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from warnings import warn
+from itertools import zip_longest
 from functools import reduce
 from operator import mul
 from math import inf, log, exp
@@ -361,15 +362,14 @@ class EmbeddedTensor:
 
     def to_dense(self) -> Tensor:
         """Expand a physical tensor to a mostly-zero virtual tensor."""
-        if len(self.pembeds) == len(self.vembeds):
-            if all(isinstance(e, EmbeddingVar) for e in self.vembeds) and \
-               frozenset(self.pembeds) == frozenset(self.vembeds):
-                # vembeds is just a permutation of pembeds, so just clone view on physical
-                return project(self.physical,
-                               cast(Tuple[EmbeddingVar], self.vembeds),
-                               self.pembeds, {})[0].clone()
+        if len(self.pembeds) == len(self.vembeds) and \
+           all(isinstance(e, EmbeddingVar) for e in self.vembeds) and \
+           frozenset(self.pembeds) == frozenset(self.vembeds):
+            # vembeds is just a permutation of pembeds, so just clone view on physical
+            return project(self.physical,
+                           cast(Tuple[EmbeddingVar], self.vembeds),
+                           self.pembeds, {})[0].clone()
         virtual = self.physical.new_full(self.size(), self.default)
-        # TODO: allow pembeds_fv <= vembeds_fv by repeating self.physical?
         project(virtual, self.pembeds, self.vembeds, {})[0].copy_(self.physical)
         return virtual
 
@@ -494,33 +494,57 @@ class EmbeddedTensor:
                               rtol=rtol, atol=atol, equal_nan=equal_nan)) and \
                bool(selfok.all()) and bool(otherok.all())
 
-    def expansion(t, u: EmbeddedTensor) -> Tuple[Sequence[Embedding],
+    def expansion(t, u: EmbeddedTensor) -> Tuple[Sequence[EmbeddingVar],
+                                                 Sequence[Embedding],
                                                  Sequence[EmbeddingVar],
                                                  Sequence[Embedding],
+                                                 Sequence[EmbeddingVar],
                                                  Sequence[Embedding]]:
-        """Compute how much two EmbeddedTensors need to be expanded to match."""
+        """Compute how to expand two EmbeddedTensors in order to match."""
         antisubst : AntiSubst = ({}, {})
-        lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
+        pembeds1 : List[EmbeddingVar] = list(t.pembeds)
+        pembeds2 : List[EmbeddingVar] = list(u.pembeds)
+        lggs : List[Embedding] = []
+        for (e, f) in zip_longest(reversed(t.vembeds), reversed(u.vembeds)):
+            if e is None or e == ProductEmbedding(()) != f:
+                new = EmbeddingVar(f.numel())
+                pembeds1.insert(0, new)
+                antisubst[0][(new, f)] = new
+                antisubst[1][new] = (new, f)
+                lggs.insert(0, new)
+            elif f is None or f == ProductEmbedding(()) != e:
+                new = EmbeddingVar(e.numel())
+                pembeds2.insert(0, new)
+                antisubst[0][(e, new)] = new
+                antisubst[1][new] = (e, new)
+                lggs.insert(0, new)
+            else:
+                lggs.insert(0, e.antiunify(f, antisubst))
         (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items())) \
                        if antisubst[1] else ((), (), ())
-        return (lggs, gs, es, fs)
+        return (gs, lggs, pembeds1, es, pembeds2, fs)
 
     def binary(t, u: EmbeddedTensor, identity: NumberType, default: NumberType,
                operate_: Callable[[Tensor, Tensor], Any]) -> EmbeddedTensor:
         """Apply a symmetric binary operation with identity."""
-        (lggs, gs, es, fs) = t.expansion(u)
-        if t.default != identity or t.physical.numel() >= u.physical.numel():
-            td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense()
+        (gs, lggs, pembeds1, es, pembeds2, fs) = t.expansion(u)
+        tp = t.physical.expand(Size(k.numel() for k in pembeds1))
+        up = u.physical.expand(Size(k.numel() for k in pembeds2))
+        if t.default != identity or \
+           len(pembeds1) != len(t.pembeds) or \
+           len(pembeds2) == len(u.pembeds) and t.physical.numel() >= u.physical.numel():
+            td = EmbeddedTensor(tp, pembeds1, es, t.default).to_dense()
             if u.default == identity:
-                tp = project(td, u.pembeds, fs, {})[0]
-                operate_(tp, u.physical)
+                tp = project(td, pembeds2, fs, {})[0]
+                operate_(tp, up)
             else:
-                operate_(td, EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense())
+                ud = EmbeddedTensor(up, pembeds2, fs, u.default).to_dense()
+                operate_(td, ud)
             return EmbeddedTensor(td, gs, lggs, default)
         else:
-            ud = EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense()
-            up = project(ud, t.pembeds, es, {})[0]
-            operate_(up, t.physical)
+            ud = EmbeddedTensor(up, pembeds2, fs, u.default).to_dense()
+            up = project(ud, pembeds1, es, {})[0]
+            operate_(up, tp)
             return EmbeddedTensor(ud, gs, lggs, default)
 
     def add(t, u: EmbeddedTensor) -> EmbeddedTensor:
@@ -546,32 +570,41 @@ class EmbeddedTensor:
 
     def sub(t, u: EmbeddedTensor) -> EmbeddedTensor:
         """Subtract two EmbeddedTensors."""
-        (lggs, gs, es, fs) = t.expansion(u)
+        (gs, lggs, pembeds1, es, pembeds2, fs) = t.expansion(u)
+        tp = t.physical.expand(Size(k.numel() for k in pembeds1))
         default = t.default - u.default
-        if t.default != 0 or t.physical.numel() >= u.physical.numel():
-            td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense()
+        if t.default != 0 or \
+           len(pembeds1) != len(t.pembeds) or \
+           len(pembeds2) == len(u.pembeds) and t.physical.numel() >= u.physical.numel():
+            up = u.physical.expand(Size(k.numel() for k in pembeds2))
+            td = EmbeddedTensor(tp, pembeds1, es, t.default).to_dense()
             if u.default == 0:
-                tp = project(td, u.pembeds, fs, {})[0]
-                tp.sub_(u.physical)
+                tp = project(td, pembeds2, fs, {})[0]
+                tp.sub_(up)
             else:
-                td.sub_(EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense())
+                ud = EmbeddedTensor(up, pembeds2, fs, u.default).to_dense()
+                td.sub_(ud)
             return EmbeddedTensor(td, gs, lggs, default)
         else:
-            ud = EmbeddedTensor(-u.physical, u.pembeds, fs, -u.default).to_dense()
-            up = project(ud, t.pembeds, es, {})[0]
-            up.add_(t.physical)
+            up = (-u.physical).expand(Size(k.numel() for k in pembeds2))
+            ud = EmbeddedTensor(up, pembeds2, fs, -u.default).to_dense()
+            up = project(ud, pembeds1, es, {})[0]
+            up.add_(tp)
             return EmbeddedTensor(ud, gs, lggs, default)
 
     def logsubexp(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        (lggs, gs, es, fs) = t.expansion(u)
+        (gs, lggs, pembeds1, es, pembeds2, fs) = t.expansion(u)
+        tp = t.physical.expand(Size(k.numel() for k in pembeds1))
+        up = u.physical.expand(Size(k.numel() for k in pembeds2))
         default = LogSemiring.sub(t.physical.new_tensor(t.default),
                                   u.physical.new_tensor(u.default)).item()
-        td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense()
+        td = EmbeddedTensor(tp, pembeds1, es, t.default).to_dense()
         if u.default == -inf:
-            tp = project(td, u.pembeds, fs, {})[0]
-            tp.copy_(LogSemiring.sub(tp, u.physical))
+            tp = project(td, pembeds2, fs, {})[0]
+            tp.copy_(LogSemiring.sub(tp, up))
         else:
-            td.copy_(LogSemiring.sub(td, EmbeddedTensor(u.physical, u.pembeds, fs, u.default).to_dense()))
+            ud = EmbeddedTensor(up, pembeds2, fs, u.default).to_dense()
+            td.copy_(LogSemiring.sub(td, ud))
         return EmbeddedTensor(td, gs, lggs, default)
 
     def transpose(self, dim0, dim1) -> EmbeddedTensor:
