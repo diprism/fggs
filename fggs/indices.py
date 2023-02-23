@@ -494,15 +494,21 @@ class EmbeddedTensor:
                               rtol=rtol, atol=atol, equal_nan=equal_nan)) and \
                bool(selfok.all()) and bool(otherok.all())
 
-    def binary(t, u: EmbeddedTensor, identity: NumberType, default: NumberType,
-               operate_: Callable[[Tensor, Tensor], Any]) -> EmbeddedTensor:
-        """Apply a symmetric binary operation with identity to two
-           EmbeddedTensors.  We use anti-unification to compute
-           how much they need to be expanded in order to match."""
+    def expansion(t, u: EmbeddedTensor) -> Tuple[Sequence[Embedding],
+                                                 Sequence[EmbeddingVar],
+                                                 Sequence[Embedding],
+                                                 Sequence[Embedding]]:
+        """Compute how much two EmbeddedTensors need to be expanded to match."""
         antisubst : AntiSubst = ({}, {})
         lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
         (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items())) \
                        if antisubst[1] else ((), (), ())
+        return (lggs, gs, es, fs)
+
+    def binary(t, u: EmbeddedTensor, identity: NumberType, default: NumberType,
+               operate_: Callable[[Tensor, Tensor], Any]) -> EmbeddedTensor:
+        """Apply a symmetric binary operation with identity."""
+        (lggs, gs, es, fs) = t.expansion(u)
         if t.default != identity or t.physical.numel() >= u.physical.numel():
             td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense()
             if u.default == identity:
@@ -539,11 +545,8 @@ class EmbeddedTensor:
                         lambda x, y: x.logical_and_(y))
 
     def sub(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        """Subtract two EmbeddedTensors. We use anti-unification to compute
-           how much they need to be expanded in order to match."""
-        antisubst : AntiSubst = ({}, {})
-        lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
-        (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
+        """Subtract two EmbeddedTensors."""
+        (lggs, gs, es, fs) = t.expansion(u)
         default = t.default - u.default
         if t.default != 0 or t.physical.numel() >= u.physical.numel():
             td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense()
@@ -560,9 +563,7 @@ class EmbeddedTensor:
             return EmbeddedTensor(ud, gs, lggs, default)
 
     def logsubexp(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        antisubst : AntiSubst = ({}, {})
-        lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(t.vembeds, u.vembeds))
-        (gs, es, fs) = zip(*((g, e, f) for (g, (e, f)) in antisubst[1].items()))
+        (lggs, gs, es, fs) = t.expansion(u)
         default = LogSemiring.sub(t.physical.new_tensor(t.default),
                                   u.physical.new_tensor(u.default)).item()
         td = EmbeddedTensor(t.physical, t.pembeds, es, t.default).to_dense()
