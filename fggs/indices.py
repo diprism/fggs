@@ -150,7 +150,7 @@ class Embedding(ABC):
         if isinstance(e, ProductEmbedding) and isinstance(f, ProductEmbedding) and \
            len(e.factors) == len(f.factors):
             return ProductEmbedding(tuple(e1.antiunify(f1, antisubst)
-                                          for (e1, f1) in zip(e.factors, f.factors)))
+                                          for e1, f1 in zip(e.factors, f.factors)))
         if isinstance(e, SumEmbedding) and isinstance(f, SumEmbedding) and \
            e.before == f.before and e.after == f.after:
             return SumEmbedding(e.before, e.term.antiunify(f.term, antisubst), e.after)
@@ -273,8 +273,8 @@ def project(virtual: Tensor,
         raise ValueError(f"project(tensor of {virtual.size()}, ..., vembeds of {Size(e.numel() for e in vembeds)}")
     offset = virtual.storage_offset()
     stride : Dict[EmbeddingVar, int] = {}
-    for (e, n) in zip(vembeds, virtual.stride()):
-        (o, s) = e.stride(subst)
+    for e, n in zip(vembeds, virtual.stride(), strict=True):
+        o, s = e.stride(subst)
         offset += o * n
         for k in s: stride[k] = stride.get(k, 0) + s[k] * n
     if pembeds is None:
@@ -561,10 +561,12 @@ class EmbeddedTensor:
                         lambda x, y: torch.maximum(x, y, out=x))
 
     def logical_or(t, u: EmbeddedTensor) -> EmbeddedTensor:
+        # TODO: short circuiting
         return t.binary(u, False, t.default or u.default,
                         lambda x, y: x.logical_or_(y))
 
     def logical_and(t, u: EmbeddedTensor) -> EmbeddedTensor:
+        # TODO: short circuiting
         return t.binary(u, True, t.default and u.default,
                         lambda x, y: x.logical_and_(y))
 
@@ -706,7 +708,7 @@ class EmbeddedTensor:
         vembeds = tuple(pack[0] if len(pack) == 1 else ProductEmbedding(tuple(pack))
                         for pack in packs)
         assert(len(vembeds) == len(s) and
-               all(e.numel() == goal for e, goal in zip(vembeds, s)))
+               all(e.numel() == goal for e, goal in zip(vembeds, s, strict=True)))
         return EmbeddedTensor(self.physical, self.pembeds, vembeds, self.default)
 
     def solve(a, b: EmbeddedTensor, semiring: Semiring) -> EmbeddedTensor:
@@ -785,7 +787,8 @@ def stack(tensors: Sequence[EmbeddedTensor], dim: int = 0) -> EmbeddedTensor:
         assert(size == t.size())
         assert(default == t.default)
         antisubst : AntiSubst = ({}, {})
-        lggs = tuple(e.antiunify(f, antisubst) for (e, f) in zip(lggs, t.vembeds))
+        lggs = tuple(e.antiunify(f, antisubst)
+                     for e, f in zip(lggs, t.vembeds, strict=True))
     k = EmbeddingVar(len(tensors))
     ks = tuple(antisubst[1])
     pembeds = list(ks)
@@ -793,9 +796,11 @@ def stack(tensors: Sequence[EmbeddedTensor], dim: int = 0) -> EmbeddedTensor:
     vembeds = list(lggs)
     vembeds.insert(dim, k)
     physical = head.physical.new_full(Size(e.numel() for e in pembeds), default)
-    for t, p in zip(tensors, physical):
+    for t, p in zip(tensors, physical, strict=True):
         subst : Subst = {}
-        if not all(e.unify(f, subst) for e, f in zip(lggs, t.vembeds)): raise AssertionError
+        if not all(e.unify(f, subst)
+                   for e, f in zip(lggs, t.vembeds, strict=True)):
+            raise AssertionError
         project(p, tuple(e.forward(subst) for e in t.pembeds), ks, subst)[0].copy_(t.physical)
     return EmbeddedTensor(physical, pembeds, vembeds, default)
 
@@ -817,7 +822,8 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     inl and inr (1 + Z(35) + 0 fails to unify with 0 + W(1) + 35).
     """
     assert(len(tensors) == len(inputs))
-    assert(len(tensor.vembeds) == len(input) for tensor, input in zip(tensors, inputs))
+    assert(len(tensor.vembeds) == len(input)
+           for tensor, input in zip(tensors, inputs, strict=True))
     assert(frozenset(index for input in inputs for index in input) >= frozenset(output))
     zero = semiring.from_int(0)
     one  = semiring.from_int(1)
@@ -829,13 +835,13 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     subst : Subst = {}
     freshened_tensors = []
     result_is_zero = False
-    for (i, (tensor, input)) in enumerate(zip(tensors, inputs)):
+    for (i, (tensor, input)) in enumerate(zip(tensors, inputs, strict=True)):
         if not tensor.isdisjoint(pembeds_fv): tensor = tensor.freshen()
         freshened_tensors.append(tensor)
         pembeds_fv.update(tensor.pembeds)
         if len(tensor.vembeds) != len(input):
             raise ValueError(f"einsum(tensor {i} with {len(tensor.vembeds)} virtual dimensions, input {i} with {len(input)} indices, ...)")
-        for (vembed, index) in zip(tensor.vembeds, input):
+        for vembed, index in zip(tensor.vembeds, input, strict=True):
             if index in index_to_vembed:
                 if not index_to_vembed[index].unify(vembed, subst):
                     result_is_zero = True
