@@ -607,6 +607,32 @@ class EmbeddedTensor:
             td.copy_(LogSemiring.sub(td, ud))
         return EmbeddedTensor(td, gs, lggs, default)
 
+    def where(t, c, u) -> EmbeddedTensor:
+        if not (t.size() == c.size() == u.size()): raise NotImplementedError
+        if c.default: raise NotImplementedError
+        # Conform t to c
+        if not t.isdisjoint(c): t = t.freshen()
+        subst : Subst = {}
+        if all(ec.unify(et, subst)
+               for ec, et in zip(c.vembeds, t.vembeds, strict=True)):
+            projected_t = project(t.physical, None, t.pembeds, subst)
+            tc = EmbeddedTensor(projected_t[0], projected_t[1],
+                                [e.clone(subst) for e in c.pembeds],
+                                t.default).to_dense()
+        else:
+            tc = t.physical.new_tensor(t.default)
+        # Expand u to c
+        antisubst : AntiSubst = ({}, {})
+        lggs = [ec.antiunify(eu, antisubst)
+                for ec, eu in zip(c.vembeds, u.vembeds, strict=True)]
+        (gs, ecs, eus) = zip(*((g, ec, eu) for (g, (ec, eu)) in antisubst[1].items())) \
+                         if antisubst[1] else ((), (), ())
+        ud = EmbeddedTensor(u.physical, u.pembeds, eus, u.default).to_dense()
+        # Mutate expanded u with conformed t
+        up = project(ud, c.pembeds, ecs, {})[0]
+        up.copy_(tc.where(c.physical, up))
+        return EmbeddedTensor(ud, gs, lggs, u.default)
+
     def transpose(self, dim0, dim1) -> EmbeddedTensor:
         if dim0 == dim1:
             return self

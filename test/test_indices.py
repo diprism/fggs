@@ -2,14 +2,25 @@ import unittest
 
 from fggs.indices import *
 from fggs.semirings import RealSemiring
-from itertools import permutations
+from itertools import permutations, chain, repeat, count, product
 from math import inf, nan
 import torch
+
+def take(n, iter):
+    return (x for _, x in zip(range(n), iter))
 
 def nrand(*size) -> torch.Tensor:
     s = torch.Size((*size,))
     n = s.numel()
     return torch.zeros(s) if n == 0 else torch.arange(0.42-n, n, 2).view(s)
+
+def brand(*size) -> torch.Tensor:
+    s = torch.Size((*size,))
+    n = s.numel()
+    return torch.tensor(list(take(n, chain.from_iterable(chain(repeat(False,n),
+                                                               repeat(True,n))
+                                                         for n in count()))),
+                        dtype=torch.bool).view(s)
 
 class TestEmbedding(unittest.TestCase):
 
@@ -319,6 +330,22 @@ class TestEmbeddedTensor(unittest.TestCase):
                                   t1.to_dense().logaddexp(t2.to_dense()))
                 self.assertTClose(t2.logaddexp(t1).to_dense(),
                                   t2.to_dense().logaddexp(t1.to_dense()))
+
+    def test_where(self):
+        pv = [((self.k2, self.k3, self.k1), (self.k1,                     ProductEmbedding((self.k2, self.k3)))),
+              ((self.k2, self.k3),          (SumEmbedding(0, self.k2, 3), ProductEmbedding((self.k2, self.k3)))),
+              ((self.k2, self.k3),          (SumEmbedding(2, self.k3, 0), ProductEmbedding((self.k2, self.k3)))),
+              ((self.k2, self.k4),          (SumEmbedding(0, self.k2, 3), self.k4)),
+              ((self.k1, self.k3),          (self.k1,                     ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1), self.k3)))),
+              ((self.k4, self.k1),          (self.k1,                     self.k4)),
+              ((self.k1,),                  (self.k1,                     ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1),
+                                                                                            SumEmbedding(1,ProductEmbedding(()),1)))))]
+        for i, (t, u, c) in enumerate(product(
+                (EmbeddedTensor(1500+nrand(*(k.numel() for k in p)), p, v, 42   ) for p, v in pv),
+                (EmbeddedTensor(2500+nrand(*(k.numel() for k in p)), p, v, 37   ) for p, v in pv),
+                (EmbeddedTensor(     brand(*(k.numel() for k in p)), p, v, False) for p, v in pv))):
+            self.assertTEqual(t.where(c,u).to_dense(),
+                              t.to_dense().where(c.to_dense(),u.to_dense()))
 
     def test_transpose(self):
         for t in [EmbeddedTensor(nrand(3,5), (self.k3,self.k5), (self.k3,self.k5), 42),
