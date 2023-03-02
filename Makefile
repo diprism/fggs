@@ -2,6 +2,8 @@ PYTHON=python3
 
 .PHONY: docs test
 
+all: test typecheck
+
 test:
 	$(PYTHON) -m unittest
 	test/test_sum_product.sh
