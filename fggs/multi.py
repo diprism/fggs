@@ -77,7 +77,7 @@ class MultiTensor(MutableMapping[MultiTensorKey, EmbeddedTensor]):
     def add_single(self, k: MultiTensorKey, v: EmbeddedTensor):
         """Add v to self[k]. If self[k] does not exist, it is initialized to zero."""
         if k in self:
-            self[k] = self.semiring.add_embedded(self[k], v)
+            self[k] = self.semiring.add(self[k], v)
         else:
             self[k] = v
 
@@ -90,7 +90,7 @@ class MultiTensor(MutableMapping[MultiTensorKey, EmbeddedTensor]):
     def __sub__(self, other: 'MultiTensor') -> 'MultiTensor':
         result = self.clone()
         for x, t in other.items():
-            result[x] = self.semiring.sub_embedded(result[x], t)
+            result[x] = self.semiring.sub(result[x], t)
         return result
 
 def multi_mv(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> MultiTensor:

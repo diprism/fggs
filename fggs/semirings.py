@@ -2,8 +2,8 @@ import torch
 from math import inf
 import torch_semiring_einsum, torch_semiring_einsum.utils
 from abc import ABC, abstractmethod
-from typing import Union, TYPE_CHECKING
-if TYPE_CHECKING: from fggs.indices import EmbeddedTensor
+from typing import Union
+from fggs.typing import TensorLike, TensorLikeT
 
 class Semiring(ABC):
     """A complete, commutative star-semiring (https://en.wikipedia.org/wiki/Semiring)."""
@@ -24,11 +24,7 @@ class Semiring(ABC):
         return self.from_int(torch.zeros(shape, dtype=self.dtype, device=self.device))
     
     @abstractmethod
-    def add(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        pass
-
-    @abstractmethod
-    def add_embedded(self, x: "EmbeddedTensor", y: "EmbeddedTensor") -> "EmbeddedTensor":
+    def add(self, x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         pass
 
     @abstractmethod
@@ -36,13 +32,9 @@ class Semiring(ABC):
         pass
     
     @abstractmethod
-    def sub(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def sub(self, x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         """Return any d such that x = y + d. If there is none (which isn't
         supposed to happen), just return what sub(x, x) returns."""
-        pass
-
-    @abstractmethod
-    def sub_embedded(self, x: "EmbeddedTensor", y: "EmbeddedTensor") -> "EmbeddedTensor":
         pass
 
     @abstractmethod
@@ -100,17 +92,15 @@ class RealSemiring(Semiring):
     def from_int(self, n: Union[int, torch.Tensor]):
         return torch.as_tensor(n, dtype=self.dtype, device=self.device)
     
-    add = staticmethod(torch.add) # type: ignore
     sum = staticmethod(torch.sum) # type: ignore
 
-    def add_embedded(self, x, y): return x.add(y)
-    
     @staticmethod
-    def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        # relu(x - y) = maximum(0, x - y)
-        return torch.relu(x - y).nan_to_num(nan=0., posinf=inf)
+    def add(x, y):
+        return x.add(y)
 
-    def sub_embedded(x, y): return x.sub(y).relu_without_nan_()
+    @staticmethod
+    def sub(x, y):
+        return x.sub(y).relu_().nan_to_num_(nan=0., posinf=inf)
 
     @staticmethod
     def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -157,23 +147,22 @@ class LogSemiring(Semiring):
         n = torch.as_tensor(n, dtype=self.dtype, device=self.device)
         return torch.log(n)
     
-    add = staticmethod(torch.logaddexp) # type: ignore
+    @staticmethod
+    def add(x, y):
+        return x.logaddexp(y)
+
     sum = staticmethod(torch.logsumexp) # type: ignore
 
-    def add_embedded(self, x, y): return x.logaddexp(y)
-    
     @staticmethod
-    def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def sub(x, y):
         # If x <= y, return -inf
         # If x ≈ y, log(exp(x) - exp(y)) = x + log(1 - exp(y-x)) = x + log(-expm1(y-x))
         # If x >> y, log(exp(x) - exp(y)) = x + log(1 - exp(y-x)) = x + log1p(-exp(y-x))
-        d = y - x
-        return torch.where(d < -1, # type: ignore
-                           x + torch.log1p(-torch.exp(d)), # type: ignore
-                           x + torch.log(-torch.expm1(d))).nan_to_num(nan=-inf, neginf=-inf, posinf=inf)
+        d = y.sub(x)
+        return x.add(d.exp().neg_().log1p_().where(d.lt(-1),
+                     d.expm1().neg_().log_())) \
+                .nan_to_num_(nan=-inf, neginf=-inf, posinf=inf)
 
-    def sub_embedded(x, y): return x.logsubexp(y)
-    
     @staticmethod
     def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return torch.add(x, y).nan_to_num(nan=-inf, neginf=-inf, posinf=inf)
@@ -220,19 +209,18 @@ class ViterbiSemiring(Semiring):
         n = torch.as_tensor(n, device=self.device)
         return torch.where(n > 0, 0., -inf).to(self.dtype)
     
-    add = staticmethod(torch.maximum) # type: ignore
+    @staticmethod
+    def add(x, y):
+        return x.maximum(y)
+
     @staticmethod
     def sum(x: torch.Tensor, dim: int) -> torch.Tensor:
         return torch.max(x, dim=dim)[0]
 
-    def add_embedded(self, x, y): return x.maximum(y)
-    
     @staticmethod
-    def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def sub(x, y):
         return x
 
-    def sub_embedded(x, y): return x
-    
     @staticmethod
     def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return torch.add(x, y).nan_to_num(nan=-inf, neginf=-inf, posinf=inf)
@@ -262,17 +250,16 @@ class BoolSemiring(Semiring):
     def from_int(self, n):
         n = torch.as_tensor(n, device=self.device)
         return n > 0
-    
-    add = staticmethod(torch.logical_or) # type: ignore
+
+    @staticmethod
+    def add(x, y):
+        return x.logical_or(y)
+
     sum = staticmethod(torch.any) # type: ignore
 
-    def add_embedded(self, x, y): return x.logical_or(y)
-    
     @staticmethod
-    def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return x & ~y
-
-    def sub_embedded(x, y): return x.logical_and(y.logical_not())
+    def sub(x, y):
+        return x.logical_and(y.logical_not())
     
     mul = staticmethod(torch.logical_and) # type: ignore
     

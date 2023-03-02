@@ -56,11 +56,12 @@ from warnings import warn
 from itertools import zip_longest
 from functools import reduce
 from operator import mul
-from math import inf, log, exp
+from math import inf, log, log1p, exp, expm1, isnan, isinf
+from sys import float_info
 import torch
 from torch import Tensor, Size
 import torch_semiring_einsum
-from fggs.semirings import Semiring, LogSemiring
+from fggs.semirings import Semiring
 
 Rename = Dict["EmbeddingVar", "EmbeddingVar"]
 
@@ -412,9 +413,37 @@ class EmbeddedTensor:
         for p in self.physical.permute(perm):
             yield EmbeddedTensor(p, pembeds, vembeds, self.default)
 
-    def relu_without_nan_(self) -> EmbeddedTensor:
-        self.default = max(0, self.default) # max(0, math.nan) == 0 != max(math.nan, 0)
-        self.physical.relu_().nan_to_num_(nan=0., posinf=inf)
+    def neg_(self) -> EmbeddedTensor:
+        self.default = -self.default
+        self.physical.neg_()
+        return self
+
+    def log_(self) -> EmbeddedTensor:
+        self.default = log(self.default)
+        self.physical.log_()
+        return self
+
+    def log1p_(self) -> EmbeddedTensor:
+        self.default = log1p(self.default)
+        self.physical.log1p_()
+        return self
+
+    def relu_(self) -> EmbeddedTensor:
+        self.default = max(0, self.default)
+        self.physical.relu_()
+        return self
+
+    def nan_to_num_(self, nan: float = 0.,
+                          posinf: Optional[float] = None,
+                          neginf: Optional[float] = None) -> EmbeddedTensor:
+        if isnan(self.default):
+            self.default = nan
+        elif isinf(self.default):
+            if self.default >= 0:
+                self.default = float_info.max if posinf is None else posinf
+            else:
+                self.default = -float_info.max if neginf is None else neginf
+        self.physical.nan_to_num_(nan=nan, posinf=posinf)
         return self
 
     def __imul__(self, other: NumberType) -> EmbeddedTensor:
@@ -427,8 +456,14 @@ class EmbeddedTensor:
         self.physical /= other
         return self
 
+    def lt(self, other: float) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical.lt(other), self.pembeds, self.vembeds, self.default < other)
+
     def exp(self) -> EmbeddedTensor:
         return EmbeddedTensor(self.physical.exp(), self.pembeds, self.vembeds, exp(self.default))
+
+    def expm1(self) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical.expm1(), self.pembeds, self.vembeds, expm1(self.default))
 
     def logical_not(self) -> EmbeddedTensor:
         return EmbeddedTensor(~self.physical, self.pembeds, self.vembeds, not self.default)
@@ -593,21 +628,6 @@ class EmbeddedTensor:
             up = project(ud, pembeds1, es, {})[0]
             up.add_(tp)
             return EmbeddedTensor(ud, gs, lggs, default)
-
-    def logsubexp(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        (gs, lggs, pembeds1, es, pembeds2, fs) = t.expansion(u)
-        tp = t.physical.expand(Size(k.numel() for k in pembeds1))
-        up = u.physical.expand(Size(k.numel() for k in pembeds2))
-        default = LogSemiring.sub(t.physical.new_tensor(t.default),
-                                  u.physical.new_tensor(u.default)).item()
-        td = EmbeddedTensor(tp, pembeds1, es, t.default).to_dense()
-        if u.default == -inf:
-            tp = project(td, pembeds2, fs, {})[0]
-            tp.copy_(LogSemiring.sub(tp, up))
-        else:
-            ud = EmbeddedTensor(up, pembeds2, fs, u.default).to_dense()
-            td.copy_(LogSemiring.sub(td, ud))
-        return EmbeddedTensor(td, gs, lggs, default)
 
     def where(t, c, u) -> EmbeddedTensor:
         if not (t.size() == c.size() == u.size()): raise NotImplementedError
