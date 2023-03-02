@@ -1,4 +1,3 @@
-from __future__ import annotations
 __all__ = ['sum_product', 'sum_products']
 
 from fggs.fggs import FGG, HRG, HRGRule, EdgeLabel, Edge, Node
@@ -14,7 +13,6 @@ import warnings
 
 import torch
 from torch import Tensor
-from fggs.indices import EmbeddedTensor, stack
 import torch_semiring_einsum
 
 Function = Callable[[MultiTensor], MultiTensor]
@@ -116,33 +114,34 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
     Jx = MultiTensor(x.shapes+x.shapes, semiring=RealSemiring(dtype=semiring.dtype, device=semiring.device))
     for n in x.shapes[0]:
         rules = list(fgg.rules(n))
-        tau_rules: List[EmbeddedTensor] = [
-            sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(),
-                              rule.rhs.ext, x, inputs, semiring=semiring)
-            for rule in rules]
+        tau_rules: Union[List[Tensor], Tensor]
+        tau_rules = []
+        for rule in rules:
+            tau_rule = sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x, inputs, semiring=semiring)
+            tau_rules.append(tau_rule)
         if len(tau_rules) == 0: continue
-        tau_rules_stacked : EmbeddedTensor = stack(tau_rules, dim=0)
-        tau_rules_stacked = tau_rules_stacked.log_softmax(dim=0)
-        for rule, tau_rule in zip(rules, tau_rules_stacked):
+        tau_rules = torch.stack(tau_rules, dim=0)
+        tau_rules = log_softmax(tau_rules, dim=0)
+        for rule, tau_rule in zip(rules, tau_rules):
             for edge in rule.rhs.edges():
                 if edge.label not in Jx.shapes[1] and J_inputs is None: continue
                 ext = rule.rhs.ext + edge.nodes
                 tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(), ext, x, inputs, semiring=semiring)
                 tau_edge_size = tau_edge.size()
                 tau_edge = tau_edge.reshape(tau_rule.size() + (-1,))
-                tau_edge = tau_edge.log_softmax(dim=-1)
+                tau_edge = log_softmax(tau_edge, dim=-1)
                 tau_edge += tau_rule.unsqueeze(-1)
                 tau_edge = tau_edge.reshape(tau_edge_size)
                 if edge.label in Jx.shapes[1]:
-                    Jx.add_single((n, edge.label), tau_edge.exp())
+                    Jx.add_single((n, edge.label), torch.exp(tau_edge))
                 elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
-                    J_inputs.add_single((n, edge.label), tau_edge.exp())
+                    J_inputs.add_single((n, edge.label), torch.exp(tau_edge))
                 else:
                     assert False
     return Jx
 
 
-def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ext: Sequence[Node], *inputses: MultiTensor, semiring: Semiring) -> EmbeddedTensor:
+def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ext: Sequence[Node], *inputses: MultiTensor, semiring: Semiring) -> Tensor:
     """Compute the sum-product of a set of edges.
 
     Parameters:
