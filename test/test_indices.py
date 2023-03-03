@@ -402,6 +402,24 @@ class TestEmbeddedTensor(unittest.TestCase):
             t2 = t1.reshape(s)
             self.assertTEqual(t1.to_dense().reshape(s), t2.to_dense())
 
+    def test_any(self):
+        ft = [False, True]
+        for v in [(self.k2, self.k3),
+                  (self.k2, self.k3, ProductEmbedding(())),
+                  (self.k2, self.k3, self.k3),
+                  (self.k2, ProductEmbedding((self.k2, self.k3))),
+                  (self.k2, ProductEmbedding((self.k3, self.k3))),
+                  (SumEmbedding(0, self.k2, 1), self.k3),
+                  (SumEmbedding(0, self.k2, 1), SumEmbedding(1, self.k3, 0)),
+                  (SumEmbedding(0, self.k2, 1), ProductEmbedding((self.k2, self.k3)))]:
+            for phys in map(torch.tensor, product(product(ft, ft, ft), product(ft, ft, ft))):
+                for default in ft:
+                    t = EmbeddedTensor(phys, (self.k2, self.k3), v, default)
+                    for dim in range(t.ndim):
+                        for keepdim in ft:
+                            self.assertTEqual(t.any(dim=dim, keepdim=keepdim).to_dense(),
+                                              t.to_dense().any(dim=dim, keepdim=keepdim))
+
     def test_stack(self):
         ts = [EmbeddedTensor(nrand(2,3,6)),
               EmbeddedTensor(nrand(2,6,2),

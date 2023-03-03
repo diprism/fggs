@@ -81,6 +81,11 @@ class Embedding(ABC):
         pass
 
     @abstractmethod
+    def fv(self, subst: Subst) -> Iterator[EmbeddingVar]:
+        """Return the set of all EmbeddingVars in self."""
+        pass
+
+    @abstractmethod
     def stride(self, subst: Subst) -> Tuple[int, Dict[EmbeddingVar, int]]:
         """The coefficients of the affine map from physical to virtual indices."""
         pass
@@ -172,6 +177,13 @@ class EmbeddingVar(Embedding):
     def numel(self):
         return self._numel
 
+    def fv(self, subst):
+        fwd = self.forward(subst)
+        if fwd is self:
+            yield self
+        else:
+            yield from fwd.fv(subst)
+
     def stride(self, subst):
         fwd = self.forward(subst)
         return (0, {self: 1}) if fwd is self else fwd.stride(subst)
@@ -211,6 +223,10 @@ class ProductEmbedding(Embedding):
     def numel(self):
         return reduce(mul, (e.numel() for e in self.factors), 1)
 
+    def fv(self, subst):
+        for e in self.factors:
+            yield from e.fv(subst)
+
     def stride(self, subst):
         offset = 0
         stride = {}
@@ -247,6 +263,9 @@ class SumEmbedding(Embedding):
 
     def numel(self):
         return self.before + self.term.numel() + self.after
+
+    def fv(self, subst):
+        yield from self.term.fv(subst)
 
     def stride(self, subst):
         (o, s) = self.term.stride(subst)
@@ -392,6 +411,23 @@ class EmbeddedTensor:
         physical = self.physical.new_full(Size(e.numel() for e in pembeds), default)
         project(physical, self.pembeds, fv + (e_dense,), {})[0].copy_(self.physical)
         return EmbeddedTensor(physical, pembeds, vembeds, default)
+
+    def any(self, dim: int, keepdim: bool = False) -> EmbeddedTensor:
+        vembeds = list(self.vembeds)
+        if keepdim:
+            vembeds[dim] = ProductEmbedding(())
+        else:
+            del vembeds[dim]
+        ks = frozenset(self.vembeds[dim].fv({})) - frozenset(k for e in vembeds for k in e.fv({}))
+        pembeds = tuple(k for k in self.pembeds if k not in ks)
+        if self.default and self.vembeds[dim].numel() > reduce(mul, (k.numel() for k in ks), 1):
+            physical = self.physical.new_ones(()).expand(tuple(k.numel() for k in pembeds))
+        else:
+            physical = self.physical
+            for i in range(len(self.pembeds)-1, -1, -1):
+                if self.pembeds[i] in ks:
+                    physical = physical.any(dim=i, keepdim=False)
+        return EmbeddedTensor(physical, pembeds, vembeds, self.default)
 
     def permute(self, dims: Sequence[int]) -> EmbeddedTensor:
         assert(len(dims) == len(self.vembeds))
@@ -877,7 +913,7 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     pembed_to_char = {k: chr(ord('a') + i)
                       for i, k in enumerate(frozenset(k for (view, pembeds) in projected_tensors
                                                         for k in pembeds))}
-    output_pembeds = tuple(frozenset(k for e in output_vembeds for k in e.stride(subst)[1]))
+    output_pembeds = tuple(frozenset(k for e in output_vembeds for k in e.fv(subst)))
     equation = ','.join(''.join(pembed_to_char[k] for k in pembeds)
                         for (view, pembeds) in projected_tensors) \
              + '->' + ''.join(pembed_to_char[k] for k in output_pembeds)
