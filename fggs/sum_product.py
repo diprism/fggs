@@ -106,9 +106,8 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
 def log_softmax(a: Tensor, dim: int) -> Tensor:
     # If a has infinite elements, log_softmax would return all nans.
     # In this case, make all the nonzero elements 1 and the zero elements 0.
-    return torch.where(torch.any(a == inf, dim, keepdim=True),
-                       torch.log(a > -inf).to(dtype=a.dtype),
-                       torch.log_softmax(a, dim))
+    return a.gt(-inf).log_().to(dtype=a.dtype).where(a.eq(inf).any(dim, keepdim=True),
+                                                     a.log_softmax(dim))
     
 def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
           J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
@@ -122,7 +121,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
             for rule in rules]
         if len(tau_rules) == 0: continue
         tau_rules_stacked : EmbeddedTensor = stack(tau_rules, dim=0)
-        tau_rules_stacked = tau_rules_stacked.log_softmax(dim=0)
+        tau_rules_stacked = log_softmax(tau_rules_stacked, dim=0)
         for rule, tau_rule in zip(rules, tau_rules_stacked):
             for edge in rule.rhs.edges():
                 if edge.label not in Jx.shapes[1] and J_inputs is None: continue
@@ -130,7 +129,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                 tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(), ext, x, inputs, semiring=semiring)
                 tau_edge_size = tau_edge.size()
                 tau_edge = tau_edge.reshape(tau_rule.size() + (-1,))
-                tau_edge = tau_edge.log_softmax(dim=-1)
+                tau_edge = log_softmax(tau_edge, dim=-1)
                 tau_edge += tau_rule.unsqueeze(-1)
                 tau_edge = tau_edge.reshape(tau_edge_size)
                 if edge.label in Jx.shapes[1]:
