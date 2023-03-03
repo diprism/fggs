@@ -1,4 +1,5 @@
-PYTHON=python3
+export PYTHON=python3
+export MYPY=mypy
 
 .PHONY: docs test
 
@@ -12,4 +13,4 @@ docs:
 	sphinx-build -M html docs/source "$@"
 
 typecheck:
-	mypy --config-file= fggs # work around bug in mypy 0.920
+	$(MYPY) --config-file= fggs # work around bug in mypy 0.920
