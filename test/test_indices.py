@@ -4,6 +4,7 @@ from fggs.indices import *
 from fggs.semirings import RealSemiring
 from itertools import permutations, chain, repeat, count, product
 from math import inf, nan
+from packaging import version
 import torch
 
 def take(n, iter):
@@ -144,6 +145,7 @@ class TestEmbeddedTensor(unittest.TestCase):
         self.k6  = EmbeddingVar(35)
         self.k7  = EmbeddingVar(7)
         self.k8  = EmbeddingVar(36)
+        self.test_log_softmax = version.parse(torch.__version__) >= version.parse('1.13')
 
     def test_diag(self):
         phys = nrand(5,2)
@@ -414,7 +416,6 @@ class TestEmbeddedTensor(unittest.TestCase):
               EmbeddedTensor(nrand(3,2),
                              (self.k3, self.k2),
                              (self.k2, self.k3, ProductEmbedding((self.k2, self.k3))))]
-        print('torch.__version__ = ', torch.__version__)
         for t in ts:
             for d in range(-t.ndim-1, t.ndim+1):
                 self.assertTEqual(t.unsqueeze(d).to_dense(),
@@ -424,7 +425,7 @@ class TestEmbeddedTensor(unittest.TestCase):
                 self.assertTEqual(td.to_dense(), t.to_dense())
                 self.assertTrue(isinstance(td.vembeds[d], EmbeddingVar))
                 self.assertTrue(td is td.dim_to_dense(dim=d))
-                if torch.__version__ >= '1.13.': # Skip apparent bug in log_softmax
+                if self.test_log_softmax: # Skip apparent bug in log_softmax
                     self.assertTClose(t.log_softmax(d).to_dense(),
                                       t.to_dense().log_softmax(d))
             for p in permutations(range(t.ndim)):

@@ -3,3 +3,4 @@ pydot
 torch-semiring-einsum>=1.1
 tqdm
 mypy
+packaging
