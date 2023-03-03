@@ -513,12 +513,14 @@ class InterpretationMixin(LabelingMixin):
         return tuple(cast(FiniteDomain, self.domains[nl.name]).size() for nl in nls)
     
     def new_finite_domain(self, name: str, values: Sequence):
+        """Convenience function for creating and adding a FiniteDomain at the same time."""
         nl = NodeLabel(name)
         dom = FiniteDomain(values)
         self.add_domain(nl, dom)
         return dom
 
     def new_finite_factor(self, name: str, weights):
+        """Convenience function for creating and adding a FiniteFactor at the same time."""
         if not self.has_edge_label_name(name):
             raise KeyError(f"there isn't an edge label named {name}")
         el = self.get_edge_label(name)

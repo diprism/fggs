@@ -4,6 +4,7 @@ from fggs.indices import *
 from fggs.semirings import RealSemiring
 from itertools import permutations, chain, repeat, count, product
 from math import inf, nan
+from packaging import version
 import torch
 
 def take(n, iter):
@@ -144,6 +145,7 @@ class TestEmbeddedTensor(unittest.TestCase):
         self.k6  = EmbeddingVar(35)
         self.k7  = EmbeddingVar(7)
         self.k8  = EmbeddingVar(36)
+        self.test_log_softmax = version.parse(torch.__version__) >= version.parse('1.13')
 
     def test_diag(self):
         phys = nrand(5,2)
@@ -400,6 +402,24 @@ class TestEmbeddedTensor(unittest.TestCase):
             t2 = t1.reshape(s)
             self.assertTEqual(t1.to_dense().reshape(s), t2.to_dense())
 
+    def test_any(self):
+        ft = [False, True]
+        for v in [(self.k2, self.k3),
+                  (self.k2, self.k3, ProductEmbedding(())),
+                  (self.k2, self.k3, self.k3),
+                  (self.k2, ProductEmbedding((self.k2, self.k3))),
+                  (self.k2, ProductEmbedding((self.k3, self.k3))),
+                  (SumEmbedding(0, self.k2, 1), self.k3),
+                  (SumEmbedding(0, self.k2, 1), SumEmbedding(1, self.k3, 0)),
+                  (SumEmbedding(0, self.k2, 1), ProductEmbedding((self.k2, self.k3)))]:
+            for phys in map(torch.tensor, product(product(ft, ft, ft), product(ft, ft, ft))):
+                for default in ft:
+                    t = EmbeddedTensor(phys, (self.k2, self.k3), v, default)
+                    for dim in range(t.ndim):
+                        for keepdim in ft:
+                            self.assertTEqual(t.any(dim=dim, keepdim=keepdim).to_dense(),
+                                              t.to_dense().any(dim=dim, keepdim=keepdim))
+
     def test_stack(self):
         ts = [EmbeddedTensor(nrand(2,3,6)),
               EmbeddedTensor(nrand(2,6,2),
@@ -423,8 +443,9 @@ class TestEmbeddedTensor(unittest.TestCase):
                 self.assertTEqual(td.to_dense(), t.to_dense())
                 self.assertTrue(isinstance(td.vembeds[d], EmbeddingVar))
                 self.assertTrue(td is td.dim_to_dense(dim=d))
-                self.assertTClose(t.log_softmax(d).to_dense(),
-                                  t.to_dense().log_softmax(d))
+                if self.test_log_softmax: # Skip apparent bug in log_softmax
+                    self.assertTClose(t.log_softmax(d).to_dense(),
+                                      t.to_dense().log_softmax(d))
             for p in permutations(range(t.ndim)):
                 tp = t.permute(p)
                 actual = list(tp) # test __iter__
