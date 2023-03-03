@@ -495,6 +495,16 @@ class EmbeddedTensor:
     def lt(self, other: float) -> EmbeddedTensor:
         return EmbeddedTensor(self.physical.lt(other), self.pembeds, self.vembeds, self.default < other)
 
+    def gt(self, other: float) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical.gt(other), self.pembeds, self.vembeds, self.default > other)
+
+    def eq(self, other: float) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical.eq(other), self.pembeds, self.vembeds, self.default == other)
+
+    def to(dtype: torch.dtype) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical.to(dtype=dtype), self.pembeds, self.vembeds,
+                              self.physical.new_tensor(self.default, dtype=dtype).item())
+
     def exp(self) -> EmbeddedTensor:
         return EmbeddedTensor(self.physical.exp(), self.pembeds, self.vembeds, exp(self.default))
 
