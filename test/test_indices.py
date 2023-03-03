@@ -414,6 +414,7 @@ class TestEmbeddedTensor(unittest.TestCase):
               EmbeddedTensor(nrand(3,2),
                              (self.k3, self.k2),
                              (self.k2, self.k3, ProductEmbedding((self.k2, self.k3))))]
+        print('torch.__version__ = ', torch.__version__)
         for t in ts:
             for d in range(-t.ndim-1, t.ndim+1):
                 self.assertTEqual(t.unsqueeze(d).to_dense(),
