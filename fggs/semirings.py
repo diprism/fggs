@@ -3,7 +3,7 @@ from math import inf
 import torch_semiring_einsum, torch_semiring_einsum.utils
 from abc import ABC, abstractmethod
 from typing import Union
-from fggs.typing import TensorLike, TensorLikeT
+from fggs.typing import TensorLikeT
 
 class Semiring(ABC):
     """A complete, commutative star-semiring (https://en.wikipedia.org/wiki/Semiring)."""
