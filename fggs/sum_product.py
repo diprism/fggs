@@ -14,8 +14,8 @@ import warnings
 
 import torch
 from torch import Tensor
-from fggs.indices import EmbeddedTensor, stack
-import torch_semiring_einsum
+from fggs.typing import TensorLikeT
+from fggs.indices import EmbeddedTensor, einsum, stack
 
 Function = Callable[[MultiTensor], MultiTensor]
 
@@ -103,7 +103,7 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
     return Jx
 
 
-def log_softmax(a: Tensor, dim: int) -> Tensor:
+def log_softmax(a: TensorLikeT, dim: int) -> TensorLikeT:
     # If a has infinite elements, log_softmax would return all nans.
     # In this case, make all the nonzero elements 1 and the zero elements 0.
     return a.gt(-inf).log_().to(dtype=a.dtype).where(a.eq(inf).any(dim, keepdim=True),
@@ -130,7 +130,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                 tau_edge_size = tau_edge.size()
                 tau_edge = tau_edge.reshape(tau_rule.size() + (-1,))
                 tau_edge = log_softmax(tau_edge, dim=-1)
-                tau_edge += tau_rule.unsqueeze(-1)
+                tau_edge = tau_edge.add(tau_rule.unsqueeze(-1))
                 tau_edge = tau_edge.reshape(tau_edge_size)
                 if edge.label in Jx.shapes[1]:
                     Jx.add_single((n, edge.label), tau_edge.exp())
@@ -156,8 +156,8 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
     """
 
     connected: Set[Node] = set()
-    indexing: List[Iterable[Node]] = []
-    tensors: List[Tensor] = []
+    indexing: List[Sequence[Node]] = []
+    tensors: List[EmbeddedTensor] = []
 
     # Derivatives can sometimes produce duplicate external nodes.
     # Rename them apart and add identity factors between them.
@@ -186,18 +186,10 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
             return semiring.zeros(fgg.shape(ext))
 
     if len(indexing) > 0:
-        # Each node corresponds to an index, so choose a letter for each
-        if len(connected) > 26:
-            raise Exception('cannot assign an index to each node')
-        node_to_index = {node: chr(ord('a') + i) for i, node in enumerate(connected)}
-
-        equation = ','.join([''.join(node_to_index[n] for n in indices) for indices in indexing]) + '->'
-
         # If an external node has no edges, einsum will complain, so remove it.
-        equation += ''.join(node_to_index[node] for node in ext if node in connected)
+        outputs = [node for node in ext if node in connected]
 
-        compiled = torch_semiring_einsum.compile_equation(equation)
-        out = semiring.einsum(compiled, *tensors)
+        out = einsum(tensors, indexing, outputs, semiring)
     else:
         out = semiring.from_int(1)
 
