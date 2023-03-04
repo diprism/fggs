@@ -335,17 +335,26 @@ class TestEmbeddedTensor(unittest.TestCase):
 
     def test_where(self):
         pv = [((self.k2, self.k3, self.k1), (self.k1,                     ProductEmbedding((self.k2, self.k3)))),
+              ((self.k2, self.k3),          (                             ProductEmbedding((self.k2, self.k3)),)),
+              ((self.k1,),                  (self.k1,                     ProductEmbedding(()))),
+              ((),                          ()),
               ((self.k2, self.k3),          (SumEmbedding(0, self.k2, 3), ProductEmbedding((self.k2, self.k3)))),
+              ((self.k2,),                  (SumEmbedding(0, self.k2, 3), ProductEmbedding(()))),
               ((self.k2, self.k3),          (SumEmbedding(2, self.k3, 0), ProductEmbedding((self.k2, self.k3)))),
+              ((self.k3,),                  (SumEmbedding(2, self.k3, 0), ProductEmbedding(()))),
               ((self.k2, self.k4),          (SumEmbedding(0, self.k2, 3), self.k4)),
+              ((self.k4,),                  (                             self.k4,)),
               ((self.k1, self.k3),          (self.k1,                     ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1), self.k3)))),
+              ((self.k3,),                  (                             ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1), self.k3)),)),
               ((self.k4, self.k1),          (self.k1,                     self.k4)),
               ((self.k1,),                  (self.k1,                     ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1),
+                                                                                            SumEmbedding(1,ProductEmbedding(()),1))))),
+              ((),                          (ProductEmbedding(()),        ProductEmbedding((SumEmbedding(0,ProductEmbedding(()),1),
                                                                                             SumEmbedding(1,ProductEmbedding(()),1)))))]
         for i, (t, u, c) in enumerate(product(
-                (EmbeddedTensor(1500+nrand(*(k.numel() for k in p)), p, v, 42   ) for p, v in pv),
-                (EmbeddedTensor(2500+nrand(*(k.numel() for k in p)), p, v, 37   ) for p, v in pv),
-                (EmbeddedTensor(     brand(*(k.numel() for k in p)), p, v, False) for p, v in pv))):
+                (EmbeddedTensor(1500+nrand(*(k.numel() for k in p)), p, v, 42) for p, v in pv),
+                (EmbeddedTensor(2500+nrand(*(k.numel() for k in p)), p, v, 37) for p, v in pv),
+                (EmbeddedTensor(     brand(*(k.numel() for k in p)), p, v, d ) for p, v in pv for d in (False,True)))):
             self.assertTEqual(t.where(c,u).to_dense(),
                               t.to_dense().where(c.to_dense(),u.to_dense()))
 

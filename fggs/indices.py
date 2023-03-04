@@ -49,11 +49,11 @@ We store these three pieces of information together in an EmbeddedTensor.
 """
 
 from __future__ import annotations
-from typing import Sequence, Iterator, List, Tuple, Dict, Set, Any, Optional, Union, Callable, cast
+from typing import Sequence, Iterator, List, Tuple, Dict, Set, FrozenSet, Any, Optional, Union, Callable, cast
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from warnings import warn
-from itertools import zip_longest
+from itertools import zip_longest, chain
 from functools import reduce
 from operator import mul
 from math import inf, log, log1p, exp, expm1, isnan, isinf
@@ -308,6 +308,30 @@ def project(virtual: Tensor,
                                tuple(stride[k] for k in pembeds),
                                offset),
             pembeds)
+
+def broadcast(vembedss: Sequence[Sequence[Embedding]]) \
+    -> Tuple[Tuple[List[Embedding], List[EmbeddingVar]], ...]:
+    """Apply broadcast semantics to the given vembed sequences
+       to make them equal in length (maximum ndim) and size,
+       creating fresh EmbeddingVars for each broadcast dimension.
+       We also return lists of the fresh EmbeddingVars created."""
+    rets : Tuple[Tuple[List[Embedding], List[EmbeddingVar]], ...] \
+         = tuple(([], []) for vembed in vembedss)
+    for es in zip_longest(*(reversed(vembeds) for vembeds in vembedss),
+                          fillvalue=ProductEmbedding(())):
+        ns = tuple(e.numel() for e in es)
+        Ns = frozenset(n for n in ns if n != 1)
+        if len(Ns) > 1: raise RuntimeError(f"Size mismatch {ns}")
+        N = tuple(Ns)[0] if Ns else 1
+        for ret, e, n in zip(rets, es, ns):
+            if n == N:
+                ret[0].insert(0, e)
+            else:
+                k = EmbeddingVar(N)
+                e = k if e == ProductEmbedding(()) else ProductEmbedding((e, k))
+                ret[0].insert(0, e)
+                ret[1].insert(0, k)
+    return rets
 
 @dataclass
 class EmbeddedTensor:
@@ -586,14 +610,16 @@ class EmbeddedTensor:
         pembeds1 : List[EmbeddingVar] = list(t.pembeds)
         pembeds2 : List[EmbeddingVar] = list(u.pembeds)
         lggs : List[Embedding] = []
-        for (e, f) in zip_longest(reversed(t.vembeds), reversed(u.vembeds)):
-            if e is None or e == ProductEmbedding(()) != f:
+        for e, f in zip_longest(reversed(t.vembeds),
+                                reversed(u.vembeds),
+                                fillvalue=ProductEmbedding(())):
+            if e == ProductEmbedding(()) != f:
                 new = EmbeddingVar(f.numel())
                 pembeds1.insert(0, new)
                 antisubst[0][(new, f)] = new
                 antisubst[1][new] = (new, f)
                 lggs.insert(0, new)
-            elif f is None or f == ProductEmbedding(()) != e:
+            elif f == ProductEmbedding(()) != e:
                 new = EmbeddingVar(e.numel())
                 pembeds2.insert(0, new)
                 antisubst[0][(e, new)] = new
@@ -676,29 +702,58 @@ class EmbeddedTensor:
             return EmbeddedTensor(ud, gs, lggs, default)
 
     def where(t, c, u) -> EmbeddedTensor:
-        if not (t.size() == c.size() == u.size()): raise NotImplementedError
-        if c.default: raise NotImplementedError
-        # Conform t to c
+        if c.default: t, u = u, t
         if not t.isdisjoint(c): t = t.freshen()
+        # Broadcast
+        (t_vembeds, _), (c_vembeds, c_new_pembeds), (u_vembeds, u_new_pembeds) \
+            = broadcast((t.vembeds, c.vembeds, u.vembeds))
+        c_pembeds = tuple(chain(c_new_pembeds, c.pembeds))
+        u_pembeds = tuple(chain(u_new_pembeds, u.pembeds))
+
+        # Extract the intersection of the non-default regions of t and c,
+        # and match up their dimensions
         subst : Subst = {}
-        if all(ec.unify(et, subst)
-               for ec, et in zip(c.vembeds, t.vembeds)):
-            projected_t = project(t.physical, None, t.pembeds, subst)
-            tc = EmbeddedTensor(projected_t[0], projected_t[1],
-                                [e.clone(subst) for e in c.pembeds],
-                                t.default).to_dense()
-        else:
-            tc = t.physical.new_tensor(t.default)
+        success = all(ec.unify(et, subst) for ec, et in zip(c_vembeds, t_vembeds))
+        if success:
+            kst    : FrozenSet[EmbeddingVar] = frozenset(k for e in t.pembeds     for k in e.fv(subst))
+            ksc    : FrozenSet[EmbeddingVar] = frozenset(k for e in c.pembeds     for k in e.fv(subst))
+            ksc_new: FrozenSet[EmbeddingVar] = frozenset(k for e in c_new_pembeds for k in e.fv(subst))
+            ks     : Tuple[EmbeddingVar,...] = tuple(ksc | ksc_new)
+            projected_t = project(t.physical, tuple(k for k in ks if k in kst), t.pembeds, subst)[0]
+            for i, k in enumerate(ks):
+                if k not in kst: projected_t = projected_t.unsqueeze(i)
+            projected_c = project(c.physical, tuple(k for k in ks if k in ksc), c.pembeds, subst)[0]
+            for i, k in enumerate(ks):
+                if k not in ksc: projected_c = projected_c.unsqueeze(i)
+            #assert(projected_t.ndim == projected_c.ndim and
+            #       all(len({n1, n2} - {1}) <= 1 for n1, n2 in zip(projected_t.size(),
+            #                                                      projected_c.size())))
+
+            # Is the non-default region of t a superset of the non-default region of c?
+            # In other words, did unification do anything to c_pembeds?
+            fullness_test = frozenset(e.forward(subst) for e in c_pembeds)
+            full = len(fullness_test) == len(c_pembeds) \
+                   and all(isinstance(e, EmbeddingVar) for e in fullness_test)
+
         # Expand u to c
         antisubst : AntiSubst = ({}, {})
         lggs = [ec.antiunify(eu, antisubst)
-                for ec, eu in zip(c.vembeds, u.vembeds)]
+                for ec, eu in zip(c_vembeds, u_vembeds)]
         (gs, ecs, eus) = zip(*((g, ec, eu) for (g, (ec, eu)) in antisubst[1].items())) \
                          if antisubst[1] else ((), (), ())
-        ud = EmbeddedTensor(u.physical, u.pembeds, eus, u.default).to_dense()
-        # Mutate expanded u with conformed t
-        up = project(ud, c.pembeds, ecs, {})[0]
-        up.copy_(tc.where(c.physical, up))
+        up = u.physical.expand(Size(k.numel() for k in u_pembeds))
+        ud = EmbeddedTensor(up, u_pembeds, eus, u.default).to_dense()
+
+        if not (success and full):
+            # Fill expanded u with t.default
+            up = project(ud, c_pembeds, ecs, {})[0]
+            up.masked_fill_(~c.physical if c.default else c.physical, t.default)
+        if success:
+            # Mutate expanded u with matched t
+            up = project(ud, ks, ecs, subst)[0]
+            up.copy_(up.where(projected_c, projected_t) if c.default
+                     else projected_t.where(projected_c, up))
+
         return EmbeddedTensor(ud, gs, lggs, u.default)
 
     def transpose(self, dim0, dim1) -> EmbeddedTensor:
