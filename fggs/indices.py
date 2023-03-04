@@ -364,6 +364,10 @@ class EmbeddedTensor:
 
     ndim = ndimension = property(dim)
 
+    @property
+    def dtype(self) -> torch.dtype:
+        return self.physical.dtype
+
     def freshen(self) -> EmbeddedTensor:
         """Return a new EmbeddedTensor (with same underlying physical storage)
            with fresh EmbeddingVars."""
