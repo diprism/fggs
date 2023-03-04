@@ -1,5 +1,6 @@
 from typing import TypeVar, Optional
 from typing_extensions import Protocol
+import torch
 
 TensorLikeT = TypeVar('TensorLikeT', bound='TensorLike')
 
