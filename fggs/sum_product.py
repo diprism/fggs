@@ -79,7 +79,7 @@ def F(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring) -> Mult
     for n in x.shapes[0]:
         for rule in fgg.rules(n):
             tau_rule = sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x, inputs, semiring=semiring)
-            Fx.add_single(n, tau_rule)
+            if tau_rule is not None: Fx.add_single(n, tau_rule)
     return Fx
 
 
@@ -94,12 +94,13 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                 ext = rule.rhs.ext + edge.nodes
                 edges = set(rule.rhs.edges()) - {edge}
                 tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), edges, ext, x, inputs, semiring=semiring)
-                if edge.label in Jx.shapes[1]:
-                    Jx.add_single((n, edge.label), tau_edge)
-                elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
-                    J_inputs.add_single((n, edge.label), tau_edge)
-                else:
-                    assert False
+                if tau_edge is not None:
+                    if edge.label in Jx.shapes[1]:
+                        Jx.add_single((n, edge.label), tau_edge)
+                    elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
+                        J_inputs.add_single((n, edge.label), tau_edge)
+                    else:
+                        assert False
     return Jx
 
 
@@ -114,12 +115,15 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
     """The Jacobian of F(semiring=LogSemiring), computed in the real semiring."""
     Jx = MultiTensor(x.shapes+x.shapes, semiring=RealSemiring(dtype=semiring.dtype, device=semiring.device))
     for n in x.shapes[0]:
-        rules = list(fgg.rules(n))
-        tau_rules: List[EmbeddedTensor] = [
-            sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(),
-                              rule.rhs.ext, x, inputs, semiring=semiring)
-            for rule in rules]
-        if len(tau_rules) == 0: continue
+        rules = tuple(fgg.rules(n))
+        tau_rule_pairs: List[Tuple[HRGRule, EmbeddedTensor]] = \
+            [(rule, tau_rule)
+             for rule in rules
+             for tau_rule in (sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(),
+                                                rule.rhs.ext, x, inputs, semiring=semiring),)
+             if tau_rule is not None]
+        if len(tau_rule_pairs) == 0: continue
+        rules, tau_rules = zip(*tau_rule_pairs)
         tau_rules_stacked : EmbeddedTensor = stack(tau_rules, dim=0)
         tau_rules_stacked = log_softmax(tau_rules_stacked, dim=0)
         for rule, tau_rule in zip(rules, tau_rules_stacked):
@@ -127,32 +131,34 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                 if edge.label not in Jx.shapes[1] and J_inputs is None: continue
                 ext = rule.rhs.ext + edge.nodes
                 tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(), ext, x, inputs, semiring=semiring)
-                tau_edge_size = tau_edge.size()
-                tau_edge = tau_edge.reshape(tau_rule.size() + (-1,))
-                tau_edge = log_softmax(tau_edge, dim=-1)
-                tau_edge = tau_edge.add(tau_rule.unsqueeze(-1))
-                tau_edge = tau_edge.reshape(tau_edge_size)
-                if edge.label in Jx.shapes[1]:
-                    Jx.add_single((n, edge.label), tau_edge.exp())
-                elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
-                    J_inputs.add_single((n, edge.label), tau_edge.exp())
-                else:
-                    assert False
+                if tau_edge is not None:
+                    tau_edge_size = tau_edge.size()
+                    tau_edge = tau_edge.reshape(tau_rule.size() + (-1,))
+                    tau_edge = log_softmax(tau_edge, dim=-1)
+                    tau_edge = tau_edge.add(tau_rule.unsqueeze(-1))
+                    tau_edge = tau_edge.reshape(tau_edge_size)
+                    if edge.label in Jx.shapes[1]:
+                        Jx.add_single((n, edge.label), tau_edge.exp())
+                    elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
+                        J_inputs.add_single((n, edge.label), tau_edge.exp())
+                    else:
+                        assert False
     return Jx
 
 
-def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ext: Sequence[Node], *inputses: MultiTensor, semiring: Semiring) -> EmbeddedTensor:
+def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ext: Sequence[Node], *inputses: MultiTensor, semiring: Semiring) -> Optional[EmbeddedTensor]:
     """Compute the sum-product of a set of edges.
 
     Parameters:
     - fgg
-    - ext: the nodes whose values are not summed over
+    - nodes: all the nodes, even disconnected ones
     - edges: the edges whose factors are multiplied together
+    - ext: the nodes whose values are not summed over
     - inputses: dicts of sum-products of nonterminals that have
       already been computed. Later elements of inputses override
       earlier elements.
 
-    Return: the tensor of sum-products
+    Return: the tensor of sum-products, or None if zero
     """
 
     connected: Set[Node] = set()
@@ -170,7 +176,7 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
             connected.update([n, ncopy])
             indexing.append([n, ncopy])
             nsize = cast(FiniteDomain, fgg.domains[n.label.name]).size()
-            tensors.append(semiring.eye(nsize))
+            tensors.append(EmbeddedTensor.eye(nsize,semiring))
         else:
             ext.append(n)
 
@@ -183,7 +189,7 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
                 break
         else:
             # One argument to einsum will be the zero tensor, so just return zero
-            return semiring.zeros(fgg.shape(ext))
+            return None
 
     if len(indexing) > 0:
         # If an external node has no edges, einsum will complain, so remove it.
@@ -191,22 +197,22 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
 
         out = einsum(tensors, indexing, outputs, semiring)
     else:
-        out = semiring.from_int(1)
+        out = EmbeddedTensor.from_int(1, semiring)
 
     # Restore any external nodes that were removed.
     if out.ndim < len(ext):
         eshape = fgg.shape(ext)
         vshape = [s if n in connected else 1 for n, s in zip(ext, eshape)]
         rshape = [1 if n in connected else s for n, s in zip(ext, eshape)]
-        out = out.view(*vshape).repeat(*rshape) # TODO: why not use expand rather than repeat?
+        out = out.view(*vshape).expand(*rshape)
 
     # Multiply in any disconnected internal nodes.
-    mul = 1
+    multiplier = 1
     for n in nodes:
         if n not in connected and n not in ext:
-            mul *= cast(FiniteDomain, fgg.domains[n.label.name]).size()
-    if mul > 1:
-        out = semiring.mul(out, semiring.from_int(mul))
+            multiplier *= cast(FiniteDomain, fgg.domains[n.label.name]).size()
+    if multiplier != 1:
+        out = semiring.mul(out, EmbeddedTensor.from_int(multiplier, semiring))
     return out
 
 
@@ -226,10 +232,16 @@ def linear(fgg: FGG, inputs: MultiTensor, out_labels: Sequence[EdgeLabel], semir
         for rule in fgg.rules(n):
             edges = [e for e in rule.rhs.edges() if e.label not in inputs]
             if len(edges) == 0:
-                F0.add_single(n, sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, inputs, semiring=semiring))
+                t = sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(),
+                                      rule.rhs.ext, inputs, semiring=semiring)
+                if t is not None:
+                    F0.add_single(n, t)
             elif len(edges) == 1:
                 [edge] = edges
-                J0.add_single((n, edge.label), sum_product_edges(fgg, rule.rhs.nodes(), set(rule.rhs.edges()) - {edge}, rule.rhs.ext + edge.nodes, inputs, semiring=semiring))
+                t = sum_product_edges(fgg, rule.rhs.nodes(), set(rule.rhs.edges()) - {edge},
+                                      rule.rhs.ext + edge.nodes, inputs, semiring=semiring)
+                if t is not None:
+                    J0.add_single((n, edge.label), t)
             else:
                 rhs = ' '.join(e.label.name for e in edges)
                 raise ValueError(f'FGG is not linearly recursive ({rule.lhs.name} -> {rhs})')
