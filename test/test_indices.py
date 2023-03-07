@@ -1,7 +1,7 @@
 import unittest
 
 from fggs.indices import *
-from fggs.semirings import RealSemiring
+from fggs.semirings import RealSemiring, LogSemiring
 from itertools import permutations, chain, repeat, count, product
 from math import inf, nan
 from packaging import version
@@ -163,6 +163,10 @@ class TestEmbeddedTensor(unittest.TestCase):
         self.assertTEqual(virt.to_dense(),
                           ((1-torch.eye(5))*42).unsqueeze(0).expand(2,5,5)
                           + phys.t().diag_embed(dim1=1, dim2=2))
+        for size in [0,1,2,3,10,100]:
+            for semiring in [RealSemiring(), LogSemiring()]:
+                self.assertTEqual(EmbeddedTensor.eye(size, semiring).to_dense(),
+                                  semiring.eye(size))
 
     def test_algebraic(self):
         ones = torch.ones(2,3)
