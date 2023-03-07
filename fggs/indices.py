@@ -349,6 +349,12 @@ class EmbeddedTensor:
         if self.vembeds is None:
             self.vembeds = self.pembeds
 
+    @staticmethod
+    def eye(size: int, semiring: Semiring) -> EmbeddedTensor:
+        k = EmbeddingVar(size)
+        return EmbeddedTensor(semiring.from_int(1).expand(size), (k,), (k,k),
+                              semiring.from_int(0).item())
+
     @property
     def shape(self):
         return self.size()
