@@ -38,7 +38,7 @@ class Semiring(ABC):
         pass
 
     @abstractmethod
-    def mul(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def mul(self, x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         pass
     
     @abstractmethod
@@ -103,8 +103,8 @@ class RealSemiring(Semiring):
         return x.sub(y).relu_().nan_to_num_(nan=0., posinf=inf)
 
     @staticmethod
-    def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return torch.mul(x, y).nan_to_num(nan=0., posinf=inf)
+    def mul(x, y):
+        return x.mul(y).nan_to_num_(nan=0., posinf=inf)
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
@@ -164,8 +164,8 @@ class LogSemiring(Semiring):
                 .nan_to_num_(nan=-inf, neginf=-inf, posinf=inf)
 
     @staticmethod
-    def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return torch.add(x, y).nan_to_num(nan=-inf, neginf=-inf, posinf=inf)
+    def mul(x, y):
+        return x.add(y).nan_to_num_(nan=-inf, neginf=-inf, posinf=inf)
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
@@ -222,8 +222,8 @@ class ViterbiSemiring(Semiring):
         return x
 
     @staticmethod
-    def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return torch.add(x, y).nan_to_num(nan=-inf, neginf=-inf, posinf=inf)
+    def mul(x, y):
+        return x.add(y).nan_to_num_(nan=-inf, neginf=-inf, posinf=inf)
     
     def star(self, x: torch.Tensor) -> torch.Tensor:
         return torch.where(x >= 0, inf, 0.).to(self.dtype)
