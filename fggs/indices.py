@@ -324,13 +324,11 @@ def broadcast(vembedss: Sequence[Sequence[Embedding]]) \
         if len(Ns) > 1: raise RuntimeError(f"Size mismatch {ns}")
         N = tuple(Ns)[0] if Ns else 1
         for ret, e, n in zip(rets, es, ns):
-            if n == N:
-                ret[0].insert(0, e)
-            else:
+            if n != N:
                 k = EmbeddingVar(N)
                 e = k if e == ProductEmbedding(()) else ProductEmbedding((e, k))
-                ret[0].insert(0, e)
                 ret[1].insert(0, k)
+            ret[0].insert(0, e)
     return rets
 
 @dataclass
@@ -348,6 +346,10 @@ class EmbeddedTensor:
             raise ValueError(f"EmbeddedTensor(tensor of {self.physical.size()}, pembeds of {Size(k.numel() for k in self.pembeds)}, ...)")
         if self.vembeds is None:
             self.vembeds = self.pembeds
+
+    @staticmethod
+    def from_int(x: int, semiring: Semiring) -> EmbeddedTensor:
+        return EmbeddedTensor(semiring.from_int(x), default=semiring.from_int(0).item())
 
     @staticmethod
     def eye(size: int, semiring: Semiring) -> EmbeddedTensor:
@@ -668,6 +670,10 @@ class EmbeddedTensor:
         return t.binary(u, 0, t.default + u.default,
                         lambda x, y: x.add_(y))
 
+    def mul(t, u: EmbeddedTensor) -> EmbeddedTensor:
+        return t.binary(u, 1, t.default * u.default,
+                        lambda x, y: x.mul_(y))
+
     def logaddexp(t, u: EmbeddedTensor) -> EmbeddedTensor:
         return t.binary(u, -inf, t.physical.new_tensor(t.default).logaddexp(
                                  u.physical.new_tensor(u.default)).item(),
@@ -841,6 +847,26 @@ class EmbeddedTensor:
         assert(len(vembeds) == len(s) and
                all(e.numel() == goal for e, goal in zip(vembeds, s)))
         return EmbeddedTensor(self.physical, self.pembeds, vembeds, self.default)
+
+    view = reshape
+
+    def expand(self: EmbeddedTensor, *sizes: int) -> EmbeddedTensor:
+        pembeds: List[EmbeddingVar] = list(self.pembeds)
+        vembeds: List[Embedding   ] = []
+        for e, n in zip_longest(reversed(self.vembeds), reversed(sizes)):
+            if n is None:
+                raise RuntimeError(f"EmbeddedTensor.expand: the number of sizes provided ({len(sizes)}) must be greater or equal to the number of dimensions in the tensor ({len(self.vembeds)})")
+            if e is None or e.numel() == 1 != n:
+                k = EmbeddingVar(n)
+                e = k if e is None or e == ProductEmbedding(()) else ProductEmbedding((e, k))
+                pembeds.insert(0, k)
+            assert(e.numel() == n)
+            vembeds.insert(0, e)
+        return EmbeddedTensor(self.physical.expand(*(k.numel() for k in pembeds)),
+                              pembeds, vembeds, self.default)
+
+    def repeat(self: EmbeddedTensor, *sizes: int) -> EmbeddedTensor:
+        return self.expand(*sizes).clone()
 
     def solve(a, b: EmbeddedTensor, semiring: Semiring) -> EmbeddedTensor:
         """Solve x = a @ x + b for x."""
