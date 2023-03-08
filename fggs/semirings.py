@@ -261,7 +261,9 @@ class BoolSemiring(Semiring):
     def sub(x, y):
         return x.logical_and(y.logical_not())
     
-    mul = staticmethod(torch.logical_and) # type: ignore
+    @staticmethod
+    def mul(x, y):
+        return x.logical_and(y)
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
