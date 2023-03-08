@@ -1020,4 +1020,4 @@ def einsum(tensors: Sequence[EmbeddedTensor],
              + '->' + ''.join(pembed_to_char[k] for k in output_pembeds)
     compiled = torch_semiring_einsum.compile_equation(equation)
     out = semiring.einsum(compiled, *(view for (view, pembed) in projected_tensors))
-    return EmbeddedTensor(out, output_pembeds, output_vembeds)
+    return EmbeddedTensor(out, output_pembeds, output_vembeds, default=zero.item())
