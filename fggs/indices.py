@@ -376,6 +376,13 @@ class EmbeddedTensor:
     def dtype(self) -> torch.dtype:
         return self.physical.dtype
 
+    @property
+    def requires_grad(self) -> bool:
+        return self.physical.requires_grad
+
+    def is_complex(self) -> bool:
+        return self.physical.is_complex()
+
     def freshen(self) -> EmbeddedTensor:
         """Return a new EmbeddedTensor (with same underlying physical storage)
            with fresh EmbeddingVars."""
@@ -388,6 +395,13 @@ class EmbeddedTensor:
     def clone(self) -> EmbeddedTensor:
         rename : Rename = {}
         return EmbeddedTensor(self.physical.clone(),
+                              tuple(k.freshen(rename) for k in self.pembeds),
+                              tuple(e.freshen(rename) for e in self.vembeds),
+                              self.default)
+
+    def detach(self: EmbeddedTensor) -> EmbeddedTensor:
+        rename : Rename = {}
+        return EmbeddedTensor(self.physical.detach(),
                               tuple(k.freshen(rename) for k in self.pembeds),
                               tuple(e.freshen(rename) for e in self.vembeds),
                               self.default)
@@ -491,7 +505,7 @@ class EmbeddedTensor:
         return self
 
     def log_(self) -> EmbeddedTensor:
-        self.default = log(self.default)
+        self.default = log(self.default) if self.default else -inf
         self.physical.log_()
         return self
 
@@ -547,8 +561,18 @@ class EmbeddedTensor:
     def expm1(self) -> EmbeddedTensor:
         return EmbeddedTensor(self.physical.expm1(), self.pembeds, self.vembeds, expm1(self.default))
 
+    def log(self) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical.log(), self.pembeds, self.vembeds,
+                              log(self.default) if self.default else -inf)
+
     def logical_not(self) -> EmbeddedTensor:
         return EmbeddedTensor(~self.physical, self.pembeds, self.vembeds, not self.default)
+
+    def __mul__(self, other: NumberType) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical * other, self.pembeds, self.vembeds, self.default * other)
+
+    def __truediv__(self, other: NumberType) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical / other, self.pembeds, self.vembeds, self.default / other)
 
     def log_softmax(self, dim) -> EmbeddedTensor:
         if dim < 0: dim += self.ndim
@@ -717,6 +741,9 @@ class EmbeddedTensor:
             up.add_(tp)
             return EmbeddedTensor(ud, gs, lggs, default)
 
+    __add__ = add
+    __sub__ = sub
+
     def where(t, c, u) -> EmbeddedTensor:
         if c.default: t, u = u, t
         if not t.isdisjoint(c): t = t.freshen()
@@ -810,10 +837,11 @@ class EmbeddedTensor:
         vembeds.insert(dim, ProductEmbedding(()))
         return EmbeddedTensor(self.physical, self.pembeds, vembeds, self.default)
 
-    def reshape(self, s: Sequence[int]) -> EmbeddedTensor:
+    def reshape(self, *shape: Union[int, Sequence[int]]) -> EmbeddedTensor:
         """Produce a new EmbeddedTensor that differs only in vembeds and whose
            size() is equal to s.  But if s contains 0 (so there is actually no
            element) or is all 1 (meaning a scalar) then make the result anew."""
+        s = list(n for arg in shape for n in ((arg,) if isinstance(arg, int) else arg))
         if self.physical.numel() <= 1:
             return EmbeddedTensor(self.physical.reshape(Size(s)), default=self.default)
         numel = self.numel()
@@ -822,7 +850,6 @@ class EmbeddedTensor:
         except ValueError:
             inferred = None
         if inferred is not None:
-            s = list(s)
             s[inferred] = numel // reduce(mul, s, -1)
         assert(all(goal >= 0 for goal in s))
         assert(0 == numel % reduce(mul, s, 1))
@@ -862,7 +889,7 @@ class EmbeddedTensor:
                 pembeds.insert(0, k)
             assert(e.numel() == n)
             vembeds.insert(0, e)
-        return EmbeddedTensor(self.physical.expand(*(k.numel() for k in pembeds)),
+        return EmbeddedTensor(self.physical.expand(Size(k.numel() for k in pembeds)),
                               pembeds, vembeds, self.default)
 
     def repeat(self: EmbeddedTensor, *sizes: int) -> EmbeddedTensor:
@@ -1020,4 +1047,4 @@ def einsum(tensors: Sequence[EmbeddedTensor],
              + '->' + ''.join(pembed_to_char[k] for k in output_pembeds)
     compiled = torch_semiring_einsum.compile_equation(equation)
     out = semiring.einsum(compiled, *(view for (view, pembed) in projected_tensors))
-    return EmbeddedTensor(out, output_pembeds, output_vembeds)
+    return EmbeddedTensor(out, output_pembeds, output_vembeds, default=zero.item())
