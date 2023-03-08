@@ -810,10 +810,11 @@ class EmbeddedTensor:
         vembeds.insert(dim, ProductEmbedding(()))
         return EmbeddedTensor(self.physical, self.pembeds, vembeds, self.default)
 
-    def reshape(self, s: Sequence[int]) -> EmbeddedTensor:
+    def reshape(self, *shape: Union[int, Sequence[int]]) -> EmbeddedTensor:
         """Produce a new EmbeddedTensor that differs only in vembeds and whose
            size() is equal to s.  But if s contains 0 (so there is actually no
            element) or is all 1 (meaning a scalar) then make the result anew."""
+        s = list(n for arg in shape for n in ((arg,) if isinstance(arg, int) else arg))
         if self.physical.numel() <= 1:
             return EmbeddedTensor(self.physical.reshape(Size(s)), default=self.default)
         numel = self.numel()
@@ -822,7 +823,6 @@ class EmbeddedTensor:
         except ValueError:
             inferred = None
         if inferred is not None:
-            s = list(s)
             s[inferred] = numel // reduce(mul, s, -1)
         assert(all(goal >= 0 for goal in s))
         assert(0 == numel % reduce(mul, s, 1))
@@ -862,7 +862,7 @@ class EmbeddedTensor:
                 pembeds.insert(0, k)
             assert(e.numel() == n)
             vembeds.insert(0, e)
-        return EmbeddedTensor(self.physical.expand(*(k.numel() for k in pembeds)),
+        return EmbeddedTensor(self.physical.expand(Size(k.numel() for k in pembeds)),
                               pembeds, vembeds, self.default)
 
     def repeat(self: EmbeddedTensor, *sizes: int) -> EmbeddedTensor:
