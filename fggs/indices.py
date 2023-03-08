@@ -376,6 +376,13 @@ class EmbeddedTensor:
     def dtype(self) -> torch.dtype:
         return self.physical.dtype
 
+    @property
+    def requires_grad(self) -> bool:
+        return self.physical.requires_grad
+
+    def is_complex(self) -> bool:
+        return self.physical.is_complex()
+
     def freshen(self) -> EmbeddedTensor:
         """Return a new EmbeddedTensor (with same underlying physical storage)
            with fresh EmbeddingVars."""
@@ -388,6 +395,13 @@ class EmbeddedTensor:
     def clone(self) -> EmbeddedTensor:
         rename : Rename = {}
         return EmbeddedTensor(self.physical.clone(),
+                              tuple(k.freshen(rename) for k in self.pembeds),
+                              tuple(e.freshen(rename) for e in self.vembeds),
+                              self.default)
+
+    def detach(self: EmbeddedTensor) -> EmbeddedTensor:
+        rename : Rename = {}
+        return EmbeddedTensor(self.physical.detach(),
                               tuple(k.freshen(rename) for k in self.pembeds),
                               tuple(e.freshen(rename) for e in self.vembeds),
                               self.default)
@@ -547,8 +561,18 @@ class EmbeddedTensor:
     def expm1(self) -> EmbeddedTensor:
         return EmbeddedTensor(self.physical.expm1(), self.pembeds, self.vembeds, expm1(self.default))
 
+    def log(self) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical.log(), self.pembeds, self.vembeds,
+                              log(self.default) if self.default else -inf)
+
     def logical_not(self) -> EmbeddedTensor:
         return EmbeddedTensor(~self.physical, self.pembeds, self.vembeds, not self.default)
+
+    def __mul__(self, other: NumberType) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical * other, self.pembeds, self.vembeds, self.default * other)
+
+    def __truediv__(self, other: NumberType) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical / other, self.pembeds, self.vembeds, self.default / other)
 
     def log_softmax(self, dim) -> EmbeddedTensor:
         if dim < 0: dim += self.ndim
@@ -716,6 +740,9 @@ class EmbeddedTensor:
             up = project(ud, pembeds1, es, {})[0]
             up.add_(tp)
             return EmbeddedTensor(ud, gs, lggs, default)
+
+    __add__ = add
+    __sub__ = sub
 
     def where(t, c, u) -> EmbeddedTensor:
         if c.default: t, u = u, t
