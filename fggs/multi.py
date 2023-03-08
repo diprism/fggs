@@ -21,7 +21,14 @@ class MultiTensor(MutableMapping[MultiTensorKey, EmbeddedTensor]):
         self._dict: Dict[MultiTensorKey, EmbeddedTensor] = {}
 
     def __getitem__(self, key: MultiTensorKey) -> EmbeddedTensor:
-        return self._dict[key]
+        try:
+            return self._dict[key]
+        except KeyError:
+            if isinstance(key, tuple):
+                shape = sum([s[x] for s, x in zip(self.shapes, key)], ())
+            else:
+                shape = self.shapes[0][key]
+            return EmbeddedTensor.from_int(0, self.semiring).expand(*shape)
     def __setitem__(self, key: MultiTensorKey, val: EmbeddedTensor):
         if isinstance(key, tuple):
             shape = sum([s[x] for s, x in zip(self.shapes, key)], ())
@@ -31,6 +38,7 @@ class MultiTensor(MutableMapping[MultiTensorKey, EmbeddedTensor]):
             raise ValueError(f'expected Tensor with shape {shape}, got {val.shape}')
         self._dict[key] = val
     def __delitem__(self, key: MultiTensorKey):              del self._dict[key]
+    def __contains__(self, key: MultiTensorKey):             return key in self._dict
     def __iter__(self) -> Iterator[MultiTensorKey]:          return iter(self._dict)
     def __len__(self) -> int:                                return len(self._dict)
     def __str__(self) -> str:                                return str(self._dict)

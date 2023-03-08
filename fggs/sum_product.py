@@ -107,8 +107,8 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
 def log_softmax(a: TensorLikeT, dim: int) -> TensorLikeT:
     # If a has infinite elements, log_softmax would return all nans.
     # In this case, make all the nonzero elements 1 and the zero elements 0.
-    return a.gt(-inf).log_().to(dtype=a.dtype).where(a.eq(inf).any(dim, keepdim=True),
-                                                     a.log_softmax(dim))
+    return a.gt(-inf).log().to(dtype=a.dtype).where(a.eq(inf).any(dim, keepdim=True),
+                                                    a.log_softmax(dim))
     
 def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
           J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
@@ -276,7 +276,7 @@ class SumProduct(torch.autograd.Function):
         ctx.out_labels = out_labels
         ctx.save_for_backward(*in_values)
 
-        inputs: MultiTensor = dict(zip(in_labels, in_values)) # type: ignore
+        inputs: MultiTensor = dict(zip(in_labels, (EmbeddedTensor(t, default=semiring.from_int(0).item()) for t in in_values))) # type: ignore
 
         if method == 'linear':
             out = linear(fgg, inputs, out_labels, semiring)
@@ -296,7 +296,7 @@ class SumProduct(torch.autograd.Function):
             out = x0
 
         ctx.out_values = out
-        return tuple(out[nt] if nt in out else semiring.zeros(fgg.shape(nt))
+        return tuple(out[nt].to_dense() if nt in out else semiring.zeros(fgg.shape(nt))
                      for nt in out_labels)
 
     @staticmethod
@@ -306,8 +306,8 @@ class SumProduct(torch.autograd.Function):
         real_semiring = RealSemiring(dtype=semiring.dtype, device=semiring.device)
 
         # Construct and solve linear system of equations
-        inputs = dict(zip(ctx.in_labels, ctx.saved_tensors))
-        f = dict(zip(ctx.out_labels, grad_out))
+        inputs = dict(zip(ctx.in_labels, (EmbeddedTensor(t, default=semiring.from_int(0).item()) for t in ctx.saved_tensors)))
+        f = dict(zip(ctx.out_labels, (EmbeddedTensor(t, default=semiring.from_int(0).item()) for t in grad_out)))
             
         jf_inputs = MultiTensor((FGGMultiShape(ctx.fgg, ctx.out_labels),
                                  FGGMultiShape(ctx.fgg, ctx.in_labels)),
@@ -323,7 +323,7 @@ class SumProduct(torch.autograd.Function):
                     
         # Compute gradients of inputs
         grad_t = multi_mv(jf_inputs, grad_nt, transpose=True)
-        grad_in = tuple(grad_t[el] for el in ctx.in_labels)
+        grad_in = tuple(grad_t[el].to_dense() for el in ctx.in_labels)
         
         return (None, None, None, None) + grad_in
 
