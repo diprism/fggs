@@ -491,7 +491,7 @@ class EmbeddedTensor:
         return self
 
     def log_(self) -> EmbeddedTensor:
-        self.default = log(self.default)
+        self.default = log(self.default) if self.default else -inf
         self.physical.log_()
         return self
 
