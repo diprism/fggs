@@ -451,6 +451,10 @@ class EmbeddedTensor:
                               tuple(e.freshen(rename) for e in self.vembeds),
                               self.default)
 
+    def default_to(self, default: NumberType) -> EmbeddedTensor:
+        return self if self.default is default \
+               else EmbeddedTensor(self.to_dense(), default=default)
+
     def clone(self) -> EmbeddedTensor:
         rename : Rename = {}
         return EmbeddedTensor(self.physical.clone(),
@@ -924,7 +928,9 @@ class EmbeddedTensor:
         """Solve x = a @ x + b for x."""
         assert(len(a.vembeds) == 2 and len(b.vembeds) >= 1)
         assert(a.vembeds[0].numel() == a.vembeds[1].numel() == b.vembeds[0].numel())
-        assert(a.default == b.default == semiring.from_int(0).item())
+        zero = semiring.from_int(0)
+        a = a.default_to(zero.item())
+        b = b.default_to(zero.item())
         if not a.isdisjoint(b): b = b.freshen()
         e = b.vembeds[0] # Embedding for b + a*b + ... + a^n*b (initially n=0)
                          # Invariant: a and e are disjoint
@@ -1038,7 +1044,7 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     one  = semiring.from_int(1)
     if len(tensors) == 0:
         return EmbeddedTensor(one, default=zero.item())
-    assert(all(tensor.default == zero.item() for tensor in tensors))
+    tensors = [tensor.default_to(zero.item()) for tensor in tensors]
     pembeds_fv : Set[EmbeddingVar] = set()
     index_to_vembed : Dict[Any, Embedding] = {}
     subst : Subst = {}
