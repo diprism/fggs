@@ -63,6 +63,9 @@ from torch import Tensor, Size
 import torch_semiring_einsum
 from fggs.semirings import Semiring
 
+__all__ = ['Embedding', 'EmbeddingVar', 'ProductEmbedding', 'SumEmbedding',
+           'EmbeddedTensor', 'stack', 'einsum']
+
 Rename = Dict["EmbeddingVar", "EmbeddingVar"]
 
 Subst = Dict["EmbeddingVar", "Embedding"]

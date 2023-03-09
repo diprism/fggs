@@ -112,10 +112,10 @@ class TestEmbedding(unittest.TestCase):
 
 class TestEmbeddedTensor(unittest.TestCase):
 
-    def assertTEqual(self, input: Tensor, other: Tensor) -> None:
+    def assertTEqual(self, input: torch.Tensor, other: torch.Tensor) -> None:
         self.assertTrue(torch.equal(input, other), (input, other))
 
-    def assertTClose(self, input: Tensor, other: Tensor) -> None:
+    def assertTClose(self, input: torch.Tensor, other: torch.Tensor) -> None:
         self.assertTrue(torch.allclose(input, other, equal_nan=True), (input, other))
 
     def assertEEqual(self, input: EmbeddedTensor, other: EmbeddedTensor) -> None:
@@ -496,7 +496,7 @@ class TestEmbeddedTensor(unittest.TestCase):
             self.assertTEqual(at_most_matrix(a.solve(b, semiring).to_dense()),
                               semiring.solve(a.to_dense(), at_most_matrix(b.to_dense())))
 
-def at_most_matrix(t: Tensor) -> Tensor:
+def at_most_matrix(t: torch.Tensor) -> torch.Tensor:
     return t.flatten(start_dim=1) if t.ndim >= 2 else t
 
 if __name__ == "__main__":
