@@ -63,6 +63,9 @@ from torch import Tensor, Size
 import torch_semiring_einsum
 from fggs.semirings import Semiring
 
+__all__ = ['Embedding', 'EmbeddingVar', 'ProductEmbedding', 'SumEmbedding',
+           'EmbeddedTensor', 'stack', 'einsum']
+
 Rename = Dict["EmbeddingVar", "EmbeddingVar"]
 
 Subst = Dict["EmbeddingVar", "Embedding"]
@@ -309,6 +312,65 @@ def project(virtual: Tensor,
                                offset),
             pembeds)
 
+def reshape_or_view(f: Callable[[Tensor, Size], Tensor],
+                    self: EmbeddedTensor,
+                    *shape: Union[int, Sequence[int]]) -> EmbeddedTensor:
+    """Produce a new EmbeddedTensor, with the same elements when flattened,
+       whose size() is equal to s."""
+    s = list(n for arg in shape for n in ((arg,) if isinstance(arg, int) else arg))
+    if self.physical.numel() <= 1:
+        return EmbeddedTensor(f(self.physical, Size(s)), default=self.default)
+    numel = self.numel()
+    try:
+        inferred = s.index(-1)
+    except ValueError:
+        inferred = None
+    if inferred is not None:
+        s[inferred] = numel // reduce(mul, s, -1)
+    assert(all(goal >= 0 for goal in s))
+    assert(numel == reduce(mul, s, 1))
+    subst : Subst = {}
+    primes : Iterator[Embedding] = (prime for e in self.vembeds
+                                          for prime in e.prime_factors(subst))
+    packs : List[List[Embedding]] = []
+    for goal in s:
+        pack = []
+        while goal != 1:
+            try:
+                prime = next(primes)
+            except StopIteration:
+                raise RuntimeError(f'Cannot reshape_or_view {self} to {s}')
+            pn = prime.numel()
+            if pn > goal:
+                if isinstance(prime, EmbeddingVar) and 0 == pn % goal:
+                    p1 = EmbeddingVar(goal)
+                    p2 = EmbeddingVar(pn // goal)
+                    subst[prime] = ProductEmbedding((p1, p2))
+                    prime = p1
+                    pn = goal
+                    primes = chain((p2,), primes)
+                else:
+                    raise RuntimeError(f'Cannot reshape_or_view {self} to {s}')
+            if 0 != goal % pn:
+                raise RuntimeError(f'Cannot reshape_or_view {self} to {s}')
+            pack.append(prime)
+            goal //= pn
+        packs.append(pack)
+    try:
+        while True:
+            packs[-1].append(next(primes))
+    except StopIteration:
+        pass
+    pembeds = tuple(k for e in self.pembeds
+                      for k in e.prime_factors(subst))
+    vembeds = tuple(pack[0].clone(subst) if len(pack) == 1
+                    else ProductEmbedding(tuple(e.clone(subst) for e in pack))
+                    for pack in packs)
+    assert(len(vembeds) == len(s) and
+           all(e.numel() == goal for e, goal in zip(vembeds, s)))
+    return EmbeddedTensor(f(self.physical, Size(k.numel() for k in pembeds)),
+                          pembeds, vembeds, self.default)
+
 def broadcast(vembedss: Sequence[Sequence[Embedding]]) \
     -> Tuple[Tuple[List[Embedding], List[EmbeddingVar]], ...]:
     """Apply broadcast semantics to the given vembed sequences
@@ -391,6 +453,10 @@ class EmbeddedTensor:
                               tuple(k.freshen(rename) for k in self.pembeds),
                               tuple(e.freshen(rename) for e in self.vembeds),
                               self.default)
+
+    def default_to(self, default: NumberType) -> EmbeddedTensor:
+        return self if self.default is default \
+               else EmbeddedTensor(self.to_dense(), default=default)
 
     def clone(self) -> EmbeddedTensor:
         rename : Rename = {}
@@ -838,44 +904,10 @@ class EmbeddedTensor:
         return EmbeddedTensor(self.physical, self.pembeds, vembeds, self.default)
 
     def reshape(self, *shape: Union[int, Sequence[int]]) -> EmbeddedTensor:
-        """Produce a new EmbeddedTensor that differs only in vembeds and whose
-           size() is equal to s.  But if s contains 0 (so there is actually no
-           element) or is all 1 (meaning a scalar) then make the result anew."""
-        s = list(n for arg in shape for n in ((arg,) if isinstance(arg, int) else arg))
-        if self.physical.numel() <= 1:
-            return EmbeddedTensor(self.physical.reshape(Size(s)), default=self.default)
-        numel = self.numel()
-        try:
-            inferred = s.index(-1)
-        except ValueError:
-            inferred = None
-        if inferred is not None:
-            s[inferred] = numel // reduce(mul, s, -1)
-        assert(all(goal >= 0 for goal in s))
-        assert(0 == numel % reduce(mul, s, 1))
-        primes : Iterator[Embedding] = (prime for e in self.vembeds
-                                              for prime in e.prime_factors({}))
-        packs : List[List[Embedding]] = []
-        for goal in s:
-            pack = []
-            numel = 1
-            while numel != goal:
-                prime = next(primes)
-                pack.append(prime)
-                numel *= prime.numel()
-            packs.append(pack)
-        try:
-            while True:
-                packs[-1].append(next(primes))
-        except StopIteration:
-            pass
-        vembeds = tuple(pack[0] if len(pack) == 1 else ProductEmbedding(tuple(pack))
-                        for pack in packs)
-        assert(len(vembeds) == len(s) and
-               all(e.numel() == goal for e, goal in zip(vembeds, s)))
-        return EmbeddedTensor(self.physical, self.pembeds, vembeds, self.default)
+        return reshape_or_view(lambda tensor, size: tensor.reshape(size), self, *shape)
 
-    view = reshape
+    def view(self, *shape: Union[int, Sequence[int]]) -> EmbeddedTensor:
+        return reshape_or_view(lambda tensor, size: tensor.view(size), self, *shape)
 
     def expand(self: EmbeddedTensor, *sizes: int) -> EmbeddedTensor:
         pembeds: List[EmbeddingVar] = list(self.pembeds)
@@ -899,7 +931,9 @@ class EmbeddedTensor:
         """Solve x = a @ x + b for x."""
         assert(len(a.vembeds) == 2 and len(b.vembeds) >= 1)
         assert(a.vembeds[0].numel() == a.vembeds[1].numel() == b.vembeds[0].numel())
-        assert(a.default == b.default == semiring.from_int(0).item())
+        zero = semiring.from_int(0)
+        a = a.default_to(zero.item())
+        b = b.default_to(zero.item())
         if not a.isdisjoint(b): b = b.freshen()
         e = b.vembeds[0] # Embedding for b + a*b + ... + a^n*b (initially n=0)
                          # Invariant: a and e are disjoint
@@ -1013,7 +1047,7 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     one  = semiring.from_int(1)
     if len(tensors) == 0:
         return EmbeddedTensor(one, default=zero.item())
-    assert(all(tensor.default == zero.item() for tensor in tensors))
+    tensors = [tensor.default_to(zero.item()) for tensor in tensors]
     pembeds_fv : Set[EmbeddingVar] = set()
     index_to_vembed : Dict[Any, Embedding] = {}
     subst : Subst = {}
