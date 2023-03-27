@@ -65,10 +65,11 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
     x1 = MultiTensor(x0.shapes, x0.semiring)
     for k in range(kmax):
         F0 = F(x0)
-        if F0.allclose(x0, tol): break
+        stop = F0.allclose(x0, tol)
         JF = J(x0)
         dX = multi_solve(JF, F0 - x0)
         x0.copy_(x0 + dX)
+        if stop: break
 
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
@@ -304,6 +305,7 @@ class SumProduct(torch.autograd.Function):
         semiring = ctx.opts['semiring']
         # gradients are always computed in the real semiring
         real_semiring = RealSemiring(dtype=semiring.dtype, device=semiring.device)
+        # TODO: which defaults below should be real_semiring.from_int(0).item()?
 
         # Construct and solve linear system of equations
         inputs = dict(zip(ctx.in_labels, (EmbeddedTensor(t, default=semiring.from_int(0).item()) for t in ctx.saved_tensors)))
