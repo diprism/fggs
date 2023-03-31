@@ -919,7 +919,8 @@ class EmbeddedTensor:
                 k = EmbeddingVar(n)
                 e = k if e is None or e == ProductEmbedding(()) else ProductEmbedding((e, k))
                 pembeds.insert(0, k)
-            assert(e.numel() == n)
+            if e.numel() != n:
+                raise RuntimeError(f"EmbeddedTensor.expand: cannot extend {self.size()} to {sizes}")
             vembeds.insert(0, e)
         return EmbeddedTensor(self.physical.expand(Size(k.numel() for k in pembeds)),
                               pembeds, vembeds, self.default)
