@@ -204,8 +204,7 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
     if out.ndim < len(ext):
         eshape = fgg.shape(ext)
         vshape = [s if n in connected else 1 for n, s in zip(ext, eshape)]
-        rshape = [1 if n in connected else s for n, s in zip(ext, eshape)]
-        out = out.view(*vshape).expand(*rshape)
+        out = out.view(*vshape).expand(*eshape)
 
     # Multiply in any disconnected internal nodes.
     multiplier = 1
