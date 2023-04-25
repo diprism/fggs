@@ -53,11 +53,12 @@ from typing import Sequence, Iterator, List, Tuple, Dict, Set, FrozenSet, Any, O
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from warnings import warn
-from itertools import zip_longest, chain
+from itertools import zip_longest, chain, count, product
 from functools import reduce
 from operator import mul
 from math import inf, log, log1p, exp, expm1, isnan, isinf
-from sys import float_info
+from string import ascii_uppercase
+from sys import float_info#, stderr
 import torch
 from torch import Tensor, Size
 import torch_semiring_einsum
@@ -75,8 +76,26 @@ AntiSubst = Tuple[Dict[Tuple["Embedding", "Embedding"], "EmbeddingVar"],
 
 NumberType = Union[bool, int, float] # omit the complex type to work around https://github.com/pytorch/pytorch/pull/91345
 
+def make_letterer(alphabet: str = ascii_uppercase) -> Callable[[Any], str]:
+    d : Dict[Any, str] = {}
+    l = (''.join(chars) for n in count(1)
+                        for chars in product(ascii_uppercase, repeat=n))
+    def letter(x: Any) -> str:
+        s = d.get(x)
+        if s is None:
+            s = next(l)
+            d[x] = s
+        return s
+    return letter
+
+debugging_letterer = make_letterer()
+
 class Embedding(ABC):
     """An injective mapping from physical indices to virtual indices."""
+
+    @abstractmethod
+    def depict(self, letterer: Callable[[EmbeddingVar], str]) -> str:
+        pass
 
     @abstractmethod
     def numel(self) -> int:
@@ -128,7 +147,7 @@ class Embedding(ABC):
             if len(e.factors) == len(f.factors):
                 return all(e1.unify(f1, subst) for e1, f1 in zip(e.factors, f.factors))
             else:
-                warn(f"Attempt to unify {e} and {f} indicates index type mismatch")
+                warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
                 return False
         if isinstance(e, SumEmbedding) and isinstance(f, SumEmbedding):
             if e.before == f.before and e.after == f.after:
@@ -138,24 +157,24 @@ class Embedding(ABC):
                 ftn = f.term.numel()
                 if e.before + etn + e.after != f.before + ftn + f.after \
                    or e.before + etn > f.before and f.before + ftn > e.before:
-                    warn(f"Attempt to unify {e} and {f} indicates index type mismatch")
+                    warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
                 return False
         if e.numel() != f.numel():
-            warn(f"Attempt to unify {e} and {f} indicates index type mismatch")
+            warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
         if isinstance(e, EmbeddingVar):
             subst[e] = f
             return True
         if isinstance(f, EmbeddingVar):
             subst[f] = e
             return True
-        warn(f"Attempt to unify {e} and {f} indicates index type mismatch")
+        warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
         return False
 
     def antiunify(e: Embedding, f: Embedding, antisubst: AntiSubst) -> Embedding:
         """Antiunify the two embeddings by extending antisubst.  Return least
            general generalization (whose variables are all in antisubst)."""
         if e.numel() != f.numel():
-            warn(f"Attempt to antiunify {e} and {f} indicates index type mismatch")
+            warn(f"Attempt to antiunify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
         if isinstance(e, ProductEmbedding) and isinstance(f, ProductEmbedding) and \
            len(e.factors) == len(f.factors):
             return ProductEmbedding(tuple(e1.antiunify(f1, antisubst)
@@ -176,6 +195,9 @@ class EmbeddingVar(Embedding):
 
     def __repr__(self) -> str:
         return f"EmbeddingVar(numel={self._numel}, id={id(self)})"
+
+    def depict(self, letterer):
+        return f"{letterer(self)}({self._numel})"
 
     def numel(self):
         return self._numel
@@ -223,6 +245,9 @@ class EmbeddingVar(Embedding):
 class ProductEmbedding(Embedding):
     factors: Tuple[Embedding, ...]
 
+    def depict(self, letterer):
+        return f"({'*'.join(e.depict(letterer) for e in self.factors)})"
+
     def numel(self):
         return reduce(mul, (e.numel() for e in self.factors), 1)
 
@@ -263,6 +288,9 @@ class SumEmbedding(Embedding):
     before: int
     term: Embedding
     after: int
+
+    def depict(self, letterer) -> str:
+        return f"({self.before}+{self.term.depict(letterer)}+{self.after})"
 
     def numel(self):
         return self.before + self.term.numel() + self.after
@@ -418,6 +446,11 @@ class EmbeddedTensor:
         k = EmbeddingVar(size)
         return EmbeddedTensor(semiring.from_int(1).expand(size), (k,), (k,k),
                               semiring.from_int(0).item())
+
+    def depict(self, letterer: Callable[[EmbeddingVar], str]) -> str:
+        P = (k.depict(letterer) for k in self.pembeds)
+        V = (e.depict(letterer) for e in self.vembeds)
+        return f"[\\{' '.join(P)} -> {', '.join(V)} | default {self.default}]"
 
     @property
     def shape(self):
@@ -1022,6 +1055,15 @@ def stack(tensors: Sequence[EmbeddedTensor], dim: int = 0) -> EmbeddedTensor:
         project(p, tuple(e.forward(subst) for e in t.pembeds), ks, subst)[0].copy_(t.physical)
     return EmbeddedTensor(physical, pembeds, vembeds, default)
 
+def depict_einsum(tensors: Sequence[EmbeddedTensor],
+                  inputs: Sequence[Sequence[Any]],
+                  output: Sequence[Any]) -> str:
+    letterer = make_letterer()
+    return "\n".join(["einsum("] +
+                     [f"    {' '.join(map(letterer, input))} {tensor.depict(letterer)}"
+                      for tensor, input in zip(tensors, inputs)] +
+                     [f"    -> {' '.join(map(letterer, output))})"])
+
 def einsum(tensors: Sequence[EmbeddedTensor],
            inputs: Sequence[Sequence[Any]], 
            output: Sequence[Any],
@@ -1047,6 +1089,7 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     one  = semiring.from_int(1)
     if len(tensors) == 0:
         return EmbeddedTensor(one, default=zero.item())
+    #print(depict_einsum(tensors, inputs, output), file=stderr)
     tensors = [tensor.default_to(zero.item()) for tensor in tensors]
     pembeds_fv : Set[EmbeddingVar] = set()
     index_to_vembed : Dict[Any, Embedding] = {}
@@ -1079,6 +1122,7 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     equation = ','.join(''.join(pembed_to_char[k] for k in pembeds)
                         for (view, pembeds) in projected_tensors) \
              + '->' + ''.join(pembed_to_char[k] for k in output_pembeds)
+    #print(equation, file=stderr)
     compiled = torch_semiring_einsum.compile_equation(equation)
     out = semiring.einsum(compiled, *(view for (view, pembed) in projected_tensors))
     return EmbeddedTensor(out, output_pembeds, output_vembeds, default=zero.item())
