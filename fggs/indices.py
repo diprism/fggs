@@ -138,6 +138,11 @@ class Embedding(ABC):
            renaming whenever necessary."""
         pass
 
+    @abstractmethod
+    def reassociate(self) -> Iterator[Embedding]:
+        """Remove EmbeddingVars of size 1, and merge nested ProductEmbeddings."""
+        pass
+
     def unify(e: Embedding, f: Embedding, subst: Subst) -> bool:
         """Unify the two embeddings by extending subst. Return success."""
         e = e.forward(subst)
@@ -241,6 +246,10 @@ class EmbeddingVar(Embedding):
             rename[self] = ret = EmbeddingVar(self._numel)
             return ret
 
+    def reassociate(self):
+        if self._numel != 1:
+            yield self
+
 @dataclass(frozen=True)
 class ProductEmbedding(Embedding):
     factors: Tuple[Embedding, ...]
@@ -283,6 +292,10 @@ class ProductEmbedding(Embedding):
     def freshen(self, rename):
         return ProductEmbedding(tuple(e.freshen(rename) for e in self.factors))
 
+    def reassociate(self):
+        for e in self.factors:
+            yield from e.reassociate()
+
 @dataclass(frozen=True)
 class SumEmbedding(Embedding):
     before: int
@@ -312,6 +325,12 @@ class SumEmbedding(Embedding):
 
     def freshen(self, rename):
         return SumEmbedding(self.before, self.term.freshen(rename), self.after)
+
+    def reassociate(self):
+        factors = tuple(self.term.reassociate())
+        return SumEmbedding(self.before,
+                            factors[0] if len(factors) == 1 else ProductEmbedding(factors),
+                            self.after)
 
 def project(virtual: Tensor,
             pembeds: Optional[Sequence[EmbeddingVar]],
@@ -397,7 +416,7 @@ def reshape_or_view(f: Callable[[Tensor, Size], Tensor],
     assert(len(vembeds) == len(s) and
            all(e.numel() == goal for e, goal in zip(vembeds, s)))
     return EmbeddedTensor(f(self.physical, Size(k.numel() for k in pembeds)),
-                          pembeds, vembeds, self.default)
+                          pembeds, vembeds, self.default).reassociate()
 
 def broadcast(vembedss: Sequence[Sequence[Embedding]]) \
     -> Tuple[Tuple[List[Embedding], List[EmbeddingVar]], ...]:
@@ -485,6 +504,15 @@ class EmbeddedTensor:
         return EmbeddedTensor(self.physical,
                               tuple(k.freshen(rename) for k in self.pembeds),
                               tuple(e.freshen(rename) for e in self.vembeds),
+                              self.default)
+
+    def reassociate(self) -> EmbeddedTensor:
+        """Remove physical dimensions of size 1, and merge nested ProductEmbeddings."""
+        return EmbeddedTensor(self.physical.squeeze(),
+                              tuple(k for k in self.pembeds if k.numel() != 1),
+                              tuple(factors[0] if len(factors) == 1 else ProductEmbedding(factors)
+                                    for e in self.vembeds
+                                    for factors in (tuple(e.reassociate()),)),
                               self.default)
 
     def default_to(self, default: NumberType) -> EmbeddedTensor:
@@ -923,12 +951,12 @@ class EmbeddedTensor:
 
     def flatten(self) -> EmbeddedTensor:
         if len(self.vembeds) == 1:
-            return self
+            return self.reassociate()
         else:
             return EmbeddedTensor(self.physical,
                                   self.pembeds,
                                   (ProductEmbedding(tuple(self.vembeds)),),
-                                  self.default)
+                                  self.default).reassociate()
 
     def unsqueeze(self, dim: int) -> EmbeddedTensor:
         if dim < 0: dim += self.ndim + 1
