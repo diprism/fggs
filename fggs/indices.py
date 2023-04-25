@@ -488,7 +488,7 @@ class EmbeddedTensor:
                               self.default)
 
     def default_to(self, default: NumberType) -> EmbeddedTensor:
-        return self if self.default is default \
+        return self if self.default == default or isnan(self.default) and isnan(default) \
                else EmbeddedTensor(self.to_dense(), default=default)
 
     def clone(self) -> EmbeddedTensor:
