@@ -11,7 +11,7 @@ class FGGDerivation:
     asst: Dict[Node, Any]
     children: Dict[Edge, 'FGGDerivation']
 
-    def derive(self):
+    def derive(self) -> Tuple[FactorGraph, Dict[Node, Any]]:
         """Returns the factor graph and assignment derived by this derivation."""
 
         graph = FactorGraph()
