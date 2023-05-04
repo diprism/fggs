@@ -196,7 +196,7 @@ class LabelingMixin:
 class Graph(LabelingMixin, object):
     """A hypergraph or hypergraph fragment (= hypergraph with external nodes)."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._nodes: Dict[str, Node]            = dict() # from ids to Nodes
         self._edges: Dict[str, Edge]            = dict() # from ids to Edges
         self._node_labels: Dict[str, NodeLabel] = dict() # from names to NodeLabels
@@ -532,7 +532,7 @@ class InterpretationMixin(LabelingMixin):
 class FactorGraph(InterpretationMixin, Graph):
     """A factor graph."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.domains: Dict[str, Domain] = {}
         self.factors: Dict[str, Factor] = {}
