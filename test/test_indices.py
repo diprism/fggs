@@ -1,11 +1,12 @@
 import unittest
 
 from fggs.indices import *
-from fggs.semirings import RealSemiring, LogSemiring
+from fggs.semirings import RealSemiring, LogSemiring, ViterbiSemiring
 from itertools import permutations, chain, repeat, count, product
 from math import inf, nan
 from packaging import version
 import torch
+import torch_semiring_einsum
 
 def take(n, iter):
     return (x for _, x in zip(range(n), iter))
@@ -282,21 +283,27 @@ class TestEmbeddedTensor(unittest.TestCase):
     def test_einsum(self):
         matrix = nrand(36)
         vector = nrand(7)
+        t1 = EmbeddedTensor(matrix, (self.k8,), (self.k8,))
+        t2 = EmbeddedTensor(vector, (self.k7,), (self.k7,))
+        # Here's a sum-type factor represented compactly:
+        t3 = EmbeddedTensor(torch.tensor(1).unsqueeze_(0).expand([35]),
+                            (self.k6,),
+                            (SumEmbedding(1,self.k6,0),self.k6))
+        # Here's a product-type factor represented compactly:
+        t4 = EmbeddedTensor(torch.tensor(1).unsqueeze_(0).unsqueeze_(0).expand([5,7]),
+                            (self.k5,self.k7),
+                            (ProductEmbedding((self.k5,self.k7)),self.k5,self.k7))
+
         semiring = RealSemiring(dtype=matrix.dtype, device=matrix.device)
         self.assertTClose(matrix[1:].reshape((5,7)).matmul(vector),
-                          einsum([EmbeddedTensor(matrix, (self.k8,), (self.k8,)),
-                                  EmbeddedTensor(vector, (self.k7,), (self.k7,)),
-                                  # Here's a sum-type factor represented compactly:
-                                  EmbeddedTensor(torch.tensor(1).unsqueeze_(0).expand([35]),
-                                                 (self.k6,),
-                                                 (SumEmbedding(1,self.k6,0),self.k6)),
-                                  # Here's a product-type factor represented compactly:
-                                  EmbeddedTensor(torch.tensor(1).unsqueeze_(0).unsqueeze_(0).expand([5,7]),
-                                                 (self.k5,self.k7),
-                                                 (ProductEmbedding((self.k5,self.k7)),self.k5,self.k7))],
-                                 ("m", "i", "mf", "foi"),
-                                 "o",
-                                 semiring).to_dense())
+                          einsum([t1, t2, t3, t4], ("m", "i", "mf", "foi"), "o", semiring).to_dense())
+        out , ptr  = log_viterbi_einsum_forward([t1, t2, t3, t4], ("m", "i", "mf", "foi"), "o", ViterbiSemiring())
+        out0, ptr0 = torch_semiring_einsum.log_viterbi_einsum_forward(
+                         torch_semiring_einsum.compile_equation("m,i,mf,foi->o"),
+                         t1.to_dense(), t2.to_dense(), t3.to_dense(), t4.to_dense())
+        self.assertTEqual(out0, out.to_dense())
+        self.assertTEqual(ptr0, ptr.to_dense())
+
         self.assertTEqual(torch.ones(()),
                           einsum([], [], [], semiring).to_dense())
         self.assertTEqual(torch.zeros((6)),

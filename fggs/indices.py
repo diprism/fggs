@@ -53,18 +53,19 @@ from typing import Sequence, Iterator, List, Tuple, Dict, Set, FrozenSet, Any, O
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from warnings import warn
-from itertools import zip_longest, chain
+from itertools import zip_longest, chain, count, product, repeat
 from functools import reduce
 from operator import mul
 from math import inf, log, log1p, exp, expm1, isnan, isinf
-from sys import float_info
+from string import ascii_uppercase
+from sys import float_info#, stderr
 import torch
 from torch import Tensor, Size
 import torch_semiring_einsum
 from fggs.semirings import Semiring
 
 __all__ = ['Embedding', 'EmbeddingVar', 'ProductEmbedding', 'SumEmbedding',
-           'EmbeddedTensor', 'stack', 'einsum']
+           'EmbeddedTensor', 'stack', 'einsum', 'log_viterbi_einsum_forward']
 
 Rename = Dict["EmbeddingVar", "EmbeddingVar"]
 
@@ -75,8 +76,26 @@ AntiSubst = Tuple[Dict[Tuple["Embedding", "Embedding"], "EmbeddingVar"],
 
 NumberType = Union[bool, int, float] # omit the complex type to work around https://github.com/pytorch/pytorch/pull/91345
 
+def make_letterer(alphabet: str = ascii_uppercase) -> Callable[[Any], str]:
+    d : Dict[Any, str] = {}
+    l = (''.join(chars) for n in count(1)
+                        for chars in product(ascii_uppercase, repeat=n))
+    def letter(x: Any) -> str:
+        s = d.get(x)
+        if s is None:
+            s = next(l)
+            d[x] = s
+        return s
+    return letter
+
+debugging_letterer = make_letterer()
+
 class Embedding(ABC):
     """An injective mapping from physical indices to virtual indices."""
+
+    @abstractmethod
+    def depict(self, letterer: Callable[[EmbeddingVar], str]) -> str:
+        pass
 
     @abstractmethod
     def numel(self) -> int:
@@ -119,6 +138,11 @@ class Embedding(ABC):
            renaming whenever necessary."""
         pass
 
+    @abstractmethod
+    def reassociate(self) -> Iterator[Embedding]:
+        """Remove EmbeddingVars of size 1, and merge nested ProductEmbeddings."""
+        pass
+
     def unify(e: Embedding, f: Embedding, subst: Subst) -> bool:
         """Unify the two embeddings by extending subst. Return success."""
         e = e.forward(subst)
@@ -128,7 +152,7 @@ class Embedding(ABC):
             if len(e.factors) == len(f.factors):
                 return all(e1.unify(f1, subst) for e1, f1 in zip(e.factors, f.factors))
             else:
-                warn(f"Attempt to unify {e} and {f} indicates index type mismatch")
+                warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
                 return False
         if isinstance(e, SumEmbedding) and isinstance(f, SumEmbedding):
             if e.before == f.before and e.after == f.after:
@@ -138,24 +162,24 @@ class Embedding(ABC):
                 ftn = f.term.numel()
                 if e.before + etn + e.after != f.before + ftn + f.after \
                    or e.before + etn > f.before and f.before + ftn > e.before:
-                    warn(f"Attempt to unify {e} and {f} indicates index type mismatch")
+                    warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
                 return False
         if e.numel() != f.numel():
-            warn(f"Attempt to unify {e} and {f} indicates index type mismatch")
+            warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
         if isinstance(e, EmbeddingVar):
             subst[e] = f
             return True
         if isinstance(f, EmbeddingVar):
             subst[f] = e
             return True
-        warn(f"Attempt to unify {e} and {f} indicates index type mismatch")
+        warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
         return False
 
     def antiunify(e: Embedding, f: Embedding, antisubst: AntiSubst) -> Embedding:
         """Antiunify the two embeddings by extending antisubst.  Return least
            general generalization (whose variables are all in antisubst)."""
         if e.numel() != f.numel():
-            warn(f"Attempt to antiunify {e} and {f} indicates index type mismatch")
+            warn(f"Attempt to antiunify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
         if isinstance(e, ProductEmbedding) and isinstance(f, ProductEmbedding) and \
            len(e.factors) == len(f.factors):
             return ProductEmbedding(tuple(e1.antiunify(f1, antisubst)
@@ -176,6 +200,9 @@ class EmbeddingVar(Embedding):
 
     def __repr__(self) -> str:
         return f"EmbeddingVar(numel={self._numel}, id={id(self)})"
+
+    def depict(self, letterer):
+        return f"{letterer(self)}({self._numel})"
 
     def numel(self):
         return self._numel
@@ -219,9 +246,16 @@ class EmbeddingVar(Embedding):
             rename[self] = ret = EmbeddingVar(self._numel)
             return ret
 
+    def reassociate(self):
+        if self._numel != 1:
+            yield self
+
 @dataclass(frozen=True)
 class ProductEmbedding(Embedding):
     factors: Tuple[Embedding, ...]
+
+    def depict(self, letterer):
+        return f"({'*'.join(e.depict(letterer) for e in self.factors)})"
 
     def numel(self):
         return reduce(mul, (e.numel() for e in self.factors), 1)
@@ -258,11 +292,18 @@ class ProductEmbedding(Embedding):
     def freshen(self, rename):
         return ProductEmbedding(tuple(e.freshen(rename) for e in self.factors))
 
+    def reassociate(self):
+        for e in self.factors:
+            yield from e.reassociate()
+
 @dataclass(frozen=True)
 class SumEmbedding(Embedding):
     before: int
     term: Embedding
     after: int
+
+    def depict(self, letterer) -> str:
+        return f"({self.before}+{self.term.depict(letterer)}+{self.after})"
 
     def numel(self):
         return self.before + self.term.numel() + self.after
@@ -284,6 +325,12 @@ class SumEmbedding(Embedding):
 
     def freshen(self, rename):
         return SumEmbedding(self.before, self.term.freshen(rename), self.after)
+
+    def reassociate(self):
+        factors = tuple(self.term.reassociate())
+        return SumEmbedding(self.before,
+                            factors[0] if len(factors) == 1 else ProductEmbedding(factors),
+                            self.after)
 
 def project(virtual: Tensor,
             pembeds: Optional[Sequence[EmbeddingVar]],
@@ -369,7 +416,7 @@ def reshape_or_view(f: Callable[[Tensor, Size], Tensor],
     assert(len(vembeds) == len(s) and
            all(e.numel() == goal for e, goal in zip(vembeds, s)))
     return EmbeddedTensor(f(self.physical, Size(k.numel() for k in pembeds)),
-                          pembeds, vembeds, self.default)
+                          pembeds, vembeds, self.default).reassociate()
 
 def broadcast(vembedss: Sequence[Sequence[Embedding]]) \
     -> Tuple[Tuple[List[Embedding], List[EmbeddingVar]], ...]:
@@ -419,6 +466,11 @@ class EmbeddedTensor:
         return EmbeddedTensor(semiring.from_int(1).expand(size), (k,), (k,k),
                               semiring.from_int(0).item())
 
+    def depict(self, letterer: Callable[[EmbeddingVar], str]) -> str:
+        P = (k.depict(letterer) for k in self.pembeds)
+        V = (e.depict(letterer) for e in self.vembeds)
+        return f"[\\{' '.join(P)} -> {', '.join(V)} | default {self.default}]"
+
     @property
     def shape(self):
         return self.size()
@@ -454,8 +506,17 @@ class EmbeddedTensor:
                               tuple(e.freshen(rename) for e in self.vembeds),
                               self.default)
 
+    def reassociate(self) -> EmbeddedTensor:
+        """Remove physical dimensions of size 1, and merge nested ProductEmbeddings."""
+        return EmbeddedTensor(self.physical.squeeze(),
+                              tuple(k for k in self.pembeds if k.numel() != 1),
+                              tuple(factors[0] if len(factors) == 1 else ProductEmbedding(factors)
+                                    for e in self.vembeds
+                                    for factors in (tuple(e.reassociate()),)),
+                              self.default)
+
     def default_to(self, default: NumberType) -> EmbeddedTensor:
-        return self if self.default is default \
+        return self if self.default == default or isnan(self.default) and isnan(default) \
                else EmbeddedTensor(self.to_dense(), default=default)
 
     def clone(self) -> EmbeddedTensor:
@@ -890,12 +951,12 @@ class EmbeddedTensor:
 
     def flatten(self) -> EmbeddedTensor:
         if len(self.vembeds) == 1:
-            return self
+            return self.reassociate()
         else:
             return EmbeddedTensor(self.physical,
                                   self.pembeds,
                                   (ProductEmbedding(tuple(self.vembeds)),),
-                                  self.default)
+                                  self.default).reassociate()
 
     def unsqueeze(self, dim: int) -> EmbeddedTensor:
         if dim < 0: dim += self.ndim + 1
@@ -1023,8 +1084,18 @@ def stack(tensors: Sequence[EmbeddedTensor], dim: int = 0) -> EmbeddedTensor:
         project(p, tuple(e.forward(subst) for e in t.pembeds), ks, subst)[0].copy_(t.physical)
     return EmbeddedTensor(physical, pembeds, vembeds, default)
 
+def depict_einsum(fun: str,
+                  tensors: Sequence[EmbeddedTensor],
+                  inputs: Sequence[Sequence[Any]],
+                  output: Sequence[Any]) -> str:
+    letterer = make_letterer()
+    return "\n".join([fun + "("] +
+                     [f"    {' '.join(map(letterer, input))} {tensor.depict(letterer)}"
+                      for tensor, input in zip(tensors, inputs)] +
+                     [f"    -> {' '.join(map(letterer, output))})"])
+
 def einsum(tensors: Sequence[EmbeddedTensor],
-           inputs: Sequence[Sequence[Any]], 
+           inputs: Sequence[Sequence[Any]],
            output: Sequence[Any],
            semiring: Semiring) -> EmbeddedTensor:
     """
@@ -1048,6 +1119,7 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     one  = semiring.from_int(1)
     if len(tensors) == 0:
         return EmbeddedTensor(one, default=zero.item())
+    #print(depict_einsum('einsum', tensors, inputs, output), file=stderr)
     tensors = [tensor.default_to(zero.item()) for tensor in tensors]
     pembeds_fv : Set[EmbeddingVar] = set()
     index_to_vembed : Dict[Any, Embedding] = {}
@@ -1058,8 +1130,6 @@ def einsum(tensors: Sequence[EmbeddedTensor],
         if not tensor.isdisjoint(pembeds_fv): tensor = tensor.freshen()
         freshened_tensors.append(tensor)
         pembeds_fv.update(tensor.pembeds)
-        if len(tensor.vembeds) != len(input):
-            raise ValueError(f"einsum(tensor {i} with {len(tensor.vembeds)} virtual dimensions, input {i} with {len(input)} indices, ...)")
         for vembed, index in zip(tensor.vembeds, input):
             if index in index_to_vembed:
                 if not index_to_vembed[index].unify(vembed, subst):
@@ -1069,17 +1139,90 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     output_vembeds = tuple(index_to_vembed[index].clone(subst) for index in output)
     if result_is_zero:
         # TODO: represent all-zero tensor with empty physical?
-        return EmbeddedTensor(zero.expand(tuple(e.numel() for e in output_vembeds)),
-                              default=zero.item())
+        outsize = tuple(e.numel() for e in output_vembeds)
+        return EmbeddedTensor(zero.expand(outsize), default=zero.item())
     projected_tensors = [project(tensor.physical, None, tensor.pembeds, subst)
                          for tensor in freshened_tensors]
-    pembed_to_char = {k: chr(ord('a') + i)
-                      for i, k in enumerate(frozenset(k for (view, pembeds) in projected_tensors
-                                                        for k in pembeds))}
+    pembed_to_char = dict(zip(chain.from_iterable(pembeds for (view, pembeds) in projected_tensors),
+                              map(chr, count(ord('a')))))
     output_pembeds = tuple(frozenset(k for e in output_vembeds for k in e.fv(subst)))
     equation = ','.join(''.join(pembed_to_char[k] for k in pembeds)
                         for (view, pembeds) in projected_tensors) \
              + '->' + ''.join(pembed_to_char[k] for k in output_pembeds)
+    #print(equation, file=stderr)
     compiled = torch_semiring_einsum.compile_equation(equation)
     out = semiring.einsum(compiled, *(view for (view, pembed) in projected_tensors))
     return EmbeddedTensor(out, output_pembeds, output_vembeds, default=zero.item())
+
+def log_viterbi_einsum_forward(tensors: Sequence[EmbeddedTensor],
+                               inputs: Sequence[Sequence[Any]],
+                               output: Sequence[Any],
+                               semiring: Semiring) -> Tuple[EmbeddedTensor, EmbeddedTensor]:
+    assert(len(tensors) == len(inputs))
+    assert(len(tensor.vembeds) == len(input)
+           for tensor, input in zip(tensors, inputs))
+    assert(frozenset(index for input in inputs for index in input) >= frozenset(output))
+    zero = semiring.from_int(0)
+    one  = semiring.from_int(1)
+    if len(tensors) == 0:
+        return (EmbeddedTensor(one, default=zero.item()),
+                EmbeddedTensor(one.new_empty((0,), dtype=torch.long), default=0))
+    #print(depict_einsum('log_viterbi_einsum_forward', tensors, inputs, output), file=stderr)
+    tensors = [tensor.default_to(zero.item()) for tensor in tensors]
+    pembeds_fv : Set[EmbeddingVar] = set()
+    index_to_vembed : Dict[Any, Embedding] = {}
+    subst : Subst = {}
+    freshened_tensors = []
+    result_is_zero = False
+    for (i, (tensor, input)) in enumerate(zip(tensors, inputs)):
+        if not tensor.isdisjoint(pembeds_fv): tensor = tensor.freshen()
+        freshened_tensors.append(tensor)
+        pembeds_fv.update(tensor.pembeds)
+        for vembed, index in zip(tensor.vembeds, input):
+            if index in index_to_vembed:
+                if not index_to_vembed[index].unify(vembed, subst):
+                    result_is_zero = True
+            else:
+                index_to_vembed[index] = vembed
+    output_vembeds = tuple(index_to_vembed.pop(index).clone(subst) for index in output)
+    # Remaining entries in index_to_vembed are what's summed out, ordered by first appearance in inputs
+    if result_is_zero:
+        # TODO: represent all-zero tensor with empty physical?
+        outsize = tuple(e.numel() for e in output_vembeds)
+        return (EmbeddedTensor(zero.expand(outsize), default=zero.item()),
+                EmbeddedTensor(zero.new_zeros((), dtype=torch.long)
+                                   .expand(outsize + (len(output_vembeds),)), default=0))
+    projected_tensors = [project(tensor.physical, None, tensor.pembeds, subst)
+                         for tensor in freshened_tensors]
+    pembed_to_char = dict(zip(chain.from_iterable(pembeds for (view, pembeds) in projected_tensors),
+                              map(chr, count(ord('a')))))
+    output_pembeds_set = frozenset(k for e in output_vembeds for k in e.fv(subst))
+    output_pembeds = tuple(output_pembeds_set)
+    equation = ','.join(''.join(pembed_to_char[k] for k in pembeds)
+                        for (view, pembeds) in projected_tensors) \
+             + '->' + ''.join(pembed_to_char[k] for k in output_pembeds)
+    #print(equation, file=stderr)
+    compiled = torch_semiring_einsum.compile_equation(equation)
+    out, ptr = torch_semiring_einsum.log_viterbi_einsum_forward(compiled,
+                 *(view for (view, pembed) in projected_tensors), block_size=1)
+                                                                  #TODO: why block_size=1?
+    assert(len(output_pembeds) == out.ndim == ptr.ndim - 1)
+    assert(len(pembed_to_char) == len(output_pembeds) + ptr.size(-1))
+    pembed_to_ptr = dict(chain(((k, torch.arange(k.numel())
+                                         .view(Size(chain((-1,), repeat(1, out.ndim-1))))
+                                         .movedim(0, i)
+                                         .expand(out.size()))
+                                for i, k in enumerate(output_pembeds)),
+                               zip((k for k in pembed_to_char.keys()
+                                      if k not in output_pembeds_set),
+                                   ptr.movedim(-1,0))))
+    ptrs : List[Tensor] = []
+    for e in index_to_vembed.values():
+        o, s = e.stride(subst)
+        p = ptr.new_tensor(o, dtype=torch.long).expand(out.size())
+        for k, alpha in s.items(): p = p.add(pembed_to_ptr[k], alpha=alpha)
+        ptrs.append(p)
+    k = EmbeddingVar(ptr.size(-1))
+    assert(k.numel() == len(ptrs))
+    return (EmbeddedTensor(out, output_pembeds, output_vembeds, default=zero.item()),
+            EmbeddedTensor(torch.stack(ptrs), (k,) + output_pembeds, output_vembeds + (k,), default=0))
