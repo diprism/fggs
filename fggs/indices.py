@@ -53,7 +53,7 @@ from typing import Sequence, Iterator, List, Tuple, Dict, Set, FrozenSet, Any, O
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from warnings import warn
-from itertools import zip_longest, chain, count, product
+from itertools import zip_longest, chain, count, product, repeat
 from functools import reduce
 from operator import mul
 from math import inf, log, log1p, exp, expm1, isnan, isinf
@@ -65,7 +65,7 @@ import torch_semiring_einsum
 from fggs.semirings import Semiring
 
 __all__ = ['Embedding', 'EmbeddingVar', 'ProductEmbedding', 'SumEmbedding',
-           'EmbeddedTensor', 'stack', 'einsum']
+           'EmbeddedTensor', 'stack', 'einsum', 'log_viterbi_einsum_forward']
 
 Rename = Dict["EmbeddingVar", "EmbeddingVar"]
 
@@ -1083,17 +1083,18 @@ def stack(tensors: Sequence[EmbeddedTensor], dim: int = 0) -> EmbeddedTensor:
         project(p, tuple(e.forward(subst) for e in t.pembeds), ks, subst)[0].copy_(t.physical)
     return EmbeddedTensor(physical, pembeds, vembeds, default)
 
-def depict_einsum(tensors: Sequence[EmbeddedTensor],
+def depict_einsum(fun: str,
+                  tensors: Sequence[EmbeddedTensor],
                   inputs: Sequence[Sequence[Any]],
                   output: Sequence[Any]) -> str:
     letterer = make_letterer()
-    return "\n".join(["einsum("] +
+    return "\n".join([fun + "("] +
                      [f"    {' '.join(map(letterer, input))} {tensor.depict(letterer)}"
                       for tensor, input in zip(tensors, inputs)] +
                      [f"    -> {' '.join(map(letterer, output))})"])
 
 def einsum(tensors: Sequence[EmbeddedTensor],
-           inputs: Sequence[Sequence[Any]], 
+           inputs: Sequence[Sequence[Any]],
            output: Sequence[Any],
            semiring: Semiring) -> EmbeddedTensor:
     """
@@ -1117,7 +1118,7 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     one  = semiring.from_int(1)
     if len(tensors) == 0:
         return EmbeddedTensor(one, default=zero.item())
-    #print(depict_einsum(tensors, inputs, output), file=stderr)
+    #print(depict_einsum('einsum', tensors, inputs, output), file=stderr)
     tensors = [tensor.default_to(zero.item()) for tensor in tensors]
     pembeds_fv : Set[EmbeddingVar] = set()
     index_to_vembed : Dict[Any, Embedding] = {}
@@ -1128,8 +1129,6 @@ def einsum(tensors: Sequence[EmbeddedTensor],
         if not tensor.isdisjoint(pembeds_fv): tensor = tensor.freshen()
         freshened_tensors.append(tensor)
         pembeds_fv.update(tensor.pembeds)
-        if len(tensor.vembeds) != len(input):
-            raise ValueError(f"einsum(tensor {i} with {len(tensor.vembeds)} virtual dimensions, input {i} with {len(input)} indices, ...)")
         for vembed, index in zip(tensor.vembeds, input):
             if index in index_to_vembed:
                 if not index_to_vembed[index].unify(vembed, subst):
@@ -1139,13 +1138,12 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     output_vembeds = tuple(index_to_vembed[index].clone(subst) for index in output)
     if result_is_zero:
         # TODO: represent all-zero tensor with empty physical?
-        return EmbeddedTensor(zero.expand(tuple(e.numel() for e in output_vembeds)),
-                              default=zero.item())
+        outsize = tuple(e.numel() for e in output_vembeds)
+        return EmbeddedTensor(zero.expand(outsize), default=zero.item())
     projected_tensors = [project(tensor.physical, None, tensor.pembeds, subst)
                          for tensor in freshened_tensors]
-    pembed_to_char = {k: chr(ord('a') + i)
-                      for i, k in enumerate(frozenset(k for (view, pembeds) in projected_tensors
-                                                        for k in pembeds))}
+    pembed_to_char = dict(zip(chain.from_iterable(pembeds for (view, pembeds) in projected_tensors),
+                              map(chr, count(ord('a')))))
     output_pembeds = tuple(frozenset(k for e in output_vembeds for k in e.fv(subst)))
     equation = ','.join(''.join(pembed_to_char[k] for k in pembeds)
                         for (view, pembeds) in projected_tensors) \
@@ -1154,3 +1152,76 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     compiled = torch_semiring_einsum.compile_equation(equation)
     out = semiring.einsum(compiled, *(view for (view, pembed) in projected_tensors))
     return EmbeddedTensor(out, output_pembeds, output_vembeds, default=zero.item())
+
+def log_viterbi_einsum_forward(tensors: Sequence[EmbeddedTensor],
+                               inputs: Sequence[Sequence[Any]],
+                               output: Sequence[Any],
+                               semiring: Semiring) -> Tuple[EmbeddedTensor, EmbeddedTensor]:
+    assert(len(tensors) == len(inputs))
+    assert(len(tensor.vembeds) == len(input)
+           for tensor, input in zip(tensors, inputs))
+    assert(frozenset(index for input in inputs for index in input) >= frozenset(output))
+    zero = semiring.from_int(0)
+    one  = semiring.from_int(1)
+    if len(tensors) == 0:
+        return (EmbeddedTensor(one, default=zero.item()),
+                EmbeddedTensor(one.new_empty((0,), dtype=torch.long), default=0))
+    #print(depict_einsum('log_viterbi_einsum_forward', tensors, inputs, output), file=stderr)
+    tensors = [tensor.default_to(zero.item()) for tensor in tensors]
+    pembeds_fv : Set[EmbeddingVar] = set()
+    index_to_vembed : Dict[Any, Embedding] = {}
+    subst : Subst = {}
+    freshened_tensors = []
+    result_is_zero = False
+    for (i, (tensor, input)) in enumerate(zip(tensors, inputs)):
+        if not tensor.isdisjoint(pembeds_fv): tensor = tensor.freshen()
+        freshened_tensors.append(tensor)
+        pembeds_fv.update(tensor.pembeds)
+        for vembed, index in zip(tensor.vembeds, input):
+            if index in index_to_vembed:
+                if not index_to_vembed[index].unify(vembed, subst):
+                    result_is_zero = True
+            else:
+                index_to_vembed[index] = vembed
+    output_vembeds = tuple(index_to_vembed.pop(index).clone(subst) for index in output)
+    # Remaining entries in index_to_vembed are what's summed out, ordered by first appearance in inputs
+    if result_is_zero:
+        # TODO: represent all-zero tensor with empty physical?
+        outsize = tuple(e.numel() for e in output_vembeds)
+        return (EmbeddedTensor(zero.expand(outsize), default=zero.item()),
+                EmbeddedTensor(zero.new_zeros((), dtype=torch.long)
+                                   .expand(outsize + (len(output_vembeds),)), default=0))
+    projected_tensors = [project(tensor.physical, None, tensor.pembeds, subst)
+                         for tensor in freshened_tensors]
+    pembed_to_char = dict(zip(chain.from_iterable(pembeds for (view, pembeds) in projected_tensors),
+                              map(chr, count(ord('a')))))
+    output_pembeds_set = frozenset(k for e in output_vembeds for k in e.fv(subst))
+    output_pembeds = tuple(output_pembeds_set)
+    equation = ','.join(''.join(pembed_to_char[k] for k in pembeds)
+                        for (view, pembeds) in projected_tensors) \
+             + '->' + ''.join(pembed_to_char[k] for k in output_pembeds)
+    #print(equation, file=stderr)
+    compiled = torch_semiring_einsum.compile_equation(equation)
+    out, ptr = torch_semiring_einsum.log_viterbi_einsum_forward(compiled,
+                 *(view for (view, pembed) in projected_tensors), block_size=1)
+                                                                  #TODO: why block_size=1?
+    assert(len(output_pembeds) == out.ndim == ptr.ndim - 1)
+    assert(len(pembed_to_char) == len(output_pembeds) + ptr.size(-1))
+    pembed_to_ptr = dict(chain(((k, torch.arange(k.numel())
+                                         .view(Size(chain((-1,), repeat(1, out.ndim-1))))
+                                         .movedim(0, i)
+                                         .expand(out.size()))
+                                for i, k in enumerate(output_pembeds)),
+                               zip((k for k in pembed_to_char.keys()
+                                      if k not in output_pembeds_set),
+                                   ptr.movedim(-1,0))))
+    ptrs : List[Tensor] = []
+    for e in index_to_vembed.values():
+        o, s = e.stride(subst)
+        p = ptr.new_tensor(o, dtype=torch.long).expand(out.size())
+        for k, alpha in s.items(): p = p.add(pembed_to_ptr[k], alpha=alpha)
+        ptrs.append(p)
+    k = EmbeddingVar(ptr.size(-1))
+    assert(k.numel() == len(ptrs))
+    return (EmbeddedTensor(out, output_pembeds, output_vembeds, default=zero.item()),
+            EmbeddedTensor(torch.stack(ptrs), (k,) + output_pembeds, output_vembeds + (k,), default=0))
