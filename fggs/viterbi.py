@@ -63,12 +63,16 @@ def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring)
             if result is not None:
                 tau_rule, pointer = result
                 if n in Fx:
-                    lhs_pointer[n].masked_fill_(tau_rule > Fx[n], ri)
+                    tau_rule.gt(Fx[n]).masked_fill_into(lhs_pointer[n], ri)
                     Fx[n] = Fx[n].maximum(tau_rule)
                 else:
                     lhs_pointer[n].fill_(ri)
                     Fx[n] = tau_rule
-                rhs_pointer[n].append(pointer)
+                rhs_pointer[n].append(pointer.to_dense())
+                # TODO: instead of converting to_dense() above, implement EmbeddedTensor.__getitem__
+                # to support "rhs_pointer[nt][ri][nt_asst]" in the reconstruct method
+            else:
+                rhs_pointer[n].append(None)
 
     return (Fx, lhs_pointer, rhs_pointer)
 
@@ -90,7 +94,7 @@ def viterbi(fgg: FGG, start_asst: Tuple[int,...], **opts) -> FGGDerivation:
     kmax = opts.get('kmax', 1000)
     tol = opts.get('tol', 1e-6)
 
-    maximum: MultiTensor = {t:fgg.factors[t.name].weights for t in fgg.terminals()} # type: ignore
+    maximum: MultiTensor = {t:EmbeddedTensor(fgg.factors[t.name].weights, default=semiring.from_int(0).item()) for t in fgg.terminals()} # type: ignore
     lhs_pointer = {}
     rhs_pointer = {}
     for comp in scc(nonterminal_graph(fgg)):
