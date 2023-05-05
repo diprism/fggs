@@ -570,7 +570,17 @@ class EmbeddedTensor:
         project(virtual, self.pembeds, self.vembeds, {})[0].copy_(self.physical)
         return virtual
 
-    def dim_to_dense(self, dim) -> EmbeddedTensor:
+    def masked_fill_into(self, dest: Tensor, value: NumberType) -> None:
+        """Fill elements of dest tensor with value where self is True."""
+        projected = project(dest, self.pembeds, self.vembeds, {})[0]
+        if self.default:
+            preserved = torch.where(self.physical, value, projected)
+            dest.fill_(value)
+            projected.copy_(preserved)
+        else:
+            projected.masked_fill_(self.physical, value)
+
+    def dim_to_dense(self, dim: int) -> EmbeddedTensor:
         """Expand to an equivalent EmbeddedTensor but make sure that the given
            dimension is dense and independent of the other dimensions."""
         vembeds = list(self.vembeds)
@@ -669,14 +679,35 @@ class EmbeddedTensor:
         self.physical /= other
         return self
 
-    def lt(self, other: float) -> EmbeddedTensor:
-        return EmbeddedTensor(self.physical.lt(other), self.pembeds, self.vembeds, self.default < other)
+    def lt(self, other: Union[float, EmbeddedTensor]) -> EmbeddedTensor:
+        if isinstance(other, EmbeddedTensor):
+            return self.binary(other, self.default < other.default, torch.lt)
+        else:
+            return EmbeddedTensor(self.physical.lt(other), self.pembeds, self.vembeds, self.default < other)
 
-    def gt(self, other: float) -> EmbeddedTensor:
-        return EmbeddedTensor(self.physical.gt(other), self.pembeds, self.vembeds, self.default > other)
+    def le(self, other: Union[float, EmbeddedTensor]) -> EmbeddedTensor:
+        if isinstance(other, EmbeddedTensor):
+            return self.binary(other, self.default <= other.default, torch.le)
+        else:
+            return EmbeddedTensor(self.physical.le(other), self.pembeds, self.vembeds, self.default <= other)
 
-    def eq(self, other: float) -> EmbeddedTensor:
-        return EmbeddedTensor(self.physical.eq(other), self.pembeds, self.vembeds, self.default == other)
+    def gt(self, other: Union[float, EmbeddedTensor]) -> EmbeddedTensor:
+        if isinstance(other, EmbeddedTensor):
+            return self.binary(other, self.default > other.default, torch.gt)
+        else:
+            return EmbeddedTensor(self.physical.gt(other), self.pembeds, self.vembeds, self.default > other)
+
+    def ge(self, other: Union[float, EmbeddedTensor]) -> EmbeddedTensor:
+        if isinstance(other, EmbeddedTensor):
+            return self.binary(other, self.default >= other.default, torch.ge)
+        else:
+            return EmbeddedTensor(self.physical.ge(other), self.pembeds, self.vembeds, self.default >= other)
+
+    def eq(self, other: Union[float, EmbeddedTensor]) -> EmbeddedTensor:
+        if isinstance(other, EmbeddedTensor):
+            return self.binary(other, self.default == other.default, torch.eq)
+        else:
+            return EmbeddedTensor(self.physical.eq(other), self.pembeds, self.vembeds, self.default == other)
 
     def to(self, dtype: torch.dtype) -> EmbeddedTensor:
         return EmbeddedTensor(self.physical.to(dtype=dtype), self.pembeds, self.vembeds,
@@ -794,8 +825,8 @@ class EmbeddedTensor:
                        if antisubst[1] else ((), (), ())
         return (gs, lggs, pembeds1, es, pembeds2, fs)
 
-    def binary(t, u: EmbeddedTensor, identity: NumberType, default: NumberType,
-               operate_: Callable[[Tensor, Tensor], Any]) -> EmbeddedTensor:
+    def commutative(t, u: EmbeddedTensor, identity: NumberType, default: NumberType,
+                    operate_: Callable[[Tensor, Tensor], Any]) -> EmbeddedTensor:
         """Apply a symmetric binary operation with identity."""
         (gs, lggs, pembeds1, es, pembeds2, fs) = t.expansion(u)
         tp = t.physical.expand(Size(k.numel() for k in pembeds1))
@@ -817,32 +848,42 @@ class EmbeddedTensor:
             operate_(up, tp)
             return EmbeddedTensor(ud, gs, lggs, default)
 
+    def binary(t, u: EmbeddedTensor, default: NumberType,
+               operate: Callable[[Tensor, Tensor], Tensor]) -> EmbeddedTensor:
+        """Apply a binary operation."""
+        (gs, lggs, pembeds1, es, pembeds2, fs) = t.expansion(u)
+        tp = t.physical.expand(Size(k.numel() for k in pembeds1))
+        up = u.physical.expand(Size(k.numel() for k in pembeds2))
+        td = EmbeddedTensor(tp, pembeds1, es, t.default).to_dense()
+        ud = EmbeddedTensor(up, pembeds2, fs, u.default).to_dense()
+        return EmbeddedTensor(operate(td, ud), gs, lggs, default)
+
     def add(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        return t.binary(u, 0, t.default + u.default,
-                        lambda x, y: x.add_(y))
+        return t.commutative(u, 0, t.default + u.default,
+                             lambda x, y: x.add_(y))
 
     def mul(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        return t.binary(u, 1, t.default * u.default,
-                        lambda x, y: x.mul_(y))
+        return t.commutative(u, 1, t.default * u.default,
+                             lambda x, y: x.mul_(y))
 
     def logaddexp(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        return t.binary(u, -inf, t.physical.new_tensor(t.default).logaddexp(
-                                 u.physical.new_tensor(u.default)).item(),
-                        lambda x, y: torch.logaddexp(x, y, out=x))
+        return t.commutative(u, -inf, t.physical.new_tensor(t.default).logaddexp(
+                                      u.physical.new_tensor(u.default)).item(),
+                             lambda x, y: torch.logaddexp(x, y, out=x))
 
     def maximum(t, u: EmbeddedTensor) -> EmbeddedTensor:
-        return t.binary(u, -inf, max(t.default, u.default),
-                        lambda x, y: torch.maximum(x, y, out=x))
+        return t.commutative(u, -inf, max(t.default, u.default),
+                             lambda x, y: torch.maximum(x, y, out=x))
 
     def logical_or(t, u: EmbeddedTensor) -> EmbeddedTensor:
         # TODO: short circuiting
-        return t.binary(u, False, t.default or u.default,
-                        lambda x, y: x.logical_or_(y))
+        return t.commutative(u, False, t.default or u.default,
+                             lambda x, y: x.logical_or_(y))
 
     def logical_and(t, u: EmbeddedTensor) -> EmbeddedTensor:
         # TODO: short circuiting
-        return t.binary(u, True, t.default and u.default,
-                        lambda x, y: x.logical_and_(y))
+        return t.commutative(u, True, t.default and u.default,
+                             lambda x, y: x.logical_and_(y))
 
     def sub(t, u: EmbeddedTensor) -> EmbeddedTensor:
         """Subtract two EmbeddedTensors."""
