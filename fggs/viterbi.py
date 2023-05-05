@@ -7,20 +7,20 @@ from fggs.derivations import *
 from fggs.sum_product import FGGMultiShape
 from fggs.multi import MultiTensor
 
-from typing import Dict, Tuple, NamedTuple, Set, List, Iterable, Optional
+from typing import Dict, Tuple, NamedTuple, Set, List, Sequence, Optional
 import torch
 from torch import Tensor
-import torch_semiring_einsum
+from fggs.indices import EmbeddedTensor, log_viterbi_einsum_forward
 
 # The Viterbi algorithm can be thought of as a sum-product in a
 # special semiring, but there are enough little differences that it
 # seems easier to implement it separately.
 
-def sum_product_edges(fgg: FGG, rule: HRGRule, *inputses: MultiTensor, semiring: Semiring) -> Tuple[Tensor, Optional[Tensor]]:
+def sum_product_edges(fgg: FGG, rule: HRGRule, *inputses: MultiTensor, semiring: Semiring) -> Optional[Tuple[EmbeddedTensor, EmbeddedTensor]]:
 
     connected: Set[Node] = set()
-    indexing: List[Iterable[Node]] = []
-    tensors: List[Tensor] = []
+    indexing: List[Sequence[Node]] = []
+    tensors: List[EmbeddedTensor] = []
 
     for edge in rule.rhs.edges():
         connected.update(edge.nodes)
@@ -31,34 +31,19 @@ def sum_product_edges(fgg: FGG, rule: HRGRule, *inputses: MultiTensor, semiring:
                 break
         else:
             # One argument to einsum will be the zero tensor, so just return zero
-            return (semiring.zeros(fgg.shape(rule.rhs.ext)), None)
+            return None
 
-    ptr: torch.Tensor
-    if len(indexing) > 0:
-        # Each node corresponds to an index, so choose a letter for each
-        if len(connected) > 26:
-            raise Exception('cannot assign an index to each node')
-        node_to_index = {node: chr(ord('a') + i) for i, node in enumerate(connected)}
+    # If an external node has no edges, einsum will complain, so remove it.
+    outputs = [node for node in rule.rhs.ext if node in connected]
 
-        equation = ','.join([''.join(node_to_index[n] for n in indices) for indices in indexing]) + '->'
-
-        # If an external node has no edges, einsum will complain, so remove it.
-        equation += ''.join(node_to_index[node] for node in rule.rhs.ext if node in connected)
-
-        compiled = torch_semiring_einsum.compile_equation(equation)
-        out, ptr = torch_semiring_einsum.log_viterbi_einsum_forward(compiled, *tensors, block_size=1)
-    else:
-        out = semiring.from_int(1)
-        ptr = torch.empty(size=[0], dtype=torch.int, device=semiring.device)
+    out, ptr = log_viterbi_einsum_forward(tensors, indexing, outputs, semiring)
 
     # Restore any external nodes that were removed.
     if out.ndim < len(rule.rhs.ext):
         eshape = fgg.shape(rule.rhs.ext)
         vshape = [s if n in connected else 1 for n, s in zip(rule.rhs.ext, eshape)]
-        rshape = [1 if n in connected else s for n, s in zip(rule.rhs.ext, eshape)]
-        out = out.view(*vshape).repeat(*rshape)
-        nint = ptr.shape[-1]
-        ptr = ptr.view(*vshape, nint).repeat(*rshape, nint)
+        out = out.view(*vshape).expand(*eshape)
+        ptr = ptr.view(*vshape, -1).expand(*eshape, -1)
 
     return out, ptr
 
@@ -74,14 +59,16 @@ def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring)
     rhs_pointer: Dict = {n:[] for n in x.shapes[0]}
     for n in x.shapes[0]:
         for ri, rule in enumerate(fgg.rules(n)):
-            tau_rule, pointer = sum_product_edges(fgg, rule, x, inputs, semiring=semiring)
-            if n in Fx:
-                lhs_pointer[n].masked_fill_(tau_rule > Fx[n], ri)
-                Fx[n] = torch.maximum(Fx[n], tau_rule)
-            else:
-                lhs_pointer[n].fill_(ri)
-                Fx[n] = tau_rule
-            rhs_pointer[n].append(pointer)
+            result = sum_product_edges(fgg, rule, x, inputs, semiring=semiring)
+            if result is not None:
+                tau_rule, pointer = result
+                if n in Fx:
+                    lhs_pointer[n].masked_fill_(tau_rule > Fx[n], ri)
+                    Fx[n] = Fx[n].maximum(tau_rule)
+                else:
+                    lhs_pointer[n].fill_(ri)
+                    Fx[n] = tau_rule
+                rhs_pointer[n].append(pointer)
 
     return (Fx, lhs_pointer, rhs_pointer)
 
