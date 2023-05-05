@@ -214,15 +214,12 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
             # One argument to einsum will be the zero tensor, so just return zero
             return None
 
-    if len(indexing) > 0:
-        # If an external node has no edges, einsum will complain, so remove it.
-        outputs = [node for node in ext if node in connected]
+    # If an external node has no edges, einsum will complain, so remove it.
+    outputs = [node for node in ext if node in connected]
 
-        out = einsum(tensors, indexing, outputs, semiring)
-        if duplicate:
-            print('einsum produced', out.physical.size(), 'for', out.size(), file=stderr)
-    else:
-        out = EmbeddedTensor.from_int(1, semiring)
+    out = einsum(tensors, indexing, outputs, semiring)
+    if duplicate:
+        print('einsum produced', out.physical.size(), 'for', out.size(), file=stderr)
 
     # Restore any external nodes that were removed.
     if out.ndim < len(ext):
