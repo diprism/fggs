@@ -668,6 +668,11 @@ class EmbeddedTensor:
         self.physical.relu_()
         return self
 
+    def abs_(self) -> EmbeddedTensor:
+        self.default = abs(self.default)
+        self.physical.abs_()
+        return self
+
     def nan_to_num_(self, nan: float = 0.,
                           posinf: Optional[float] = None,
                           neginf: Optional[float] = None) -> EmbeddedTensor:
@@ -724,6 +729,9 @@ class EmbeddedTensor:
     def to(self, dtype: torch.dtype) -> EmbeddedTensor:
         return EmbeddedTensor(self.physical.to(dtype=dtype), self.pembeds, self.vembeds,
                               self.physical.new_tensor(self.default, dtype=dtype).item())
+
+    def abs(self) -> EmbeddedTensor:
+        return EmbeddedTensor(self.physical.abs(), self.pembeds, self.vembeds, abs(self.default))
 
     def exp(self) -> EmbeddedTensor:
         return EmbeddedTensor(self.physical.exp(), self.pembeds, self.vembeds, exp(self.default))
