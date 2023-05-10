@@ -345,6 +345,11 @@ def project(virtual: Tensor,
     if __debug__:
         if virtual.size() != Size(e.numel() for e in vembeds):
             raise ValueError(f"project(tensor of {virtual.size()}, ..., vembeds of {Size(e.numel() for e in vembeds)}")
+    if not subst and pembeds is None \
+                 and all(isinstance(e, EmbeddingVar) for e in vembeds) \
+                 and len(frozenset(vembeds)) == virtual.ndim:
+        # Try to optimize for a common case
+        return (virtual, cast(Sequence[EmbeddingVar], vembeds))
     offset = virtual.storage_offset()
     stride : Dict[EmbeddingVar, int] = {}
     for e, n in zip(vembeds, virtual.stride()):
@@ -359,19 +364,19 @@ def project(virtual: Tensor,
             pembeds_fv = frozenset(pembeds)
             if vembeds_fv != pembeds_fv:
                 raise ValueError(f"project(..., pembeds with {pembeds_fv}, vembeds with {vembeds_fv})")
-    return (virtual.as_strided(Size(k.numel() for k in pembeds),
+    return (virtual.as_strided(tuple(k._numel  for k in pembeds),
                                tuple(stride[k] for k in pembeds),
                                offset),
             pembeds)
 
-def reshape_or_view(f: Callable[[Tensor, Size], Tensor],
+def reshape_or_view(f: Callable[[Tensor, Sequence[int]], Tensor],
                     self: EmbeddedTensor,
                     *shape: Union[int, Sequence[int]]) -> EmbeddedTensor:
     """Produce a new EmbeddedTensor, with the same elements when flattened,
        whose size() is equal to s."""
     s = list(n for arg in shape for n in ((arg,) if isinstance(arg, int) else arg))
     if self.physical.numel() <= 1:
-        return EmbeddedTensor(f(self.physical, Size(s)), default=self.default)
+        return EmbeddedTensor(f(self.physical, s), default=self.default)
     numel = self.numel()
     try:
         inferred = s.index(-1)
@@ -420,7 +425,7 @@ def reshape_or_view(f: Callable[[Tensor, Size], Tensor],
                     for pack in packs)
     assert(len(vembeds) == len(s) and
            all(e.numel() == goal for e, goal in zip(vembeds, s)))
-    return EmbeddedTensor(f(self.physical, Size(k.numel() for k in pembeds)),
+    return EmbeddedTensor(f(self.physical, tuple(k._numel for k in pembeds)),
                           pembeds, vembeds, self.default).reassociate()
 
 def broadcast(vembedss: Sequence[Sequence[Embedding]]) \
@@ -516,7 +521,7 @@ class EmbeddedTensor:
     def reassociate(self) -> EmbeddedTensor:
         """Remove physical dimensions of size 1, and merge nested ProductEmbeddings."""
         return EmbeddedTensor(self.physical.squeeze(),
-                              tuple(k for k in self.pembeds if k.numel() != 1),
+                              tuple(k for k in self.pembeds if k._numel != 1),
                               tuple(factors[0] if len(factors) == 1 else ProductEmbedding(factors)
                                     for e in self.vembeds
                                     for factors in (tuple(e.reassociate()),)),
@@ -602,7 +607,7 @@ class EmbeddedTensor:
         vembeds.insert(dim, k)
         pembeds = fv0 + (k,)
         default = self.default
-        physical = self.physical.new_full(Size(e.numel() for e in pembeds), default)
+        physical = self.physical.new_full(tuple(e._numel for e in pembeds), default)
         project(physical, self.pembeds, fv + (e_dense,), {})[0].copy_(self.physical)
         return EmbeddedTensor(physical, pembeds, vembeds, default)
 
@@ -614,8 +619,8 @@ class EmbeddedTensor:
             del vembeds[dim]
         ks = frozenset(self.vembeds[dim].fv({})) - frozenset(k for e in vembeds for k in e.fv({}))
         pembeds = tuple(k for k in self.pembeds if k not in ks)
-        if self.default and self.vembeds[dim].numel() > reduce(mul, (k.numel() for k in ks), 1):
-            physical = self.physical.new_ones(()).expand(tuple(k.numel() for k in pembeds))
+        if self.default and self.vembeds[dim].numel() > reduce(mul, (k._numel for k in ks), 1):
+            physical = self.physical.new_ones(()).expand(tuple(k._numel for k in pembeds))
         else:
             physical = self.physical
             for i in range(len(self.pembeds)-1, -1, -1):
@@ -745,7 +750,7 @@ class EmbeddedTensor:
         k = self.vembeds[dim]
         i = self.pembeds.index(k)
         return EmbeddedTensor(self.physical.log_softmax(dim = i),
-                              self.pembeds, self.vembeds, -log(k.numel()))
+                              self.pembeds, self.vembeds, -log(k._numel))
 
     def equal_default(self) -> bool:
         return cast(bool, self.physical.eq(self.default).all().item())
@@ -836,8 +841,8 @@ class EmbeddedTensor:
                     operate_: Callable[[Tensor, Tensor], Any]) -> EmbeddedTensor:
         """Apply a symmetric binary operation with identity."""
         (gs, lggs, pembeds1, es, pembeds2, fs) = t.expansion(u)
-        tp = t.physical.expand(Size(k.numel() for k in pembeds1))
-        up = u.physical.expand(Size(k.numel() for k in pembeds2))
+        tp = t.physical.expand(tuple(k._numel for k in pembeds1))
+        up = u.physical.expand(tuple(k._numel for k in pembeds2))
         if t.default != identity or \
            len(pembeds1) != len(t.pembeds) or \
            len(pembeds2) == len(u.pembeds) and t.physical.numel() >= u.physical.numel():
@@ -859,8 +864,8 @@ class EmbeddedTensor:
                operate: Callable[[Tensor, Tensor], Tensor]) -> EmbeddedTensor:
         """Apply a binary operation."""
         (gs, lggs, pembeds1, es, pembeds2, fs) = t.expansion(u)
-        tp = t.physical.expand(Size(k.numel() for k in pembeds1))
-        up = u.physical.expand(Size(k.numel() for k in pembeds2))
+        tp = t.physical.expand(tuple(k._numel for k in pembeds1))
+        up = u.physical.expand(tuple(k._numel for k in pembeds2))
         td = EmbeddedTensor(tp, pembeds1, es, t.default).to_dense()
         ud = EmbeddedTensor(up, pembeds2, fs, u.default).to_dense()
         return EmbeddedTensor(operate(td, ud), gs, lggs, default)
@@ -895,12 +900,12 @@ class EmbeddedTensor:
     def sub(t, u: EmbeddedTensor) -> EmbeddedTensor:
         """Subtract two EmbeddedTensors."""
         (gs, lggs, pembeds1, es, pembeds2, fs) = t.expansion(u)
-        tp = t.physical.expand(Size(k.numel() for k in pembeds1))
+        tp = t.physical.expand(tuple(k._numel for k in pembeds1))
         default = t.default - u.default
         if t.default != 0 or \
            len(pembeds1) != len(t.pembeds) or \
            len(pembeds2) == len(u.pembeds) and t.physical.numel() >= u.physical.numel():
-            up = u.physical.expand(Size(k.numel() for k in pembeds2))
+            up = u.physical.expand(tuple(k._numel for k in pembeds2))
             td = EmbeddedTensor(tp, pembeds1, es, t.default).to_dense()
             if u.default == 0:
                 tp = project(td, pembeds2, fs, {})[0]
@@ -910,7 +915,7 @@ class EmbeddedTensor:
                 td.sub_(ud)
             return EmbeddedTensor(td, gs, lggs, default)
         else:
-            up = (-u.physical).expand(Size(k.numel() for k in pembeds2))
+            up = (-u.physical).expand(tuple(k._numel for k in pembeds2))
             ud = EmbeddedTensor(up, pembeds2, fs, -u.default).to_dense()
             up = project(ud, pembeds1, es, {})[0]
             up.add_(tp)
@@ -959,7 +964,7 @@ class EmbeddedTensor:
                 for ec, eu in zip(c_vembeds, u_vembeds)]
         (gs, ecs, eus) = zip(*((g, ec, eu) for (g, (ec, eu)) in antisubst[1].items())) \
                          if antisubst[1] else ((), (), ())
-        up = u.physical.expand(Size(k.numel() for k in u_pembeds))
+        up = u.physical.expand(tuple(k._numel for k in u_pembeds))
         ud = EmbeddedTensor(up, u_pembeds, eus, u.default).to_dense()
 
         if not (success and full):
@@ -1031,7 +1036,7 @@ class EmbeddedTensor:
             if e.numel() != n:
                 raise RuntimeError(f"EmbeddedTensor.expand: cannot extend {self.size()} to {sizes}")
             vembeds.insert(0, e)
-        return EmbeddedTensor(self.physical.expand(Size(k.numel() for k in pembeds)),
+        return EmbeddedTensor(self.physical.expand(tuple(k._numel for k in pembeds)),
                               pembeds, vembeds, self.default)
 
     def repeat(self: EmbeddedTensor, *sizes: int) -> EmbeddedTensor:
@@ -1090,7 +1095,7 @@ class EmbeddedTensor:
                                  a.default).to_dense()
         # Solve
         x = semiring.solve(dense_a, dense_b)
-        return EmbeddedTensor(x.reshape(tuple(k.numel() for k in fv + fvb0)),
+        return EmbeddedTensor(x.reshape(tuple(k._numel for k in fv + fvb0)),
                               fv + fvb0, (e,) + ebs0, b.default)
 
     def mv(self, v: EmbeddedTensor, semiring: Semiring) -> EmbeddedTensor:
@@ -1123,7 +1128,7 @@ def stack(tensors: Sequence[EmbeddedTensor], dim: int = 0) -> EmbeddedTensor:
     pembeds.insert(0, k)
     vembeds = list(lggs)
     vembeds.insert(dim, k)
-    physical = head.physical.new_full(Size(e.numel() for e in pembeds), default)
+    physical = head.physical.new_full(tuple(e._numel for e in pembeds), default)
     for t, p in zip(tensors, physical):
         subst : Subst = {}
         if not all(e.unify(f, subst)
@@ -1256,8 +1261,8 @@ def log_viterbi_einsum_forward(tensors: Sequence[EmbeddedTensor],
                                                                   #TODO: why block_size=1?
     assert(len(output_pembeds) == out.ndim == ptr.ndim - 1)
     assert(len(pembed_to_char) == len(output_pembeds) + ptr.size(-1))
-    pembed_to_ptr = dict(chain(((k, torch.arange(k.numel())
-                                         .view(Size(chain((-1,), repeat(1, out.ndim-1))))
+    pembed_to_ptr = dict(chain(((k, torch.arange(k._numel)
+                                         .view(tuple(chain((-1,), repeat(1, out.ndim-1))))
                                          .movedim(0, i)
                                          .expand(out.size()))
                                 for i, k in enumerate(output_pembeds)),
