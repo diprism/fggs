@@ -369,7 +369,7 @@ def project(virtual: Tensor,
                                offset),
             pembeds)
 
-def reshape_or_view(f: Callable[[Tensor, Sequence[int]], Tensor],
+def reshape_or_view(f: Callable[[Tensor, List[int]], Tensor],
                     self: EmbeddedTensor,
                     *shape: Union[int, Sequence[int]]) -> EmbeddedTensor:
     """Produce a new EmbeddedTensor, with the same elements when flattened,
@@ -425,7 +425,7 @@ def reshape_or_view(f: Callable[[Tensor, Sequence[int]], Tensor],
                     for pack in packs)
     assert(len(vembeds) == len(s) and
            all(e.numel() == goal for e, goal in zip(vembeds, s)))
-    return EmbeddedTensor(f(self.physical, tuple(k._numel for k in pembeds)),
+    return EmbeddedTensor(f(self.physical, list(k._numel for k in pembeds)),
                           pembeds, vembeds, self.default).reassociate()
 
 def broadcast(vembedss: Sequence[Sequence[Embedding]]) \
