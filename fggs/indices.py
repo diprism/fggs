@@ -158,14 +158,16 @@ class Embedding(ABC):
             if e.before == f.before and e.after == f.after:
                 return e.term.unify(f.term, subst)
             else:
-                etn = e.term.numel()
-                ftn = f.term.numel()
-                if e.before + etn + e.after != f.before + ftn + f.after \
-                   or e.before + etn > f.before and f.before + ftn > e.before:
-                    warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
+                if __debug__:
+                    etn = e.term.numel()
+                    ftn = f.term.numel()
+                    if e.before + etn + e.after != f.before + ftn + f.after \
+                       or e.before + etn > f.before and f.before + ftn > e.before:
+                        warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
                 return False
-        if e.numel() != f.numel():
-            warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
+        if __debug__:
+            if e.numel() != f.numel():
+                warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
         if isinstance(e, EmbeddingVar):
             subst[e] = f
             return True
@@ -178,8 +180,9 @@ class Embedding(ABC):
     def antiunify(e: Embedding, f: Embedding, antisubst: AntiSubst) -> Embedding:
         """Antiunify the two embeddings by extending antisubst.  Return least
            general generalization (whose variables are all in antisubst)."""
-        if e.numel() != f.numel():
-            warn(f"Attempt to antiunify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
+        if __debug__:
+            if e.numel() != f.numel():
+                warn(f"Attempt to antiunify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
         if isinstance(e, ProductEmbedding) and isinstance(f, ProductEmbedding) and \
            len(e.factors) == len(f.factors):
             return ProductEmbedding(tuple(e1.antiunify(f1, antisubst)
@@ -339,8 +342,9 @@ def project(virtual: Tensor,
     """Extract a view of the given tensor, so that indexing into the returned
        tensor according to pembeds is equivalent to indexing into the given
        tensor according to vembeds."""
-    if virtual.size() != Size(e.numel() for e in vembeds):
-        raise ValueError(f"project(tensor of {virtual.size()}, ..., vembeds of {Size(e.numel() for e in vembeds)}")
+    if __debug__:
+        if virtual.size() != Size(e.numel() for e in vembeds):
+            raise ValueError(f"project(tensor of {virtual.size()}, ..., vembeds of {Size(e.numel() for e in vembeds)}")
     offset = virtual.storage_offset()
     stride : Dict[EmbeddingVar, int] = {}
     for e, n in zip(vembeds, virtual.stride()):
@@ -350,10 +354,11 @@ def project(virtual: Tensor,
     if pembeds is None:
         pembeds = tuple(stride.keys())
     else:
-        vembeds_fv = frozenset(stride.keys())
-        pembeds_fv = frozenset(pembeds)
-        if vembeds_fv != pembeds_fv:
-            raise ValueError(f"project(..., pembeds with {pembeds_fv}, vembeds with {vembeds_fv})")
+        if __debug__:
+            vembeds_fv = frozenset(stride.keys())
+            pembeds_fv = frozenset(pembeds)
+            if vembeds_fv != pembeds_fv:
+                raise ValueError(f"project(..., pembeds with {pembeds_fv}, vembeds with {vembeds_fv})")
     return (virtual.as_strided(Size(k.numel() for k in pembeds),
                                tuple(stride[k] for k in pembeds),
                                offset),
@@ -451,8 +456,10 @@ class EmbeddedTensor:
         # Default to the trivial (dense) embedding, to convert from Tensor
         if self.pembeds is None:
             self.pembeds = tuple(EmbeddingVar(n) for n in self.physical.size())
-        elif self.physical.size() != Size(k.numel() for k in self.pembeds):
-            raise ValueError(f"EmbeddedTensor(tensor of {self.physical.size()}, pembeds of {Size(k.numel() for k in self.pembeds)}, ...)")
+        else:
+            if __debug__:
+                if self.physical.size() != Size(k.numel() for k in self.pembeds):
+                    raise ValueError(f"EmbeddedTensor(tensor of {self.physical.size()}, pembeds of {Size(k.numel() for k in self.pembeds)}, ...)")
         if self.vembeds is None:
             self.vembeds = self.pembeds
 
@@ -936,9 +943,9 @@ class EmbeddedTensor:
             projected_c = project(c.physical, tuple(k for k in ks if k in ksc), c.pembeds, subst)[0]
             for i, k in enumerate(ks):
                 if k not in ksc: projected_c = projected_c.unsqueeze(i)
-            #assert(projected_t.ndim == projected_c.ndim and
-            #       all(len({n1, n2} - {1}) <= 1 for n1, n2 in zip(projected_t.size(),
-            #                                                      projected_c.size())))
+            assert(projected_t.ndim == projected_c.ndim and
+                   all(len({n1, n2} - {1}) <= 1 for n1, n2 in zip(projected_t.size(),
+                                                                  projected_c.size())))
 
             # Is the non-default region of t a superset of the non-default region of c?
             # In other words, did unification do anything to c_pembeds?
