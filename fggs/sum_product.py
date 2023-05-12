@@ -7,8 +7,10 @@ from fggs.semirings import *
 from fggs.multi import *
 from fggs.utils import scc, nonterminal_graph
 from math import inf
+from sys import stderr
 
 from typing import Callable, Dict, Mapping, Sequence, Iterable, Tuple, List, Set, Union, Optional, cast
+from time import perf_counter_ns
 import warnings
 
 import torch
@@ -42,14 +44,30 @@ class FGGMultiShape(MultiShape):
     def __repr__(self):
         return repr(dict(self))
 
+
+def make_timer(name: str) -> Callable[[], None]:
+    n = 0
+    t = perf_counter_ns()
+    def timer():
+        nonlocal n, t
+        now = perf_counter_ns()
+        n += 1
+        ns = now - t
+        print(f'{name} iteration {n} took {ns//1000000000:,}.{ns%1000000000:011,} sec', file=stderr)
+        t = now
+    return timer
+
     
 def fixed_point(F: Function, x0: MultiTensor, *, tol: float, kmax: int) -> None:
     """Fixed-point iteration method for solving x = F(x)."""
+    #timer = make_timer('fixed_point')
     k, x1 = 0, F(x0)
-    while not x0.allclose(x1, tol) and k <= kmax:
+    #timer()
+    while not x0.shouldStop(x1, tol) and k <= kmax:
         x0.copy_(x1)
         x1.copy_(F(x1))
         k += 1
+        #timer()
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
@@ -61,12 +79,16 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
     point equations over commutative semirings. In Proc. STACS, 2007."""
     semiring = x0.semiring
     x1 = MultiTensor(x0.shapes, x0.semiring)
+    #timer = make_timer('newton')
     for k in range(kmax):
         F0 = F(x0)
-        if F0.allclose(x0, tol): break
+        if F0.shouldStop(x0, tol):
+            #timer()
+            break
         JF = J(x0)
         dX = multi_solve(JF, F0 - x0)
         x0.copy_(x0 + dX)
+        #timer()
 
     if k > kmax:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')

@@ -1,8 +1,10 @@
 __all__ = ['MultiTensor', 'MultiShape', 'multi_mv', 'multi_solve']
 from typing import Union, Tuple, TypeVar, Iterator, Dict, Mapping, MutableMapping, Optional
 from fggs.semirings import Semiring
+from math import inf
 import torch
 from torch import Tensor, Size
+from sys import stderr
 
 T = TypeVar('T')
 MultiTensorKey = Union[T, Tuple[T,...]]
@@ -45,6 +47,32 @@ class MultiTensor(MutableMapping[MultiTensorKey, Tensor]):
                 if not torch.allclose(self[k], other[k], atol=tol, rtol=0.):
                     return False
         return True
+
+    def shouldStop(self, other: 'MultiTensor', tol: float) -> bool:
+        """Like allclose, but print the L-infinity distance."""
+        if self.semiring.dtype == torch.bool:
+            return self.allclose(other, tol)
+        if self.keys() != other.keys():
+            print('MultiTensor.shouldStop returning False conservatively', file=stderr)
+            return False # bug: missing values and zero should compare equal
+        dmax = 0.
+        for k, t in self.items():
+            if k in other:
+                diff = t.sub(other[k]).nan_to_num_(nan=0, posinf=inf, neginf=-inf).abs_()
+            else:
+                diff = t.abs()
+            dmax = max(dmax, diff.max().item())
+        for k, t in other.items():
+            if k not in self:
+                diff = t.abs()
+                dmax = max(dmax, diff.max().item())
+        if dmax <= tol:
+            print(f'{dmax} ≤ {tol}', file=stderr)
+            return True
+        else:
+            print(f'{dmax} > {tol}', file=stderr)
+            return False
+    shouldStop = allclose # remove this assignment to enable debugging output
 
     def copy_(self, other: 'MultiTensor'):
         """Copy all elements from other to self."""
