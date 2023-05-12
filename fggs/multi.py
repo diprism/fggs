@@ -51,18 +51,22 @@ class MultiTensor(MutableMapping[MultiTensorKey, EmbeddedTensor]):
                 if k in other:
                     if not t.equal(other[k]): return False
                 else:
+                    assert(t.default == self.semiring.from_int(0).item())
                     if not t.equal_default(): return False
             for k, t in other.items():
                 if k not in self:
+                    assert(t.default == self.semiring.from_int(0).item())
                     if not t.equal_default(): return False
         else:
             for k, t in self.items():
                 if k in other:
                     if not t.allclose(other[k], atol=tol, rtol=0.): return False
                 else:
+                    assert(t.default == self.semiring.from_int(0).item())
                     if not t.allclose_default(atol=tol, rtol=0.): return False
             for k, t in other.items():
                 if k not in self:
+                    assert(t.default == self.semiring.from_int(0).item())
                     if not t.allclose_default(atol=tol, rtol=0.): return False
         return True
 
@@ -84,6 +88,7 @@ class MultiTensor(MutableMapping[MultiTensorKey, EmbeddedTensor]):
 
     def add_single(self, k: MultiTensorKey, v: EmbeddedTensor):
         """Add v to self[k]. If self[k] does not exist, it is initialized to zero."""
+        assert(v.physical.dtype == self.semiring.dtype)
         if k in self:
             self[k] = self.semiring.add(self[k], v)
         else:

@@ -217,6 +217,7 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
     # If an external node has no edges, einsum will complain, so remove it.
     outputs = [node for node in ext if node in connected]
 
+    assert(all(tensor.physical.dtype == semiring.dtype for tensor in tensors))
     out = einsum(tensors, indexing, outputs, semiring)
     if duplicate:
         print('einsum produced', out.physical.size(), 'for', out.size(), file=stderr)
@@ -234,6 +235,7 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
             multiplier *= cast(FiniteDomain, fgg.domains[n.label.name]).size()
     if multiplier != 1:
         out = semiring.mul(out, EmbeddedTensor.from_int(multiplier, semiring))
+    assert(out.physical.dtype == semiring.dtype)
     return out
 
 

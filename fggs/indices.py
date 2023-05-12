@@ -1213,6 +1213,7 @@ def einsum(tensors: Sequence[EmbeddedTensor],
     #print(equation, file=stderr)
     compiled = torch_semiring_einsum.compile_equation(equation)
     out = semiring.einsum(compiled, *(view for (view, pembed) in projected_tensors))
+    assert(out.dtype == semiring.dtype)
     return EmbeddedTensor(out, output_pembeds, output_vembeds, default=zero.item())
 
 def log_viterbi_einsum_forward(tensors: Sequence[EmbeddedTensor],
