@@ -2,8 +2,10 @@ __all__ = ['MultiTensor', 'MultiShape', 'multi_mv', 'multi_solve']
 from typing import Union, Tuple, TypeVar, Iterator, Dict, Mapping, MutableMapping, Optional
 from fggs.semirings import Semiring
 from fggs.indices import EmbeddedTensor
+from math import inf
 import torch
 from torch import Tensor, Size
+from sys import stderr
 
 T = TypeVar('T')
 MultiTensorKey = Union[T, Tuple[T,...]]
