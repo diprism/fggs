@@ -122,6 +122,7 @@ class RealSemiring(Semiring):
             return compute_sum(torch_semiring_einsum.utils.add_in_place,
                                torch_semiring_einsum.utils.sum_block,
                                multiply_in_place)
+        # TODO: Why blocksize=1?
         return torch_semiring_einsum.semiring_einsum_forward(equation, args, 1, callback)
     
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:

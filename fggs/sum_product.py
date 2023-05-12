@@ -87,6 +87,7 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
         stop = F0.shouldStop(x0, tol)
         JF = J(x0)
         dX = multi_solve(JF, F0 - x0)
+        #^ For the derivative blowup issue, it's only JF that's bigger than it needs to be, so dX above could be back to an ordinary dense tensor
         x0.copy_(x0 + dX)
         #timer()
         if stop: break
