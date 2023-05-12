@@ -70,6 +70,29 @@ class MultiTensor(MutableMapping[MultiTensorKey, EmbeddedTensor]):
                     if not t.allclose_default(atol=tol, rtol=0.): return False
         return True
 
+    def shouldStop(self, other: 'MultiTensor', tol: float) -> bool:
+        """Like allclose, but print the L-infinity distance."""
+        if self.semiring.dtype == torch.bool:
+            return self.allclose(other, tol)
+        dmax = 0.
+        for k, t in self.items():
+            if k in other:
+                diff = t.sub(other[k]).nan_to_num_(nan=0, posinf=inf, neginf=-inf).abs_()
+            else:
+                diff = t.abs()
+            dmax = max(dmax, diff.physical.max().item(), diff.default)
+        for k, t in other.items():
+            if k not in self:
+                diff = t.abs()
+                dmax = max(dmax, diff.physical.max().item(), diff.default)
+        if dmax <= tol:
+            print(f'{dmax} ≤ {tol}', file=stderr)
+            return True
+        else:
+            print(f'{dmax} > {tol}', file=stderr)
+            return False
+    shouldStop = allclose # remove this assignment to enable debugging output
+
     def copy_(self, other: 'MultiTensor'):
         """Copy all elements from other to self."""
         for k in self:

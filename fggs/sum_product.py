@@ -66,10 +66,11 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
     x1 = MultiTensor(x0.shapes, x0.semiring)
     for k in range(kmax):
         F0 = F(x0)
-        stop = F0.allclose(x0, tol)
+        stop = F0.shouldStop(x0, tol)
         JF = J(x0)
         dX = multi_solve(JF, F0 - x0)
         x0.copy_(x0 + dX)
+        #timer()
         if stop: break
 
     if k > kmax:
