@@ -316,12 +316,13 @@ class SumProduct(torch.autograd.Function):
     def forward(ctx, fgg: FGG, opts: Dict, in_labels: Sequence[EdgeLabel], out_labels: Sequence[EdgeLabel], *in_values: Tensor) -> Tuple[Tensor, ...]: # type: ignore
         ctx.fgg = fgg
         method, semiring = opts['method'], opts['semiring']
+        from_dense = lambda t: EmbeddedTensor(t, default=semiring.from_int(0).item())
         ctx.opts = opts
         ctx.in_labels = in_labels
         ctx.out_labels = out_labels
         ctx.save_for_backward(*in_values)
 
-        inputs: MultiTensor = dict(zip(in_labels, (EmbeddedTensor(t, default=semiring.from_int(0).item()) for t in in_values))) # type: ignore
+        inputs: MultiTensor = dict(zip(in_labels, map(from_dense, in_values))) # type: ignore
 
         if method == 'linear':
             out = linear(fgg, inputs, out_labels, semiring)
@@ -347,13 +348,14 @@ class SumProduct(torch.autograd.Function):
     @staticmethod
     def backward(ctx, *grad_out):
         semiring = ctx.opts['semiring']
+        from_dense = lambda t: EmbeddedTensor(t, default=semiring.from_int(0).item())
         # gradients are always computed in the real semiring
         real_semiring = RealSemiring(dtype=semiring.dtype, device=semiring.device)
-        # TODO: which defaults below should be real_semiring.from_int(0).item()?
+        # TODO: should from_dense sometimes use default=real_semiring.from_int(0).item()?
 
         # Construct and solve linear system of equations
-        inputs = dict(zip(ctx.in_labels, (EmbeddedTensor(t, default=semiring.from_int(0).item()) for t in ctx.saved_tensors)))
-        f = dict(zip(ctx.out_labels, (EmbeddedTensor(t, default=semiring.from_int(0).item()) for t in grad_out)))
+        inputs = dict(zip(ctx.in_labels, map(from_dense, ctx.saved_tensors)))
+        f = dict(zip(ctx.out_labels, map(from_dense, grad_out)))
             
         jf_inputs = MultiTensor((FGGMultiShape(ctx.fgg, ctx.out_labels),
                                  FGGMultiShape(ctx.fgg, ctx.in_labels)),

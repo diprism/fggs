@@ -91,10 +91,11 @@ def viterbi(fgg: FGG, start_asst: Tuple[int,...], **opts) -> FGGDerivation:
         raise ValueError(f"Start assignment ({start_asst}) does not have same type as FGG's start symbol ({fgg.start.type})")
     
     semiring = opts.get('semiring', ViterbiSemiring())
+    from_dense = lambda t: EmbeddedTensor(t, default=semiring.from_int(0).item())
     kmax = opts.get('kmax', 1000)
     tol = opts.get('tol', 1e-6)
 
-    maximum: MultiTensor = {t:EmbeddedTensor(fgg.factors[t.name].weights, default=semiring.from_int(0).item()) for t in fgg.terminals()} # type: ignore
+    maximum: MultiTensor = {t:from_dense(fgg.factors[t.name].weights) for t in fgg.terminals()} # type: ignore
     lhs_pointer = {}
     rhs_pointer = {}
     for comp in scc(nonterminal_graph(fgg)):
