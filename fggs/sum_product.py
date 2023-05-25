@@ -317,7 +317,8 @@ class SumProduct(torch.autograd.Function):
     def forward(ctx, fgg: FGG, opts: Dict, in_labels: Sequence[EdgeLabel], out_labels: Sequence[EdgeLabel], *in_values: Tensor) -> Tuple[Tensor, ...]: # type: ignore
         ctx.fgg = fgg
         method, semiring = opts['method'], opts['semiring']
-        from_dense = lambda t: EmbeddedTensor(t, default=semiring.from_int(0).item())
+        def from_dense(t: Tensor) -> EmbeddedTensor:
+            return EmbeddedTensor(t, default=semiring.from_int(0).item())
         ctx.opts = opts
         ctx.in_labels = in_labels
         ctx.out_labels = out_labels
@@ -349,7 +350,8 @@ class SumProduct(torch.autograd.Function):
     @staticmethod
     def backward(ctx, *grad_out):
         semiring = ctx.opts['semiring']
-        from_dense = lambda t: EmbeddedTensor(t, default=semiring.from_int(0).item())
+        def from_dense(t: Tensor) -> EmbeddedTensor:
+            return EmbeddedTensor(t, default=semiring.from_int(0).item())
         # gradients are always computed in the real semiring
         real_semiring = RealSemiring(dtype=semiring.dtype, device=semiring.device)
         # TODO: should from_dense sometimes use default=real_semiring.from_int(0).item()?
