@@ -89,21 +89,21 @@ class Semiring(ABC):
 
 class RealSemiring(Semiring):
     
-    def from_int(self, n: Union[int, torch.Tensor]):
+    def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
         return torch.as_tensor(n, dtype=self.dtype, device=self.device)
     
     sum = staticmethod(torch.sum) # type: ignore
 
     @staticmethod
-    def add(x, y):
+    def add(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.add(y)
 
     @staticmethod
-    def sub(x, y):
+    def sub(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.sub(y).relu_().nan_to_num_(nan=0., posinf=inf)
 
     @staticmethod
-    def mul(x, y):
+    def mul(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.mul(y).nan_to_num_(nan=0., posinf=inf)
     
     @staticmethod
@@ -144,18 +144,18 @@ class RealSemiring(Semiring):
 
 class LogSemiring(Semiring):
     
-    def from_int(self, n):
+    def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
         n = torch.as_tensor(n, dtype=self.dtype, device=self.device)
         return torch.log(n)
     
     @staticmethod
-    def add(x, y):
+    def add(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.logaddexp(y)
 
     sum = staticmethod(torch.logsumexp) # type: ignore
 
     @staticmethod
-    def sub(x, y):
+    def sub(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         # If x <= y, return -inf
         # If x ≈ y, log(exp(x) - exp(y)) = x + log(1 - exp(y-x)) = x + log(-expm1(y-x))
         # If x >> y, log(exp(x) - exp(y)) = x + log(1 - exp(y-x)) = x + log1p(-exp(y-x))
@@ -165,7 +165,7 @@ class LogSemiring(Semiring):
                 .nan_to_num_(nan=-inf, neginf=-inf, posinf=inf)
 
     @staticmethod
-    def mul(x, y):
+    def mul(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.add(y).nan_to_num_(nan=-inf, neginf=-inf, posinf=inf)
     
     @staticmethod
@@ -206,12 +206,12 @@ class LogSemiring(Semiring):
 
 class ViterbiSemiring(Semiring):
     
-    def from_int(self, n):
+    def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
         n = torch.as_tensor(n, device=self.device)
         return torch.where(n > 0, 0., -inf).to(self.dtype)
     
     @staticmethod
-    def add(x, y):
+    def add(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.maximum(y)
 
     @staticmethod
@@ -219,11 +219,11 @@ class ViterbiSemiring(Semiring):
         return torch.max(x, dim=dim)[0]
 
     @staticmethod
-    def sub(x, y):
+    def sub(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x
 
     @staticmethod
-    def mul(x, y):
+    def mul(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.add(y).nan_to_num_(nan=-inf, neginf=-inf, posinf=inf)
     
     def star(self, x: torch.Tensor) -> torch.Tensor:
@@ -248,22 +248,22 @@ class BoolSemiring(Semiring):
     def __init__(self, device='cpu'):
         super().__init__(dtype=torch.bool, device=device)
         
-    def from_int(self, n):
+    def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
         n = torch.as_tensor(n, device=self.device)
         return n > 0
 
     @staticmethod
-    def add(x, y):
+    def add(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.logical_or(y)
 
     sum = staticmethod(torch.any) # type: ignore
 
     @staticmethod
-    def sub(x, y):
+    def sub(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.logical_and(y.logical_not())
     
     @staticmethod
-    def mul(x, y):
+    def mul(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.logical_and(y)
     
     @staticmethod

@@ -127,7 +127,7 @@ class Embedding(ABC):
         pass
 
     @abstractmethod
-    def alpha(e: Embedding, f: Embedding, rename: Rename) -> bool:
+    def alpha(e, f: Embedding, rename: Rename) -> bool:
         """Check whether the given renaming turns e into f.  Each EmbeddingVar
            in e must be a key in the given renaming, even if it's also in f."""
         pass
@@ -204,52 +204,52 @@ class EmbeddingVar(Embedding):
     def __repr__(self) -> str:
         return f"EmbeddingVar(numel={self._numel}, id={id(self)})"
 
-    def depict(self, letterer):
+    def depict(self, letterer: Callable[[EmbeddingVar], str]) -> str:
         return f"{letterer(self)}({self._numel})"
 
-    def numel(self):
+    def numel(self) -> int:
         return self._numel
 
-    def fv(self, subst):
+    def fv(self, subst: Subst) -> Iterator[EmbeddingVar]:
         fwd = self.forward(subst)
         if fwd is self:
             yield self
         else:
             yield from fwd.fv(subst)
 
-    def stride(self, subst):
+    def stride(self, subst: Subst) -> Tuple[int, Dict[EmbeddingVar, int]]:
         fwd = self.forward(subst)
         return (0, {self: 1}) if fwd is self else fwd.stride(subst)
 
-    def prime_factors(self, subst):
+    def prime_factors(self, subst: Subst) -> Iterator[Embedding]:
         fwd = self.forward(subst)
         if fwd is self:
             yield self
         else:
             yield from fwd.prime_factors(subst)
 
-    def forward(self, subst):
+    def forward(self, subst: Subst) -> Embedding:
         if self in subst:
             subst[self] = ret = subst[self].forward(subst)
             return ret
         else:
             return self
 
-    def clone(self, subst):
+    def clone(self, subst: Subst) -> Embedding:
         e = subst.get(self, self)
         return self if e is self else e.clone(subst)
 
-    def alpha(e, f, rename):
-        return rename.get(e, None) is f
+    def alpha(e, f: Embedding, rename: Rename) -> bool:
+        return cast(Dict[Embedding, EmbeddingVar], rename).get(e, None) is f
 
-    def freshen(self, rename):
+    def freshen(self, rename: Rename) -> EmbeddingVar:
         if self in rename:
             return rename[self]
         else:
             rename[self] = ret = EmbeddingVar(self._numel)
             return ret
 
-    def reassociate(self):
+    def reassociate(self) -> Iterator[Embedding]:
         if self._numel != 1:
             yield self
 
@@ -257,19 +257,19 @@ class EmbeddingVar(Embedding):
 class ProductEmbedding(Embedding):
     factors: Tuple[Embedding, ...]
 
-    def depict(self, letterer):
+    def depict(self, letterer: Callable[[EmbeddingVar], str]) -> str:
         return f"({'*'.join(e.depict(letterer) for e in self.factors)})"
 
-    def numel(self):
+    def numel(self) -> int:
         return reduce(mul, (e.numel() for e in self.factors), 1)
 
-    def fv(self, subst):
+    def fv(self, subst: Subst) -> Iterator[EmbeddingVar]:
         for e in self.factors:
             yield from e.fv(subst)
 
-    def stride(self, subst):
-        offset = 0
-        stride = {}
+    def stride(self, subst: Subst) -> Tuple[int, Dict[EmbeddingVar, int]]:
+        offset: int = 0
+        stride: Dict[EmbeddingVar, int] = {}
         for e in self.factors:
             if offset or stride:
                 n = e.numel()
@@ -280,22 +280,22 @@ class ProductEmbedding(Embedding):
             for k in s: stride[k] = stride.get(k, 0) + s[k]
         return (offset, stride)
 
-    def prime_factors(self, subst):
+    def prime_factors(self, subst: Subst) -> Iterator[Embedding]:
         for e in self.factors:
             yield from e.prime_factors(subst)
 
-    def clone(self, subst):
+    def clone(self, subst: Subst) -> Embedding:
         return ProductEmbedding(tuple(e.clone(subst) for e in self.factors))
 
-    def alpha(e, f, rename):
+    def alpha(e, f: Embedding, rename: Rename) -> bool:
         return isinstance(f, ProductEmbedding) and \
                len(e.factors) == len(f.factors) and \
                all(e1.alpha(f1, rename) for e1, f1 in zip(e.factors, f.factors))
 
-    def freshen(self, rename):
+    def freshen(self, rename: Rename) -> Embedding:
         return ProductEmbedding(tuple(e.freshen(rename) for e in self.factors))
 
-    def reassociate(self):
+    def reassociate(self) -> Iterator[Embedding]:
         for e in self.factors:
             yield from e.reassociate()
 
@@ -305,35 +305,35 @@ class SumEmbedding(Embedding):
     term: Embedding
     after: int
 
-    def depict(self, letterer) -> str:
+    def depict(self, letterer: Callable[[EmbeddingVar], str]) -> str:
         return f"({self.before}+{self.term.depict(letterer)}+{self.after})"
 
-    def numel(self):
+    def numel(self) -> int:
         return self.before + self.term.numel() + self.after
 
-    def fv(self, subst):
+    def fv(self, subst: Subst) -> Iterator[EmbeddingVar]:
         yield from self.term.fv(subst)
 
-    def stride(self, subst):
+    def stride(self, subst: Subst) -> Tuple[int, Dict[EmbeddingVar, int]]:
         (o, s) = self.term.stride(subst)
         return (o + self.before, s)
 
-    def clone(self, subst):
+    def clone(self, subst: Subst) -> Embedding:
         return SumEmbedding(self.before, self.term.clone(subst), self.after)
 
-    def alpha(e, f, rename):
+    def alpha(e, f: Embedding, rename: Rename) -> bool:
         return isinstance(f, SumEmbedding) and \
                e.before == f.before and e.after == f.after and \
                e.term.alpha(f.term, rename)
 
-    def freshen(self, rename):
+    def freshen(self, rename: Rename) -> Embedding:
         return SumEmbedding(self.before, self.term.freshen(rename), self.after)
 
-    def reassociate(self):
+    def reassociate(self) -> Iterator[Embedding]:
         factors = tuple(self.term.reassociate())
-        return SumEmbedding(self.before,
-                            factors[0] if len(factors) == 1 else ProductEmbedding(factors),
-                            self.after)
+        yield SumEmbedding(self.before,
+                           factors[0] if len(factors) == 1 else ProductEmbedding(factors),
+                           self.after)
 
 def project(virtual: Tensor,
             pembeds: Optional[Sequence[EmbeddingVar]],
@@ -418,8 +418,8 @@ def reshape_or_view(f: Callable[[Tensor, List[int]], Tensor],
             packs[-1].append(next(primes))
     except StopIteration:
         pass
-    pembeds = tuple(k for e in self.pembeds
-                      for k in e.prime_factors(subst))
+    pembeds = tuple(cast(EmbeddingVar, k) for e in self.pembeds
+                                          for k in e.prime_factors(subst))
     vembeds = tuple(pack[0].clone(subst) if len(pack) == 1
                     else ProductEmbedding(tuple(e.clone(subst) for e in pack))
                     for pack in packs)
@@ -1142,7 +1142,10 @@ def stack(tensors: Sequence[EmbeddedTensor], dim: int = 0) -> EmbeddedTensor:
         if not all(e.unify(f, subst)
                    for e, f in zip(lggs, t.vembeds)):
             raise AssertionError
-        project(p, tuple(e.forward(subst) for e in t.pembeds), ks, subst)[0].copy_(t.physical)
+            # Due to antiunification above, t.vembeds should be an instance of lggs.
+            # So, subst should map variables in t.vembeds to only variables.
+        project(p, tuple(cast(EmbeddingVar, e.forward(subst)) for e in t.pembeds),
+                ks, subst)[0].copy_(t.physical)
     return EmbeddedTensor(physical, pembeds, vembeds, default)
 
 def depict_einsum(fun: str,
