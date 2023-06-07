@@ -1269,8 +1269,7 @@ def log_viterbi_einsum_forward(tensors: Sequence[EmbeddedTensor],
     #print(equation, file=stderr)
     compiled = torch_semiring_einsum.compile_equation(equation)
     out, ptr = torch_semiring_einsum.log_viterbi_einsum_forward(compiled,
-                 *(view for (view, pembed) in projected_tensors), block_size=1)
-                                                                  #TODO: why block_size=1?
+                 *(view for (view, pembed) in projected_tensors))
     assert(len(output_pembeds) == out.ndim == ptr.ndim - 1)
     assert(len(pembed_to_char) == len(output_pembeds) + ptr.size(-1))
     pembed_to_ptr = dict(chain(((k, torch.arange(k._numel)

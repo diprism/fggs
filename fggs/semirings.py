@@ -123,7 +123,7 @@ class RealSemiring(Semiring):
                                torch_semiring_einsum.utils.sum_block,
                                multiply_in_place)
         # TODO: Why blocksize=1?
-        return torch_semiring_einsum.semiring_einsum_forward(equation, args, 1, callback)
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE, callback)
     
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         # We want the least nonnegative solution of (I-a)x = b, and
@@ -201,7 +201,7 @@ class LogSemiring(Semiring):
             result.add_(max_values)
             return result
 
-        return torch_semiring_einsum.semiring_einsum_forward(equation, args, 1, callback)
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE, callback)
 
 
 class ViterbiSemiring(Semiring):
@@ -240,7 +240,7 @@ class ViterbiSemiring(Semiring):
                                torch_semiring_einsum.utils.max_block,
                                add_in_place,
                                include_indexes=False)
-        return torch_semiring_einsum.semiring_einsum_forward(equation, args, 1, callback)
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE, callback)
 
     
 class BoolSemiring(Semiring):
@@ -272,4 +272,4 @@ class BoolSemiring(Semiring):
 
     @staticmethod
     def einsum(equation, *args: torch.Tensor) -> torch.Tensor:
-        return torch_semiring_einsum.einsum(equation, *args, block_size=1) > 0
+        return torch_semiring_einsum.einsum(equation, *args, block_size=torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE) > 0
