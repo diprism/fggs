@@ -507,6 +507,10 @@ class EmbeddedTensor:
     def requires_grad(self) -> bool:
         return self.physical.requires_grad
 
+    def requires_grad_(self, requires_grad: bool = True) -> EmbeddedTensor:
+        self.physical.requires_grad_(requires_grad)
+        return self
+
     def is_complex(self) -> bool:
         return self.physical.is_complex()
 
@@ -582,6 +586,9 @@ class EmbeddedTensor:
         virtual = self.physical.new_full(self.size(), self.default)
         project(virtual, self.pembeds, self.vembeds, {})[0].copy_(self.physical)
         return virtual
+
+    def __float__(self) -> float:
+        return float(self.physical)
 
     def masked_fill_into(self, dest: Tensor, value: NumberType) -> None:
         """Fill elements of dest tensor with value where self is True."""
