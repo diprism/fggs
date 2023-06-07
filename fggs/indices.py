@@ -6,9 +6,9 @@ the axis often correspond to possible values of the variable.  Because the
 variable can be of product or sum type, the range of indices [0,n) is often
 [0,l*m) representing a Cartesian product, [0,l+m) representing a disjoint
 union, or a nesting of these operations.  This algebraic type structure affects
-our computations (such as einsum and solve) because the input tensors are often
-sparse factors that pack/unpack product/sum types, such as
-eye(35).reshape(35,5,7) or eye(5,7).  We represent these sparse tensors
+our computations (such as einsum and solve) because the input tensors
+are often sparse factors that pack/unpack product/sum types, such as
+eye(6).reshape(6,2,3) or eye(2,3).  We represent these sparse tensors
 compactly for asymptotic speedups.
 
 The key is the following language of "axes", which denote injective mappings
@@ -18,30 +18,51 @@ from "physical" indices to a "virtual" index:
            | Axis * ... * Axis       -- ProductAxis
            | numel + Axis + numel    -- SumAxis
 
-For example, the sparsity pattern by which a 5*7 "physical" matrix stores a
+For example, the sparsity pattern by which a 2*3 "physical" matrix stores a
 three-axis "virtual" tensor might be described by the three axes
 
-    [X(5) * Y(7), X(5), Y(7)].
+    [X(2) * Y(3), X(2), Y(3)].
 
-Here X(5) and Y(7) represent an index i in [0,5) and an index j in [0,7) that
-together can be used to index into the 5*7 physical matrix.  The three axes
-determine the shape of the virtual tensor to be [35, 5, 7].  Element
-(i,j) of the matrix corresponds to element (i*7+j,i,j) of the tensor.  Other
-elements of the tensor default to zero (of some semiring).
+Here X(2) and Y(3) represent an index i in [0,2) and an index j in [0,3) that
+together can be used to index into the 2*3 physical matrix.  The three axes
+determine the shape of the virtual tensor to be [6, 2, 3].  Element (i,j) of
+the matrix corresponds to element (3*i+j,i,j) of the tensor.  Other elements of
+the tensor default to zero (of some semiring).  In other words, the virtual
+tensor is
 
-To take another example, the sparsity pattern by which a length-35 "physical"
-vector stores the second diagonal of a 36*35 "virtual" matrix is described by
+    [[[p[0,0], 0     , 0     ], [0     , 0     , 0     ]],
+     [[0     , p[0,1], 0     ], [0     , 0     , 0     ]],
+     [[0     , 0     , p[0,2]], [0     , 0     , 0     ]],
+     [[0     , 0     , 0     ], [p[1,0], 0     , 0     ]],
+     [[0     , 0     , 0     ], [0     , p[1,1], 0     ]],
+     [[0     , 0     , 0     ], [0     , 0     , p[1,2]]]]
+
+where p is the 2*3 physical matrix.
+
+To take another example, the sparsity pattern by which a length-6 "physical"
+vector stores the second diagonal of a 7*6 "virtual" matrix is described by
 the two axes
 
-    [1 + Z(35) + 0, Z(35)].
+    [1 + Z(6) + 0, Z(6)].
 
-Here Z(35) represents an index k in [0,35) that can be used to index into the
-length-35 physical vector.  The two axes determine the shape
-of the virtual tensor to be [36, 35].  Element k of the matrix corresponds to
-element (1+k,k) of the matrix.  Other elements of the matrix default to zero.
+Here Z(6) represents an index k in [0,6) that can be used to index into the
+length-6 physical vector.  The two axes determine the shape of the virtual
+tensor to be [7, 6].  Element k of the matrix corresponds to element (1+k,k) of
+the matrix.  Other elements of the matrix default to zero.  In other words, the
+virtual tensor is
 
-So, a PhysicalAxis X(5) represents a "physical" index in the range [0,5), and
-an axis expression represents an injective mapping from the physical
+    [[0   , 0   , 0   , 0   , 0   , 0   ],
+     [q[0], 0   , 0   , 0   , 0   , 0   ],
+     [0   , q[1], 0   , 0   , 0   , 0   ],
+     [0   , 0   , q[2], 0   , 0   , 0   ],
+     [0   , 0   , 0   , q[3], 0   , 0   ],
+     [0   , 0   , 0   , 0   , q[4], 0   ],
+     [0   , 0   , 0   , 0   , 0   , q[5]]]
+
+where q is the length-6 physical vector.
+
+So, a PhysicalAxis Z(6) represents a "physical" index in the range [0,6),
+and an axis expression represents an injective mapping from the physical
 indices represented by its "free" PhysicalAxes to a virtual index.  The
 axes define an affine transform from the storage offset and strides of
 the virtual tensor (if it ever gets materialized) to the storage offset and
@@ -1184,13 +1205,13 @@ def einsum(tensors: Sequence[PatternedTensor],
     PatternedTensors whose sets of physical PhysicalAxes do not overlap, but
     then we *unify* the virtual axes that get co-indexed.  For example,
     if the two example PatternedTensors above were the inputs (bcd,ab->...),
-    then we would unify X(5) * Y(7) with Z(35).  Hence, before we pass the
+    then we would unify X(2) * Y(3) with Z(6).  Hence, before we pass the
     einsum job to torch_semiring_einsum, we need to reshape (more generally,
-    view) the second physical tensor -- a length-35 vector indexed by Z -- as a
-    5*7 matrix indexed by X and Y.  If unification fails, then our einsum
+    view) the second physical tensor -- a length-6 vector indexed by Z -- as a
+    2*3 matrix indexed by X and Y.  If unification fails, then our einsum
     returns zero; the only possible unification failure in an einsum operation
     that respects the algebraic type structure of the indices should be between
-    inl and inr (1 + Z(35) + 0 fails to unify with 0 + W(1) + 35).
+    inl and inr (1 + Z(6) + 0 fails to unify with 0 + W(1) + 6).
     """
     assert(len(tensors) == len(inputs))
     assert(len(tensor.vaxes) == len(input)
