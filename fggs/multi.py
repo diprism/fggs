@@ -119,17 +119,35 @@ class MultiTensor(MutableMapping[MultiTensorKey, EmbeddedTensor]):
         else:
             self[k] = v
 
+    def __iadd__(self, other: 'MultiTensor') -> 'MultiTensor':
+        for x, t in other.items():
+            self.add_single(x, t)
+        return self
+
     def __add__(self, other: 'MultiTensor') -> 'MultiTensor':
         result = self.clone()
         for x, t in other.items():
             result.add_single(x, t)
         return result
-    
+
+    def __isub__(self, other: 'MultiTensor') -> 'MultiTensor':
+        for x, t in other.items():
+            self[x] = self.semiring.sub(self[x], t)
+        return self
+
     def __sub__(self, other: 'MultiTensor') -> 'MultiTensor':
         result = self.clone()
         for x, t in other.items():
             result[x] = self.semiring.sub(result[x], t)
         return result
+
+    def maximum_(self, other: 'MultiTensor') -> 'MultiTensor':
+        for x, t in other.items():
+            if x in self:
+                self[x] = self[x].maximum(t)
+            else:
+                self[x] = t
+        return self
 
 def multi_mv(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> MultiTensor:
     """Compute the product a @ b, where the elements of a are flattened into
