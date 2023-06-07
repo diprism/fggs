@@ -244,7 +244,13 @@ class Axis(ABC):
         antisubst[1][new] = (e, f)
         return new
 
-@dataclass(eq=False, frozen=True) # identity matters
+@dataclass(eq=False, frozen=True) # The identity of PhysicalAxis objects matters,
+# not just its content field _numel, because we need to distinguish the axes of
+# a physical tensor even when their _numel is equal (for instance, the physical
+# tensor might be a square matrix).  We also need to distinguish the axes of
+# different physical tensors, which is why we cannot replace PhysicalAxis
+# objects by sequential ints (0 for the first axes of a physical tensor, 1 for
+# the second, etc.).
 class PhysicalAxis(Axis):
     _numel: int
 
