@@ -97,11 +97,14 @@ __all__ = ['Axis', 'PhysicalAxis', 'ProductAxis', 'SumAxis',
            'PatternedTensor', 'stack', 'einsum', 'log_viterbi_einsum_forward']
 
 Rename = Dict["PhysicalAxis", "PhysicalAxis"]
+# populated by Axis.freshen
 
 Subst = Dict["PhysicalAxis", "Axis"]
+# populated by Axis.unify
 
 AntiSubst = Tuple[Dict[Tuple["Axis", "Axis"], "PhysicalAxis"],
                   Dict["PhysicalAxis", Tuple["Axis", "Axis"]]]
+# populated by Axis.antiunify
 
 NumberType = Union[bool, int, float] # omit the complex type to work around https://github.com/pytorch/pytorch/pull/91345
 
@@ -173,7 +176,11 @@ class Axis(ABC):
         pass
 
     def unify(e: Axis, f: Axis, subst: Subst) -> bool:
-        """Unify the two axes by extending subst. Return success."""
+        """Unify the two axes by extending subst. Return success.
+
+           Unifying two axes amounts to taking the intersection of two sparsity
+           patterns.  This is useful for multiplying patterned tensors, because
+           zero times anything is zero."""
         e = e.forward(subst)
         f = f.forward(subst)
         if e is f: return True
@@ -208,7 +215,11 @@ class Axis(ABC):
 
     def antiunify(e: Axis, f: Axis, antisubst: AntiSubst) -> Axis:
         """Antiunify the two axes by extending antisubst.  Return least
-           general generalization (whose variables are all in antisubst)."""
+           general generalization (whose variables are all in antisubst).
+
+           Antiunifying two axes amounts to finding the most precise way to
+           represent the union of two sparsity patterns.  This is useful for
+           adding patterned tensors, because zero plus zero is zero."""
         if __debug__:
             if e.numel() != f.numel():
                 warn(f"Attempt to antiunify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
@@ -921,6 +932,8 @@ class PatternedTensor:
                              lambda x, y: x.add_(y))
 
     def mul(t, u: PatternedTensor) -> PatternedTensor:
+        # TODO: if one or both of the defaults is 0, then that input's sparsity
+        # pattern bounds the result's sparsity pattern (NaN be damned)
         return t.commutative(u, 1, t.default * u.default,
                              lambda x, y: x.mul_(y))
 
