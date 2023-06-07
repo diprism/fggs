@@ -160,7 +160,7 @@ class Axis(ABC):
         """Express this axis as a product of non-product axes."""
         yield self
 
-    def forward(self, subst: Subst) -> Axis:
+    def lookup(self, subst: Subst) -> Axis:
         """Look in subst for the end of the forwarding chain starting with self."""
         return self
 
@@ -193,8 +193,8 @@ class Axis(ABC):
            Unifying two axes amounts to taking the intersection of two sparsity
            patterns.  This is useful for multiplying patterned tensors, because
            zero times anything is zero."""
-        e = e.forward(subst)
-        f = f.forward(subst)
+        e = e.lookup(subst)
+        f = f.lookup(subst)
         if e is f: return True
         if isinstance(e, ProductAxis) and isinstance(f, ProductAxis):
             if len(e.factors) == len(f.factors):
@@ -270,26 +270,26 @@ class PhysicalAxis(Axis):
         return self._numel
 
     def fv(self, subst: Subst) -> Iterator[PhysicalAxis]:
-        fwd = self.forward(subst)
-        if fwd is self:
+        look = self.lookup(subst)
+        if look is self:
             yield self
         else:
-            yield from fwd.fv(subst)
+            yield from look.fv(subst)
 
     def stride(self, subst: Subst) -> Tuple[int, Dict[PhysicalAxis, int]]:
-        fwd = self.forward(subst)
-        return (0, {self: 1}) if fwd is self else fwd.stride(subst)
+        look = self.lookup(subst)
+        return (0, {self: 1}) if look is self else look.stride(subst)
 
     def prime_factors(self, subst: Subst) -> Iterator[Axis]:
-        fwd = self.forward(subst)
-        if fwd is self:
+        look = self.lookup(subst)
+        if look is self:
             yield self
         else:
-            yield from fwd.prime_factors(subst)
+            yield from look.prime_factors(subst)
 
-    def forward(self, subst: Subst) -> Axis:
+    def lookup(self, subst: Subst) -> Axis:
         if self in subst:
-            subst[self] = ret = subst[self].forward(subst)
+            subst[self] = ret = subst[self].lookup(subst)
             return ret
         else:
             return self
@@ -1036,7 +1036,7 @@ class PatternedTensor:
 
             # Is the non-default region of t a superset of the non-default region of c?
             # In other words, did unification do anything to c_paxes?
-            fullness_test = frozenset(e.forward(subst) for e in c_paxes)
+            fullness_test = frozenset(e.lookup(subst) for e in c_paxes)
             full = len(fullness_test) == len(c_paxes) \
                    and all(isinstance(e, PhysicalAxis) for e in fullness_test)
 
@@ -1218,7 +1218,7 @@ def stack(tensors: Sequence[PatternedTensor], dim: int = 0) -> PatternedTensor:
             raise AssertionError
             # Due to antiunification above, t.vaxes should be an instance of lggs.
             # So, subst should map variables in t.vaxes to only variables.
-        project(p, tuple(cast(PhysicalAxis, e.forward(subst)) for e in t.paxes),
+        project(p, tuple(cast(PhysicalAxis, e.lookup(subst)) for e in t.paxes),
                 ks, subst)[0].copy_(t.physical)
     return PatternedTensor(physical, paxes, vaxes, default)
 
