@@ -109,6 +109,11 @@ AntiSubst = Tuple[Dict[Tuple["Axis", "Axis"], "PhysicalAxis"],
 NumberType = Union[bool, int, float] # omit the complex type to work around https://github.com/pytorch/pytorch/pull/91345
 
 def make_letterer(alphabet: str = ascii_uppercase) -> Callable[[Any], str]:
+    # A letterer is a function that turns objects into strings.  It should
+    # always turn the same object into the same string, and different objects
+    # into different strings.  The function produced here turns each
+    # never-seen-before object into the next string in the sequence
+    # A, B, C, ..., Z, AA, AB, ..., ZZ, ABC, ...
     d : Dict[Any, str] = {}
     l = (''.join(chars) for n in count(1)
                         for chars in product(ascii_uppercase, repeat=n))
@@ -127,6 +132,8 @@ class Axis(ABC):
 
     @abstractmethod
     def depict(self, letterer: Callable[[PhysicalAxis], str]) -> str:
+        """Produce a string representation of this axis, using the given
+           callback function to turn a PhysicalAxis into a string name."""
         pass
 
     @abstractmethod
@@ -245,6 +252,7 @@ class PhysicalAxis(Axis):
         return f"PhysicalAxis(numel={self._numel}, id={id(self)})"
 
     def depict(self, letterer: Callable[[PhysicalAxis], str]) -> str:
+        # Produce a string like "X(2)"
         return f"{letterer(self)}({self._numel})"
 
     def numel(self) -> int:
@@ -298,6 +306,7 @@ class ProductAxis(Axis):
     factors: Tuple[Axis, ...]
 
     def depict(self, letterer: Callable[[PhysicalAxis], str]) -> str:
+        # Produce a string like "(X(2) * Y(3))"
         return f"({'*'.join(e.depict(letterer) for e in self.factors)})"
 
     def numel(self) -> int:
@@ -346,7 +355,8 @@ class SumAxis(Axis):
     after: int
 
     def depict(self, letterer: Callable[[PhysicalAxis], str]) -> str:
-        return f"({self.before}+{self.term.depict(letterer)}+{self.after})"
+        # Produce a string like "(1 + Z(6) + 0)"
+        return f"({self.before} + {self.term.depict(letterer)} + {self.after})"
 
     def numel(self) -> int:
         return self.before + self.term.numel() + self.after
@@ -520,6 +530,8 @@ class PatternedTensor:
                                semiring.from_int(0).item())
 
     def depict(self, letterer: Callable[[PhysicalAxis], str]) -> str:
+        """Produce a string summary of this PatternedTensor, using the given
+           callback function to turn a PhysicalAxis into a string name."""
         P = (k.depict(letterer) for k in self.paxes)
         V = (e.depict(letterer) for e in self.vaxes)
         return f"[\\{' '.join(P)} -> {', '.join(V)} | default {self.default}]"
