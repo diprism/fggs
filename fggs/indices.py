@@ -148,7 +148,12 @@ class Axis(ABC):
 
     @abstractmethod
     def stride(self, subst: Subst) -> Tuple[int, Dict[PhysicalAxis, int]]:
-        """The coefficients of the affine map from physical to virtual indices."""
+        """The coefficients of the affine map from physical to virtual indices.
+
+           If (offset, strides) = self.stride(), then the physical indices
+               {x1:i1, x2:i2, ...}
+           map to the virtual index
+               offset + strides[x1] * i1 + strides[x2] * i2 + ...."""
         pass
 
     def prime_factors(self, subst: Subst) -> Iterator[Axis]:
