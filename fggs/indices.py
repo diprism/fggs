@@ -496,7 +496,8 @@ class EmbeddedTensor:
     def dim(self) -> int:
         return len(self.vembeds)
 
-    ndim = ndimension = property(dim)
+    ndimension = dim
+    ndim = property(dim)
 
     @property
     def dtype(self) -> torch.dtype:
