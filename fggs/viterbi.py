@@ -10,17 +10,17 @@ from fggs.multi import MultiTensor
 from typing import Dict, Tuple, NamedTuple, Set, List, Sequence, Optional
 import torch
 from torch import Tensor
-from fggs.indices import EmbeddedTensor, log_viterbi_einsum_forward
+from fggs.indices import PatternedTensor, log_viterbi_einsum_forward
 
 # The Viterbi algorithm can be thought of as a sum-product in a
 # special semiring, but there are enough little differences that it
 # seems easier to implement it separately.
 
-def sum_product_edges(fgg: FGG, rule: HRGRule, *inputses: MultiTensor, semiring: Semiring) -> Optional[Tuple[EmbeddedTensor, EmbeddedTensor]]:
+def sum_product_edges(fgg: FGG, rule: HRGRule, *inputses: MultiTensor, semiring: Semiring) -> Optional[Tuple[PatternedTensor, PatternedTensor]]:
 
     connected: Set[Node] = set()
     indexing: List[Sequence[Node]] = []
-    tensors: List[EmbeddedTensor] = []
+    tensors: List[PatternedTensor] = []
 
     for edge in rule.rhs.edges():
         connected.update(edge.nodes)
@@ -69,7 +69,7 @@ def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring)
                     lhs_pointer[n].fill_(ri)
                     Fx[n] = tau_rule
                 rhs_pointer[n].append(pointer.to_dense())
-                # TODO: instead of converting to_dense() above, implement EmbeddedTensor.__getitem__
+                # TODO: instead of converting to_dense() above, implement PatternedTensor.__getitem__
                 # to support "rhs_pointer[nt][ri][nt_asst]" in the reconstruct method
             else:
                 rhs_pointer[n].append(None)
@@ -91,8 +91,8 @@ def viterbi(fgg: FGG, start_asst: Tuple[int,...], **opts) -> FGGDerivation:
         raise ValueError(f"Start assignment ({start_asst}) does not have same type as FGG's start symbol ({fgg.start.type})")
     
     semiring = opts.get('semiring', ViterbiSemiring())
-    def from_dense(t: Tensor) -> EmbeddedTensor:
-        return EmbeddedTensor(t, default=semiring.from_int(0).item())
+    def from_dense(t: Tensor) -> PatternedTensor:
+        return PatternedTensor(t, default=semiring.from_int(0).item())
     kmax = opts.get('kmax', 1000)
     tol = opts.get('tol', 1e-6)
 

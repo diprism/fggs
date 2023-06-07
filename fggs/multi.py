@@ -1,7 +1,7 @@
 __all__ = ['MultiTensor', 'MultiShape', 'multi_mv', 'multi_solve']
 from typing import Union, Tuple, TypeVar, Iterator, Dict, Mapping, MutableMapping, Optional
 from fggs.semirings import Semiring
-from fggs.indices import EmbeddedTensor
+from fggs.indices import PatternedTensor
 from math import inf
 import torch
 from torch import Tensor, Size
@@ -11,8 +11,8 @@ T = TypeVar('T')
 MultiTensorKey = Union[T, Tuple[T,...]]
 MultiShape = Mapping[MultiTensorKey, Size]
 
-class MultiTensor(MutableMapping[MultiTensorKey, EmbeddedTensor]):
-    """A mapping from keys to EmbeddedTensors that supports some vector and
+class MultiTensor(MutableMapping[MultiTensorKey, PatternedTensor]):
+    """A mapping from keys to PatternedTensors that supports some vector and
        matrix operations. The keys can be thought of as partitioning the set
        of indices into a disjoint union whose order doesn't matter."""
     def __init__(self, shapes: Union[MultiShape, Tuple[MultiShape,...]], semiring: Semiring):
@@ -20,9 +20,9 @@ class MultiTensor(MutableMapping[MultiTensorKey, EmbeddedTensor]):
             shapes = (shapes,)
         self.shapes = shapes
         self.semiring = semiring
-        self._dict: Dict[MultiTensorKey, EmbeddedTensor] = {}
+        self._dict: Dict[MultiTensorKey, PatternedTensor] = {}
 
-    def __getitem__(self, key: MultiTensorKey) -> EmbeddedTensor:
+    def __getitem__(self, key: MultiTensorKey) -> PatternedTensor:
         try:
             return self._dict[key]
         except KeyError:
@@ -30,8 +30,8 @@ class MultiTensor(MutableMapping[MultiTensorKey, EmbeddedTensor]):
                 shape = sum([s[x] for s, x in zip(self.shapes, key)], ())
             else:
                 shape = self.shapes[0][key]
-            return EmbeddedTensor.from_int(0, self.semiring).expand(*shape)
-    def __setitem__(self, key: MultiTensorKey, val: EmbeddedTensor):
+            return PatternedTensor.from_int(0, self.semiring).expand(*shape)
+    def __setitem__(self, key: MultiTensorKey, val: PatternedTensor):
         if isinstance(key, tuple):
             shape = sum([s[x] for s, x in zip(self.shapes, key)], ())
         else:
@@ -111,7 +111,7 @@ class MultiTensor(MutableMapping[MultiTensorKey, EmbeddedTensor]):
         c.copy_(self)
         return c
 
-    def add_single(self, k: MultiTensorKey, v: EmbeddedTensor):
+    def add_single(self, k: MultiTensorKey, v: PatternedTensor):
         """Add v to self[k]. If self[k] does not exist, it is initialized to zero."""
         assert(v.physical.dtype == self.semiring.dtype)
         if k in self:

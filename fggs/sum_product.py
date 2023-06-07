@@ -17,7 +17,7 @@ import warnings
 import torch
 from torch import Tensor
 from fggs.typing import TensorLikeT
-from fggs.indices import EmbeddedTensor, einsum, stack
+from fggs.indices import PatternedTensor, einsum, stack
 
 Function = Callable[[MultiTensor], MultiTensor]
 
@@ -154,7 +154,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
     Jx = MultiTensor(x.shapes+x.shapes, semiring=RealSemiring(dtype=semiring.dtype, device=semiring.device))
     for n in x.shapes[0]:
         rules = tuple(fgg.rules(n))
-        tau_rule_pairs: List[Tuple[HRGRule, EmbeddedTensor]] = \
+        tau_rule_pairs: List[Tuple[HRGRule, PatternedTensor]] = \
             [(rule, tau_rule)
              for rule in rules
              for tau_rule in (sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(),
@@ -162,7 +162,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
              if tau_rule is not None]
         if len(tau_rule_pairs) == 0: continue
         rules, tau_rules = zip(*tau_rule_pairs)
-        tau_rules_stacked : EmbeddedTensor = stack(tau_rules, dim=0)
+        tau_rules_stacked : PatternedTensor = stack(tau_rules, dim=0)
         tau_rules_stacked = log_softmax(tau_rules_stacked, dim=0)
         for rule, tau_rule in zip(rules, tau_rules_stacked):
             for edge in rule.rhs.edges():
@@ -187,7 +187,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
     return Jx
 
 
-def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ext: Sequence[Node], *inputses: MultiTensor, semiring: Semiring) -> Optional[EmbeddedTensor]:
+def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ext: Sequence[Node], *inputses: MultiTensor, semiring: Semiring) -> Optional[PatternedTensor]:
     """Compute the sum-product of a set of edges.
 
     Parameters:
@@ -204,7 +204,7 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
 
     connected: Set[Node] = set()
     indexing: List[Sequence[Node]] = []
-    tensors: List[EmbeddedTensor] = []
+    tensors: List[PatternedTensor] = []
 
     # Derivatives can sometimes produce duplicate external nodes.
     # Rename them apart and add identity factors between them.
@@ -218,7 +218,7 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
             connected.update([n, ncopy])
             indexing.append([n, ncopy])
             nsize = cast(FiniteDomain, fgg.domains[n.label.name]).size()
-            tensors.append(EmbeddedTensor.eye(nsize,semiring))
+            tensors.append(PatternedTensor.eye(nsize,semiring))
             #duplicate = True # Uncomment this line for debugging messages
         else:
             ext.append(n)
@@ -254,7 +254,7 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
         if n not in connected and n not in ext:
             multiplier *= cast(FiniteDomain, fgg.domains[n.label.name]).size()
     if multiplier != 1:
-        out = semiring.mul(out, EmbeddedTensor.from_int(multiplier, semiring))
+        out = semiring.mul(out, PatternedTensor.from_int(multiplier, semiring))
     assert(out.physical.dtype == semiring.dtype)
     return out
 
@@ -317,8 +317,8 @@ class SumProduct(torch.autograd.Function):
     def forward(ctx, fgg: FGG, opts: Dict, in_labels: Sequence[EdgeLabel], out_labels: Sequence[EdgeLabel], *in_values: Tensor) -> Tuple[Tensor, ...]: # type: ignore
         ctx.fgg = fgg
         method, semiring = opts['method'], opts['semiring']
-        def from_dense(t: Tensor) -> EmbeddedTensor:
-            return EmbeddedTensor(t, default=semiring.from_int(0).item())
+        def from_dense(t: Tensor) -> PatternedTensor:
+            return PatternedTensor(t, default=semiring.from_int(0).item())
         ctx.opts = opts
         ctx.in_labels = in_labels
         ctx.out_labels = out_labels
@@ -350,8 +350,8 @@ class SumProduct(torch.autograd.Function):
     @staticmethod
     def backward(ctx, *grad_out):
         semiring = ctx.opts['semiring']
-        def from_dense(t: Tensor) -> EmbeddedTensor:
-            return EmbeddedTensor(t, default=semiring.from_int(0).item())
+        def from_dense(t: Tensor) -> PatternedTensor:
+            return PatternedTensor(t, default=semiring.from_int(0).item())
         # gradients are always computed in the real semiring
         real_semiring = RealSemiring(dtype=semiring.dtype, device=semiring.device)
         # TODO: should from_dense sometimes use default=real_semiring.from_int(0).item()?
