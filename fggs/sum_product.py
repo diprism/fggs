@@ -316,7 +316,7 @@ class SumProduct(torch.autograd.Function):
     """
     
     @staticmethod
-    def forward(ctx, fgg: FGG, opts: Dict, in_labels: Sequence[Tuple[EdgeLabel, Tuple[Sequence[PhysicalAxis], Sequence[Axis], NumberType]]], out_labels: Sequence[EdgeLabel], *in_values: Tensor) -> Tuple[Tensor, ...]: # type: ignore
+    def forward(ctx, fgg: FGG, opts: Dict, in_labels: Sequence[Tuple[EdgeLabel, Callable[[Tensor], PatternedTensor]]], out_labels: Sequence[EdgeLabel], *in_values: Tensor) -> Tuple[Tensor, ...]: # type: ignore
         ctx.fgg = fgg
         method, semiring = opts['method'], opts['semiring']
         ctx.opts = opts
@@ -324,7 +324,7 @@ class SumProduct(torch.autograd.Function):
         ctx.out_labels = out_labels
         ctx.save_for_backward(*in_values)
 
-        inputs: MultiTensor = {label: PatternedTensor(physical, *nonphysical) for (label, nonphysical), physical in zip(in_labels, in_values)} # type: ignore
+        inputs: MultiTensor = {label: nonphysical(physical) for (label, nonphysical), physical in zip(in_labels, in_values)} # type: ignore
 
         if method == 'linear':
             out = linear(fgg, inputs, out_labels, semiring)
@@ -357,11 +357,11 @@ class SumProduct(torch.autograd.Function):
         # TODO: should from_dense sometimes use default=real_semiring.from_int(0).item()?
 
         # Construct and solve linear system of equations
-        inputs = {label: PatternedTensor(physical, *nonphysical) for (label, nonphysical), physical in zip(ctx.in_labels, ctx.saved_tensors)}
+        inputs = {label: nonphysical(physical) for (label, nonphysical), physical in zip(ctx.in_labels, ctx.saved_tensors)}
         f = dict(zip(ctx.out_labels, map(from_dense, grad_out)))
             
         jf_inputs = MultiTensor((FGGMultiShape(ctx.fgg, ctx.out_labels),
-                                 FGGMultiShape(ctx.fgg, ctx.in_labels)),
+                                 FGGMultiShape(ctx.fgg, (el for el, _ in ctx.in_labels))),
                                 real_semiring)
         if isinstance(semiring, RealSemiring):
             jf = J(ctx.fgg, ctx.out_values, inputs, semiring, jf_inputs)
@@ -374,10 +374,17 @@ class SumProduct(torch.autograd.Function):
                     
         # Compute gradients of inputs
         grad_t = multi_mv(jf_inputs, grad_nt, transpose=True)
-        grad_in = tuple(grad_t[el].to_dense() for el in ctx.in_labels)
+        grad_in = tuple(grad_t[el].to_dense() for el, _ in ctx.in_labels)
         
         return (None, None, None, None) + grad_in
 
+    @staticmethod
+    def apply_to_patterned_tensors(fgg: FGG, opts: Dict, in_labels: Sequence[EdgeLabel], out_labels: Sequence[EdgeLabel], *in_values: PatternedTensor) -> Tuple[Tensor, ...]:
+        return SumProduct.apply(fgg, opts,
+                                tuple((in_label, tensor.nonphysical())
+                                      for in_label, tensor in zip(in_labels, in_values)),
+                                out_labels,
+                                *(tensor.physical for tensor in in_values))
 
 def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
     opts.setdefault('method',   'fixed-point')
@@ -411,14 +418,10 @@ def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
             comp_opts['method'] = 'linear'
 
         comp_labels = list(comp)
-        comp_values = SumProduct.apply(fgg, comp_opts,
-                                       tuple((label, tensor.nonphysical())
-                                             for label, tensor in inputs.items()),
-                                       comp_labels,
-                                       *(tensor.physical for tensor in inputs.values()))
+        comp_values = SumProduct.apply_to_patterned_tensors(fgg, comp_opts, inputs.keys(), comp_labels, *inputs.values())
         for label, value in zip(comp_labels, comp_values):
             all[label] = PatternedTensor(value)
-    return all
+    return {label: t.to_dense() for label, t in all.items()}
         
 def sum_product(fgg: FGG, **opts) -> Tensor:
     """Compute the sum-product of an FGG.

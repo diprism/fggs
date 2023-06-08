@@ -15,7 +15,7 @@ def string_to_tensor(s, name="tensor", shape=None):
         j = json.loads(s)
     except json.decoder.JSONDecodeError as e:
         error(f"couldn't understand {name}: {e}")
-    t = json_to_weights(j)
+    t = fggs.json_to_weights(j)
     if shape is not None and t.shape != shape:
         error(f"{name} should have shape {shape}")
     return t

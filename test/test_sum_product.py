@@ -1,6 +1,7 @@
 from fggs import sum_product, FGG, FiniteFactor, json_to_fgg
 from fggs.sum_product import scc, SumProduct
 from fggs.semirings import *
+from fggs.indices import PatternedTensor
 import unittest, warnings, torch, random, json, copy, math
 
 def load_fgg(filename):
@@ -76,8 +77,10 @@ class TestSumProduct(unittest.TestCase):
 
         for ex in self.examples:
             for fac in ex.fgg.factors.values():
-                if not isinstance(fac.weights, torch.Tensor):
-                    fac.weights = torch.tensor(fac.weights, dtype=torch.get_default_dtype())
+                if not isinstance(fac.weights, PatternedTensor):
+                    if not isinstance(fac.weights, torch.Tensor):
+                        fac.weights = torch.tensor(fac.weights, dtype=torch.get_default_dtype())
+                    fac.weights = PatternedTensor(fac.weights)
 
 
     def assertAlmostEqual(self, x, y):
@@ -96,16 +99,17 @@ class TestSumProduct(unittest.TestCase):
             if not example.gradcheck: continue
             with self.subTest(example=str(example)):
                 fgg = example.fgg
-                in_labels = fgg.terminals()
                 in_values = [fac.weights.to(torch.double).requires_grad_(True)
                              for fac in fgg.factors.values()]
+                in_labels = tuple((in_label, tensor.nonphysical())
+                                  for in_label, tensor in zip(fgg.terminals(), in_values))
                 out_labels = list(fgg.nonterminals())
-                def f(*in_values):
+                def f(*physicals):
                     opts = {'method': 'newton', 'tol': 1e-6, 'kmax': 100,
                             'semiring': RealSemiring(dtype=torch.double)}
-                    return SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
+                    return SumProduct.apply(fgg, opts, in_labels, out_labels, *physicals)
                 
-                self.assertTrue(torch.autograd.gradcheck(f, in_values, atol=1e-3))
+                self.assertTrue(torch.autograd.gradcheck(f, tuple(tensor.physical for tensor in in_values), atol=1e-3))
 
 
     def test_autograd_log(self):
@@ -113,27 +117,28 @@ class TestSumProduct(unittest.TestCase):
             if not example.gradcheck: continue
             with self.subTest(example=str(example)):
                 fgg = example.fgg
-                in_labels = fgg.terminals()
                 in_values = [fac.weights.log().to(torch.double).requires_grad_(True)
                              for fac in fgg.factors.values()]
+                in_labels = tuple((in_label, tensor.nonphysical())
+                                  for in_label, tensor in zip(fgg.terminals(), in_values))
                 out_labels = list(fgg.nonterminals())
-                def f(*in_values):
+                def f(*physicals):
                     opts = {'method': 'newton', 'tol': 1e-6, 'kmax': 100,
                             'semiring': LogSemiring(dtype=torch.double)}
-                    ret = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
+                    ret = SumProduct.apply(fgg, opts, in_labels, out_labels, *physicals)
                     # put exp inside f to avoid gradcheck computing -inf - -inf
                     return tuple(z.exp() for z in ret)
-                self.assertTrue(torch.autograd.gradcheck(f, in_values, atol=1e-3))
+                self.assertTrue(torch.autograd.gradcheck(f, tuple(tensor.physical for tensor in in_values), atol=1e-3))
 
     def test_infinite_gradient(self):
         fgg = load_fgg('test/linear.json')
         # make sum-product infinite
         faca = fgg.factors['a']
-        faca.weights = torch.tensor(1., requires_grad=True)
+        faca.weights = PatternedTensor(torch.tensor(1., requires_grad=True))
         facb = fgg.factors['b']
-        facb.weights = torch.tensor(1., requires_grad=True)
+        facb.weights = PatternedTensor(torch.tensor(1., requires_grad=True))
         facc = fgg.factors['c']
-        facc.weights = torch.tensor(1., requires_grad=True)
+        facc.weights = PatternedTensor(torch.tensor(1., requires_grad=True))
         z = sum_product(fgg, method='linear')
         self.assertEqual(z.item(), math.inf)
         z.backward()
@@ -143,8 +148,8 @@ class TestSumProduct(unittest.TestCase):
         
         fgg = load_fgg('test/simplefgg.json')
         # make sum-product infinite
-        fgg.new_finite_factor('fac1', torch.tensor(1., requires_grad=True))
-        fgg.new_finite_factor('fac2', torch.tensor(1., requires_grad=True))
+        fgg.new_finite_factor('fac1', PatternedTensor(torch.tensor(1., requires_grad=True)))
+        fgg.new_finite_factor('fac2', PatternedTensor(torch.tensor(1., requires_grad=True)))
         z = sum_product(fgg, method='newton')
         self.assertEqual(z.item(), math.inf)
         z.backward()
@@ -167,7 +172,7 @@ class TestSumProduct(unittest.TestCase):
                             # Take log of all weights
                             fgg = example.fgg.copy()
                             for fac in fgg.factors.values():
-                                fac.weights = torch.log(fac.weights)
+                                fac.weights = fac.weights.log()
                             z = torch.exp(sum_product(fgg, method=method, semiring=LogSemiring()))
                             self.assertAlmostEqual(z, z_exact)
                             
@@ -184,7 +189,7 @@ class TestSumProduct(unittest.TestCase):
                         with self.subTest(semiring='BoolSemiring'):
                             fgg = example.fgg.copy()
                             for fac in fgg.factors.values():
-                                fac.weights = fac.weights > 0.
+                                fac.weights = fac.weights.gt(0.)
                             z = sum_product(fgg, method=method, semiring=BoolSemiring())
                             z_exact = example.exact() > 0.
                             self.assertAlmostEqual(z, z_exact)

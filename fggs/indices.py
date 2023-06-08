@@ -586,8 +586,10 @@ class PatternedTensor:
     def is_complex(self) -> bool:
         return self.physical.is_complex()
 
-    def nonphysical(self):
-        return (self.paxes, self.vaxes, self.default)
+    def nonphysical(self) -> Callable[[Tensor], PatternedTensor]:
+        """Set aside all the information other than self.physical.
+           Return a function that reconstructs self from self.physical."""
+        return lambda physical: PatternedTensor(physical, self.paxes, self.vaxes, self.default)
 
     def freshen(self) -> PatternedTensor:
         """Return a new PatternedTensor (with same underlying physical storage)
