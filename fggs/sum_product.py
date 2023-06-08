@@ -392,7 +392,7 @@ class SumProduct(torch.autograd.Function):
         return (None, None, None, None) + grad_in
 
     @staticmethod
-    def apply_to_patterned_tensors(fgg: FGG, opts: Dict, in_labels: Iterable[EdgeLabel], out_labels: Sequence[EdgeLabel], *in_values: PatternedTensor) -> Tuple[Tensor, ...]:
+    def apply_to_patterned_tensors(fgg: FGG, opts: Dict, in_labels: Iterable[EdgeLabel], out_labels: Sequence[EdgeLabel], *in_values: PatternedTensor) -> Tuple[PatternedTensor, ...]:
         (nonphysicals, *physicals) = SumProduct.apply(
             fgg, opts,
             tuple((in_label, tensor.nonphysical())
