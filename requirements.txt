@@ -1,5 +1,6 @@
 torch>=1.8
 pydot
-torch-semiring-einsum>=1.1
+git+https://github.com/bdusell/semiring-einsum
 tqdm
 mypy
+packaging

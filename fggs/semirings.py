@@ -3,6 +3,7 @@ from math import inf
 import torch_semiring_einsum, torch_semiring_einsum.utils
 from abc import ABC, abstractmethod
 from typing import Union
+from fggs.typing import TensorLikeT
 
 class Semiring(ABC):
     """A complete, commutative star-semiring (https://en.wikipedia.org/wiki/Semiring)."""
@@ -12,7 +13,7 @@ class Semiring(ABC):
         self.device = device
         
     @abstractmethod
-    def from_int(self, n: Union[int, torch.Tensor]):
+    def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
         """Map 0 to the semiring's zero element, 1 to the semiring's one element,
         2 to 1 + 1, and so on."""
         pass
@@ -23,7 +24,7 @@ class Semiring(ABC):
         return self.from_int(torch.zeros(shape, dtype=self.dtype, device=self.device))
     
     @abstractmethod
-    def add(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def add(self, x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         pass
 
     @abstractmethod
@@ -31,13 +32,13 @@ class Semiring(ABC):
         pass
     
     @abstractmethod
-    def sub(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def sub(self, x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         """Return any d such that x = y + d. If there is none (which isn't
         supposed to happen), just return what sub(x, x) returns."""
         pass
-    
+
     @abstractmethod
-    def mul(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def mul(self, x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         pass
     
     @abstractmethod
@@ -88,20 +89,22 @@ class Semiring(ABC):
 
 class RealSemiring(Semiring):
     
-    def from_int(self, n: Union[int, torch.Tensor]):
+    def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
         return torch.as_tensor(n, dtype=self.dtype, device=self.device)
     
-    add = staticmethod(torch.add) # type: ignore
     sum = staticmethod(torch.sum) # type: ignore
-    
-    @staticmethod
-    def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        # relu(x - y) = maximum(0, x - y)
-        return torch.relu(x - y).nan_to_num(nan=0., posinf=inf)
 
     @staticmethod
-    def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return torch.mul(x, y).nan_to_num(nan=0., posinf=inf)
+    def add(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        return x.add(y)
+
+    @staticmethod
+    def sub(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        return x.sub(y).relu_().nan_to_num_(nan=0., posinf=inf)
+
+    @staticmethod
+    def mul(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        return x.mul(y).nan_to_num_(nan=0., posinf=inf)
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
@@ -119,7 +122,8 @@ class RealSemiring(Semiring):
             return compute_sum(torch_semiring_einsum.utils.add_in_place,
                                torch_semiring_einsum.utils.sum_block,
                                multiply_in_place)
-        return torch_semiring_einsum.semiring_einsum_forward(equation, args, 1, callback)
+        # TODO: Why blocksize=1?
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE, callback)
     
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         # We want the least nonnegative solution of (I-a)x = b, and
@@ -140,26 +144,29 @@ class RealSemiring(Semiring):
 
 class LogSemiring(Semiring):
     
-    def from_int(self, n):
+    def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
         n = torch.as_tensor(n, dtype=self.dtype, device=self.device)
         return torch.log(n)
     
-    add = staticmethod(torch.logaddexp) # type: ignore
-    sum = staticmethod(torch.logsumexp) # type: ignore
-    
     @staticmethod
-    def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def add(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        return x.logaddexp(y)
+
+    sum = staticmethod(torch.logsumexp) # type: ignore
+
+    @staticmethod
+    def sub(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         # If x <= y, return -inf
         # If x ≈ y, log(exp(x) - exp(y)) = x + log(1 - exp(y-x)) = x + log(-expm1(y-x))
         # If x >> y, log(exp(x) - exp(y)) = x + log(1 - exp(y-x)) = x + log1p(-exp(y-x))
-        d = y - x
-        return torch.where(d < -1, # type: ignore
-                           x + torch.log1p(-torch.exp(d)), # type: ignore
-                           x + torch.log(-torch.expm1(d))).nan_to_num(nan=-inf, neginf=-inf, posinf=inf)
-    
+        d = y.sub(x)
+        return x.add(d.exp().neg_().log1p_().where(d.lt(-1),
+                     d.expm1().neg_().log_())) \
+                .nan_to_num_(nan=-inf, neginf=-inf, posinf=inf)
+
     @staticmethod
-    def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return torch.add(x, y).nan_to_num(nan=-inf, neginf=-inf, posinf=inf)
+    def mul(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        return x.add(y).nan_to_num_(nan=-inf, neginf=-inf, posinf=inf)
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
@@ -194,27 +201,30 @@ class LogSemiring(Semiring):
             result.add_(max_values)
             return result
 
-        return torch_semiring_einsum.semiring_einsum_forward(equation, args, 1, callback)
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE, callback)
 
 
 class ViterbiSemiring(Semiring):
     
-    def from_int(self, n):
+    def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
         n = torch.as_tensor(n, device=self.device)
         return torch.where(n > 0, 0., -inf).to(self.dtype)
     
-    add = staticmethod(torch.maximum) # type: ignore
+    @staticmethod
+    def add(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        return x.maximum(y)
+
     @staticmethod
     def sum(x: torch.Tensor, dim: int) -> torch.Tensor:
         return torch.max(x, dim=dim)[0]
-    
+
     @staticmethod
-    def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def sub(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x
-    
+
     @staticmethod
-    def mul(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return torch.add(x, y).nan_to_num(nan=-inf, neginf=-inf, posinf=inf)
+    def mul(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        return x.add(y).nan_to_num_(nan=-inf, neginf=-inf, posinf=inf)
     
     def star(self, x: torch.Tensor) -> torch.Tensor:
         return torch.where(x >= 0, inf, 0.).to(self.dtype)
@@ -230,7 +240,7 @@ class ViterbiSemiring(Semiring):
                                torch_semiring_einsum.utils.max_block,
                                add_in_place,
                                include_indexes=False)
-        return torch_semiring_einsum.semiring_einsum_forward(equation, args, 1, callback)
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE, callback)
 
     
 class BoolSemiring(Semiring):
@@ -238,18 +248,23 @@ class BoolSemiring(Semiring):
     def __init__(self, device='cpu'):
         super().__init__(dtype=torch.bool, device=device)
         
-    def from_int(self, n):
+    def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
         n = torch.as_tensor(n, device=self.device)
         return n > 0
-    
-    add = staticmethod(torch.logical_or) # type: ignore
+
+    @staticmethod
+    def add(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        return x.logical_or(y)
+
     sum = staticmethod(torch.any) # type: ignore
+
+    @staticmethod
+    def sub(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        return x.logical_and(y.logical_not())
     
     @staticmethod
-    def sub(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return x & ~y
-    
-    mul = staticmethod(torch.logical_and) # type: ignore
+    def mul(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        return x.logical_and(y)
     
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
@@ -257,4 +272,4 @@ class BoolSemiring(Semiring):
 
     @staticmethod
     def einsum(equation, *args: torch.Tensor) -> torch.Tensor:
-        return torch_semiring_einsum.einsum(equation, *args, block_size=1) > 0
+        return torch_semiring_einsum.einsum(equation, *args, block_size=torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE) > 0

@@ -122,7 +122,7 @@ class TestSumProduct(unittest.TestCase):
                             'semiring': LogSemiring(dtype=torch.double)}
                     ret = SumProduct.apply(fgg, opts, in_labels, out_labels, *in_values)
                     # put exp inside f to avoid gradcheck computing -inf - -inf
-                    return tuple(torch.exp(z) for z in ret)
+                    return tuple(z.exp() for z in ret)
                 self.assertTrue(torch.autograd.gradcheck(f, in_values, atol=1e-3))
 
     def test_infinite_gradient(self):
