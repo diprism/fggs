@@ -107,8 +107,13 @@ class TestSumProduct(unittest.TestCase):
                 def f(*physicals):
                     opts = {'method': 'newton', 'tol': 1e-6, 'kmax': 100,
                             'semiring': RealSemiring(dtype=torch.double)}
-                    return SumProduct.apply(fgg, opts, in_labels, out_labels, *physicals)
-                
+                    (nonphysicals, *physicals) = SumProduct.apply(
+                        fgg, opts, in_labels, out_labels, *physicals)
+                    return tuple(torch.zeros(fgg.shape(nt))
+                                 if nonphysical is None is physical
+                                 else nonphysical(physical).to_dense()
+                                 for nt, nonphysical, physical in zip(out_labels, nonphysicals, physicals))
+
                 self.assertTrue(torch.autograd.gradcheck(f, tuple(tensor.physical for tensor in in_values), atol=1e-3))
 
 
@@ -125,9 +130,12 @@ class TestSumProduct(unittest.TestCase):
                 def f(*physicals):
                     opts = {'method': 'newton', 'tol': 1e-6, 'kmax': 100,
                             'semiring': LogSemiring(dtype=torch.double)}
-                    ret = SumProduct.apply(fgg, opts, in_labels, out_labels, *physicals)
+                    (nonphysicals, *physicals) = SumProduct.apply(fgg, opts, in_labels, out_labels, *physicals)
                     # put exp inside f to avoid gradcheck computing -inf - -inf
-                    return tuple(z.exp() for z in ret)
+                    return tuple(torch.zeros(fgg.shape(nt))
+                                 if nonphysical is None is physical
+                                 else nonphysical(physical).exp().to_dense()
+                                 for nt, nonphysical, physical in zip(out_labels, nonphysicals, physicals))
                 self.assertTrue(torch.autograd.gradcheck(f, tuple(tensor.physical for tensor in in_values), atol=1e-3))
 
     def test_infinite_gradient(self):
