@@ -31,20 +31,22 @@ class FGGMultiShape(MultiShape):
     def __init__(self, fgg, els):
         self.fgg = fgg
         self.els = list(els)
-        self.elset = set(els)
+        self.elset = set(self.els)
     def __getitem__(self, x):
         if x in self.elset:
             return torch.Size(self.fgg.shape(x))
         else:
             raise KeyError()
+    def __contains__(self, x):
+        return x in self.elset
     def __iter__(self):
         return iter(self.els)
     def __len__(self):
         return len(self.els)
     def __str__(self):
-        return str(dict(self))
+        return str(self.els)
     def __repr__(self):
-        return repr(dict(self))
+        return repr(self.els)
 
 
 def make_timer(name: str) -> Callable[[], None]:
