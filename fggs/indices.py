@@ -519,6 +519,7 @@ class PatternedTensor:
     default : NumberType             = 0
 
     def __post_init__(self):
+        assert(isinstance(self.physical, Tensor))
         # Default to the trivial (dense) axis, to convert from Tensor
         if self.paxes is None:
             self.paxes = tuple(PhysicalAxis(n) for n in self.physical.size())
@@ -574,6 +575,13 @@ class PatternedTensor:
     def requires_grad_(self, requires_grad: bool = True) -> PatternedTensor:
         self.physical.requires_grad_(requires_grad)
         return self
+
+    @property
+    def grad(self) -> Optional[PatternedTensor]:
+        p = self.physical.grad
+        if p is None: return None
+        assert(p.size() == self.physical.size())
+        return PatternedTensor(p, self.paxes, self.vaxes, self.default)
 
     def is_complex(self) -> bool:
         return self.physical.is_complex()
@@ -656,6 +664,9 @@ class PatternedTensor:
 
     def __float__(self) -> float:
         return float(self.physical)
+
+    def item(self) -> NumberType:
+        return self.physical.item()
 
     def masked_fill_into(self, dest: Tensor, value: NumberType) -> None:
         """Fill elements of dest tensor with value where self is True."""
