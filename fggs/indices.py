@@ -578,6 +578,9 @@ class PatternedTensor:
     def is_complex(self) -> bool:
         return self.physical.is_complex()
 
+    def nonphysical(self):
+        return (self.paxes, self.vaxes, self.default)
+
     def freshen(self) -> PatternedTensor:
         """Return a new PatternedTensor (with same underlying physical storage)
            with fresh PhysicalAxes."""

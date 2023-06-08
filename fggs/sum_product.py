@@ -314,17 +314,15 @@ class SumProduct(torch.autograd.Function):
     """
     
     @staticmethod
-    def forward(ctx, fgg: FGG, opts: Dict, in_labels: Sequence[EdgeLabel], out_labels: Sequence[EdgeLabel], *in_values: Tensor) -> Tuple[Tensor, ...]: # type: ignore
+    def forward(ctx, fgg: FGG, opts: Dict, in_labels: Sequence[Tuple[EdgeLabel, Tuple[Sequence[PhysicalAxis], Sequence[Axis], NumberType]]], out_labels: Sequence[EdgeLabel], *in_values: Tensor) -> Tuple[Tensor, ...]: # type: ignore
         ctx.fgg = fgg
         method, semiring = opts['method'], opts['semiring']
-        def from_dense(t: Tensor) -> PatternedTensor:
-            return PatternedTensor(t, default=semiring.from_int(0).item())
         ctx.opts = opts
         ctx.in_labels = in_labels
         ctx.out_labels = out_labels
         ctx.save_for_backward(*in_values)
 
-        inputs: MultiTensor = dict(zip(in_labels, map(from_dense, in_values))) # type: ignore
+        inputs: MultiTensor = {label: PatternedTensor(physical, *nonphysical) for (label, nonphysical), physical in zip(in_labels, in_values)} # type: ignore
 
         if method == 'linear':
             out = linear(fgg, inputs, out_labels, semiring)
@@ -357,7 +355,7 @@ class SumProduct(torch.autograd.Function):
         # TODO: should from_dense sometimes use default=real_semiring.from_int(0).item()?
 
         # Construct and solve linear system of equations
-        inputs = dict(zip(ctx.in_labels, map(from_dense, ctx.saved_tensors)))
+        inputs = {label: PatternedTensor(physical, *nonphysical) for (label, nonphysical), physical in zip(ctx.in_labels, ctx.saved_tensors)}
         f = dict(zip(ctx.out_labels, map(from_dense, grad_out)))
             
         jf_inputs = MultiTensor((FGGMultiShape(ctx.fgg, ctx.out_labels),
@@ -387,10 +385,10 @@ def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
     if isinstance(opts['semiring'], BoolSemiring):
         opts['tol'] = 0
 
-    all = {t:cast(FiniteFactor, fgg.factors[t.name]).weights for t in fgg.terminals()}
+    all: Dict[EdgeLabel, PatternedTensor] = {t:cast(FiniteFactor, fgg.factors[t.name]).weights for t in fgg.terminals()}
     for comp in scc(nonterminal_graph(fgg)):
 
-        inputs = {}
+        inputs: Dict[EdgeLabel, PatternedTensor] = {}
         max_rhs = 0
         for x in comp:
             for r in fgg.rules(x):
@@ -411,8 +409,13 @@ def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
             comp_opts['method'] = 'linear'
 
         comp_labels = list(comp)
-        comp_values = SumProduct.apply(fgg, comp_opts, inputs.keys(), comp_labels, *inputs.values())
-        all.update(zip(comp_labels, comp_values))
+        comp_values = SumProduct.apply(fgg, comp_opts,
+                                       tuple((label, tensor.nonphysical())
+                                             for label, tensor in inputs.items()),
+                                       comp_labels,
+                                       *(tensor.physical for tensor in inputs.values()))
+        for label, value in zip(comp_labels, comp_values):
+            all[label] = PatternedTensor(value)
     return all
         
 def sum_product(fgg: FGG, **opts) -> Tensor:

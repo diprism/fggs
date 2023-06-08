@@ -15,7 +15,7 @@ def string_to_tensor(s, name="tensor", shape=None):
         j = json.loads(s)
     except json.decoder.JSONDecodeError as e:
         error(f"couldn't understand {name}: {e}")
-    t = torch.tensor(j, dtype=torch.get_default_dtype())
+    t = json_to_weights(j)
     if shape is not None and t.shape != shape:
         error(f"{name} should have shape {shape}")
     return t
@@ -87,8 +87,6 @@ if __name__ == '__main__':
     for el in fgg.terminals():
         if el.name not in fgg.factors:
             error(f'factor {el.name} needs weights (use -w option)')
-        fac = fgg.factors[el.name]
-        fac.weights = torch.as_tensor(fac.weights, dtype=torch.get_default_dtype())
 
     zs = fggs.sum_products(fgg, method=args.method, tol=args.tol, kmax=args.kmax)
     z = zs[fgg.start]
