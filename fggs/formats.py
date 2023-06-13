@@ -174,9 +174,9 @@ def weights_to_json(weights):
         return [weights_to_json(w) for w in weights]
 
 def json_to_axis(r, env):
-    if instance(r, list):
+    if isinstance(r, list):
         return ProductAxis(tuple(json_to_axis(r1, env) for r1 in r))
-    elif instance(r, dict):
+    elif isinstance(r, dict):
         return SumAxis(r["before"],
                        json_to_axis(r["term"], env),
                        r["after"])
