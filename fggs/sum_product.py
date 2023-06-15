@@ -306,16 +306,24 @@ class SumProduct(torch.autograd.Function):
 
     - fgg: The FGG
     - opts: A dict of options (see documentation for sum_product).
-    - in_labels: For each (terminal or nonterminal) EdgeLabel whose
-      sum-products are already computed, a pair (el[i],np[i]) where
-      el[i] is the EdgeLabel and np[i] is the nonphysical part of
-      the PatternedTensor that is the sum-product of el[i].
+    - in_labels: A sequence of sum-products already computed.
+      For each (terminal or nonterminal) EdgeLabel whose sum-products
+      are already computed, the element in_labels[i] is a pair
+      (el[i], in_np[i]) where
+      - el[i] is the EdgeLabel and
+      - in_np[i] is the nonphysical part of the PatternedTensor
+        that is the sum-product of el[i].
+        A nonphysical part of a PatternedTensor pt is a function
+        that produces pt when passed the Tensor pt.physical.
     - out_labels: The nonterminal EdgeLabels whose sum-products to compute.
     - in_values: A sequence of Tensors such that the PatternedTensor
-      np[i](in_values[i]) is the sum-product of in_labels[i].
+      in_np[i](in_values[i]) is the sum-product of in_labels[i].
 
-    Returns: A sequence of Tensors out_values such that out_values[i]
-    is the sum-product of out_labels[i].
+    Returns: A sequence (out_np, *out_values), where
+    - out_np consists of len(out_labels) nonphysical parts and
+    - out_values consists of len(out_labels) Tensors,
+    such that out_np[i](out_values[i]) is the sum-product of
+    out_labels[i].
     """
     
     @staticmethod
