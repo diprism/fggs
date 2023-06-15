@@ -301,16 +301,18 @@ def linear(fgg: FGG, inputs: MultiTensor, out_labels: Sequence[EdgeLabel], semir
 class SumProduct(torch.autograd.Function):
     """Compute the sum-product of a subset of the nonterminals of an FGG.
 
-    The interface is slightly awkward because PyTorch does not
-    autodifferentiate with respect to arguments that are not Tensors.
+    The interface is awkward because PyTorch does not autodifferentiate
+    with respect to arguments and outputs that are not Tensors.
 
     - fgg: The FGG
     - opts: A dict of options (see documentation for sum_product).
-    - in_labels: The (terminal or nonterminal) EdgeLabels whose
-      sum-products are already computed.
+    - in_labels: For each (terminal or nonterminal) EdgeLabel whose
+      sum-products are already computed, a pair (el[i],np[i]) where
+      el[i] is the EdgeLabel and np[i] is the nonphysical part of
+      the PatternedTensor that is the sum-product of el[i].
     - out_labels: The nonterminal EdgeLabels whose sum-products to compute.
-    - in_values: A sequence of Tensors such that in_values[i] is the
-      sum-product of in_labels[i].
+    - in_values: A sequence of Tensors such that the PatternedTensor
+      np[i](in_values[i]) is the sum-product of in_labels[i].
 
     Returns: A sequence of Tensors out_values such that out_values[i]
     is the sum-product of out_labels[i].
