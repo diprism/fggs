@@ -5,7 +5,7 @@ __all__ = ['json_to_fgg', 'fgg_to_json',
 
 from itertools import repeat
 from fggs.fggs import *
-from fggs.indices import PhysicalAxis, ProductAxis, SumAxis, PatternedTensor
+from fggs.indices import PhysicalAxis, productAxis, SumAxis, PatternedTensor
 from fggs import domains, factors
 import torch
 
@@ -175,7 +175,7 @@ def weights_to_json(weights):
 
 def json_to_axis(r, env):
     if isinstance(r, list):
-        return ProductAxis(tuple(json_to_axis(r1, env) for r1 in r))
+        return productAxis(json_to_axis(r1, env) for r1 in r)
     elif isinstance(r, dict):
         return SumAxis(r["before"],
                        json_to_axis(r["term"], env),
