@@ -415,7 +415,10 @@ class TestPatternedTensor(unittest.TestCase):
                          ((self.k2, self.k0, self.k0_, self.k3), (0,)),
                          ((self.k2, self.k0, self.k0_, self.k3), (2,0)),
                          ((self.k2, self.k0, self.k0_, self.k3), (0,3)),
-                         ((self.k2, self.k0, self.k0_, self.k3), (0,0))]:
+                         ((self.k2, self.k0, self.k0_, self.k3), (0,0)),
+                         ((self.k2, SumAxis(5, self.k0, 6), self.k3), (2,33)),
+                         ((self.k2, SumAxis(5, ki     , 5), self.k3), (2,33)),
+                         ((         SumAxis(5, ki     , 5),        ), (1,11))]:
             paxes = tuple(frozenset(k for e in vaxes for k in e.stride({})[1]))
             physical = nrand(*(k.numel() for k in paxes))
             t1 = PatternedTensor(physical, paxes, vaxes, default=42)

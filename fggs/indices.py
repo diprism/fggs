@@ -436,9 +436,9 @@ def reshape_or_view(f: Callable[[Tensor, List[int]], Tensor],
     """Produce a new PatternedTensor, with the same elements when flattened,
        whose size() is equal to s."""
     s = list(n for arg in shape for n in ((arg,) if isinstance(arg, int) else arg))
-    if self.physical.numel() <= 1:
-        return PatternedTensor(f(self.physical, s), default=self.default)
     numel = self.numel()
+    if numel == self.physical.numel() <= 1:
+        return PatternedTensor(f(self.physical, s), default=self.default)
     try:
         inferred = s.index(-1)
     except ValueError:
