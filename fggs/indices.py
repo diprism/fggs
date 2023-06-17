@@ -352,7 +352,7 @@ class ProductAxis(Axis):
                len(e.factors) == len(f.factors) and \
                all(e1.alpha(f1, rename) for e1, f1 in zip(e.factors, f.factors))
 
-    def freshen(self, rename: Rename) -> Axis:
+    def freshen(self, rename: Rename) -> ProductAxis:
         return ProductAxis(tuple(e.freshen(rename) for e in self.factors))
 
     def reassociate(self) -> Iterator[Axis]:
@@ -387,7 +387,7 @@ class SumAxis(Axis):
                e.before == f.before and e.after == f.after and \
                e.term.alpha(f.term, rename)
 
-    def freshen(self, rename: Rename) -> Axis:
+    def freshen(self, rename: Rename) -> SumAxis:
         return SumAxis(self.before, self.term.freshen(rename), self.after)
 
     def reassociate(self) -> Iterator[Axis]:
