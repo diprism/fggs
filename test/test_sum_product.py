@@ -75,13 +75,6 @@ class TestSumProduct(unittest.TestCase):
             Example('test/cycle.json', value=1-0.5**10, linear=True),
         ]
 
-        for ex in self.examples:
-            for fac in ex.fgg.factors.values():
-                if not isinstance(fac.weights, PatternedTensor):
-                    if not isinstance(fac.weights, torch.Tensor):
-                        fac.weights = torch.tensor(fac.weights, dtype=torch.get_default_dtype())
-                    fac.weights = PatternedTensor(fac.weights)
-
 
     def assertAlmostEqual(self, x, y):
         if x.dtype is torch.bool:
@@ -142,11 +135,11 @@ class TestSumProduct(unittest.TestCase):
         fgg = load_fgg('test/linear.json')
         # make sum-product infinite
         faca = fgg.factors['a']
-        faca.weights = PatternedTensor(torch.tensor(1., requires_grad=True))
+        faca.weights = torch.tensor(1., requires_grad=True)
         facb = fgg.factors['b']
-        facb.weights = PatternedTensor(torch.tensor(1., requires_grad=True))
+        facb.weights = torch.tensor(1., requires_grad=True)
         facc = fgg.factors['c']
-        facc.weights = PatternedTensor(torch.tensor(1., requires_grad=True))
+        facc.weights = torch.tensor(1., requires_grad=True)
         z = sum_product(fgg, method='linear')
         self.assertEqual(z.item(), math.inf)
         z.backward()
@@ -156,8 +149,8 @@ class TestSumProduct(unittest.TestCase):
         
         fgg = load_fgg('test/simplefgg.json')
         # make sum-product infinite
-        fgg.new_finite_factor('fac1', PatternedTensor(torch.tensor(1., requires_grad=True)))
-        fgg.new_finite_factor('fac2', PatternedTensor(torch.tensor(1., requires_grad=True)))
+        fgg.new_finite_factor('fac1', torch.tensor(1., requires_grad=True))
+        fgg.new_finite_factor('fac2', torch.tensor(1., requires_grad=True))
         z = sum_product(fgg, method='newton')
         self.assertEqual(z.item(), math.inf)
         z.backward()
