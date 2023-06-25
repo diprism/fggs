@@ -192,6 +192,12 @@ class Axis(ABC):
            renaming whenever necessary."""
         pass
 
+    @abstractmethod
+    def index(self, physical: Dict[PhysicalAxis, int], virtual: int) -> bool:
+        """Convert virtual index into physical indices, and return whether
+           the virtual index is even occupied."""
+        pass
+
     def unify(e: Axis, f: Axis, subst: Subst) -> bool:
         """Unify the two axes by extending subst. Return success.
 
@@ -355,6 +361,16 @@ class PhysicalAxis(Axis):
             rename[self] = ret = PhysicalAxis(self._numel)
             return ret
 
+    def index(self, physical: Dict[PhysicalAxis, int], virtual: int) -> bool:
+        if __debug__:
+            if not (0 <= virtual < self._numel):
+                raise IndexError
+        if self in physical:
+            return (physical[self] == virtual)
+        else:
+            physical[self] = virtual
+            return True
+
 @dataclass(frozen=True)
 class ProductAxis(Axis):
     factors: Tuple[Axis, ...]
@@ -401,6 +417,16 @@ class ProductAxis(Axis):
     def freshen(self, rename: Rename) -> ProductAxis:
         return ProductAxis(tuple(e.freshen(rename) for e in self.factors))
 
+    def index(self, physical: Dict[PhysicalAxis, int], virtual: int) -> bool:
+        for e in reversed(self.factors):
+            q, r = divmod(virtual, e.numel())
+            if not e.index(physical, r): return False
+            virtual = q
+        if __debug__:
+            if virtual != 0:
+                raise IndexError
+        return True
+
 def productAxis(factors: Iterable[Axis]) -> Axis:
     """Smart constructor to enforce these invariants:
        - isinstance(factors, tuple)
@@ -445,6 +471,14 @@ class SumAxis(Axis):
 
     def freshen(self, rename: Rename) -> SumAxis:
         return SumAxis(self.before, self.term.freshen(rename), self.after)
+
+    def index(self, physical: Dict[PhysicalAxis, int], virtual: int) -> bool:
+        i = virtual - self.before
+        n = self.term.numel()
+        if __debug__:
+            if virtual < 0 or i >= n + self.after:
+                raise IndexError
+        return 0 <= i < n and self.term.index(physical, i)
 
 def project(virtual: Tensor,
             paxes: Optional[Sequence[PhysicalAxis]],
@@ -532,6 +566,8 @@ def broadcast(vaxess: Sequence[Sequence[Axis]]) \
             ret[0].insert(0, e)
     return rets
 
+_COLON = slice(None)
+
 @dataclass
 class PatternedTensor:
     physical: Tensor
@@ -578,6 +614,14 @@ class PatternedTensor:
             return PatternedTensor(semiring.from_int(1).expand(size), (k,), (k,k),
                                    semiring.from_int(0).item())
 
+    @staticmethod
+    def full(size: Sequence[int], fill_value: NumberType,
+             dtype: Optional[torch.dtype] = None) -> PatternedTensor:
+        """Fill size with fill_value.
+           Maybe we should make this special case more efficient."""
+        return PatternedTensor(torch.as_tensor(fill_value, dtype=dtype).expand(size),
+                               default=fill_value)
+
     def depict(self, letterer: Callable[[PhysicalAxis], str]) -> str:
         """Produce a string summary of this PatternedTensor, using the given
            callback function to turn a PhysicalAxis into a string name."""
@@ -600,6 +644,9 @@ class PatternedTensor:
 
     ndimension = dim
     ndim = property(dim)
+
+    def __len__(self) -> int:
+        return self.vaxes[0].numel()
 
     @property
     def dtype(self) -> torch.dtype:
@@ -636,6 +683,21 @@ class PatternedTensor:
                                tuple(k.freshen(rename) for k in self.paxes),
                                tuple(e.freshen(rename) for e in self.vaxes),
                                self.default)
+
+    def __getitem__(self, vis: Union[int, Sequence[int]]) -> PatternedTensor:
+        if isinstance(vis, int): vis = (vis,)
+        assert(len(vis) <= len(self.vaxes))
+        vaxes: Sequence[Axis] = self.vaxes[len(vis):]
+        pi: Dict[PhysicalAxis, int] = {}
+        for e, vi in zip(self.vaxes, vis):
+            if not e.index(pi, vi):
+                return PatternedTensor.full(tuple(e.numel() for e in vaxes),
+                                            self.default, dtype=self.dtype)
+        physical: Tensor = self.physical[tuple(pi.get(k, _COLON) for k in self.paxes)]
+        paxes: Tuple[PhysicalAxis, ...] = tuple(k for k in self.paxes if not k in pi)
+        subst: Subst = {k: SumAxis(i, unitAxis, k._numel-i-1) for k, i in pi.items()}
+        vaxes = tuple(e.clone(subst) for e in vaxes)
+        return PatternedTensor(physical, paxes, vaxes, self.default)
 
     def default_to(self, default: NumberType) -> PatternedTensor:
         return self if self.default == default or isnan(self.default) and isnan(default) \

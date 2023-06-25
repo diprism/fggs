@@ -80,11 +80,9 @@ class FiniteFactor(Factor):
         """Apply factor to a sequence of values.
 
         values: list of values"""
-        w = self.weights.to_dense()
-        # TODO: instead of converting to_dense() above, implement PatternedTensor.__getitem__
-        for d, v in zip(self.domains, values):
-            w = w[d.numberize(v)]
-        return w
+        return self.weights[tuple(d.numberize(v)
+                                  for d, v in zip(self.domains, values))] \
+                   .to_dense()
 
     def __eq__(self, other):
         if self is other:

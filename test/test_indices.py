@@ -195,6 +195,27 @@ class TestPatternedTensor(unittest.TestCase):
                                          [7,7,7,7,7,1,7,7,7],
                                          [7,7,7,7,7,7,1,7,7.0]]]))
 
+    def test_getitem(self):
+        for vaxes in [(self.k5, self.k7),
+                      (self.k5, self.k5),
+                      (productAxis((self.k5, self.k7)),),
+                      (productAxis((self.k5, self.k7)), self.k7, self.k5),
+                      (productAxis((self.k5, self.k5)), self.k5, self.k5),
+                      (productAxis((self.k3, self.k3_)), self.k3_, self.k3),
+                      (SumAxis(2, self.k5, 3), self.k5),
+                      (productAxis((SumAxis(2, self.k5, 3), self.k5)), self.k5),
+                      (SumAxis(5, productAxis((self.k2, self.k3)), 7), self.k3)]:
+            paxes = tuple(frozenset(k for e in vaxes for k in e.fv({})))
+            physical = nrand(*(k.numel() for k in paxes))
+            pt = PatternedTensor(physical, paxes, vaxes)
+            t = pt.to_dense()
+            for n in range(0, len(vaxes)+1):
+                for vis in product(*(range(e.numel()) for e in vaxes[:n])):
+                    with self.subTest(vaxes=vaxes, n=n, vis=vis):
+                        self.assertTEqual(pt[vis].to_dense(), t[vis])
+                        if len(vis) == 1:
+                            self.assertTEqual(pt[vis[0]].to_dense(), t[vis[0]])
+
     def test_copy(self):
         tensors = [PatternedTensor(nrand(5,2), (self.k1,self.k2), (self.k2,self.k1,self.k1)),
                    PatternedTensor(nrand(2,5), (self.k2,self.k1), (self.k2,self.k1,self.k1)),
@@ -419,7 +440,7 @@ class TestPatternedTensor(unittest.TestCase):
                          ((self.k2, SumAxis(5, self.k0, 6), self.k3), (2,33)),
                          ((self.k2, SumAxis(5, ki     , 5), self.k3), (2,33)),
                          ((         SumAxis(5, ki     , 5),        ), (1,11))]:
-            paxes = tuple(frozenset(k for e in vaxes for k in e.stride({})[1]))
+            paxes = tuple(frozenset(k for e in vaxes for k in e.fv({})))
             physical = nrand(*(k.numel() for k in paxes))
             t1 = PatternedTensor(physical, paxes, vaxes, default=42)
             t2 = t1.reshape(s)

@@ -68,9 +68,7 @@ def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring)
                 else:
                     lhs_pointer[n].fill_(ri)
                     Fx[n] = tau_rule
-                rhs_pointer[n].append(pointer.to_dense())
-                # TODO: instead of converting to_dense() above, implement PatternedTensor.__getitem__
-                # to support "rhs_pointer[nt][ri][nt_asst]" in the reconstruct method
+                rhs_pointer[n].append(pointer)
             else:
                 rhs_pointer[n].append(None)
 
@@ -137,7 +135,7 @@ def viterbi(fgg: FGG, start_asst: Tuple[int,...], **opts) -> FGGDerivation:
         for e in rule.rhs.edges():
             for v in e.nodes:
                 if v not in rhs_asst:
-                    rhs_asst[v] = rhs_pointer[nt][ri][nt_asst][ii]
+                    rhs_asst[v] = rhs_pointer[nt][ri][nt_asst][ii].item()
                     ii += 1
         assert ii == len(rhs_pointer[nt][ri][nt_asst])
 
