@@ -615,12 +615,16 @@ class PatternedTensor:
                                    semiring.from_int(0).item())
 
     @staticmethod
-    def full(size: Sequence[int], fill_value: NumberType,
+    def full(size: Union[Size, List[int], Tuple[int, ...]],
+             fill_value: NumberType,
              dtype: Optional[torch.dtype] = None) -> PatternedTensor:
         """Fill size with fill_value.
            Maybe we should make this special case more efficient."""
-        return PatternedTensor(torch.as_tensor(fill_value, dtype=dtype).expand(size),
-                               default=fill_value)
+        if dtype is None:
+            t = torch.as_tensor(fill_value)
+        else:
+            t = torch.as_tensor(fill_value, dtype=dtype)
+        return PatternedTensor(t.expand(size), default=fill_value)
 
     def depict(self, letterer: Callable[[PhysicalAxis], str]) -> str:
         """Produce a string summary of this PatternedTensor, using the given
