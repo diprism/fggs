@@ -54,7 +54,7 @@ def fgg_to_json(fgg):
         if isinstance(fac, factors.FiniteFactor):
             ji['factors'][el] = {
                 'function': 'finite',
-                'weights': fac.weights,
+                'weights': weights_to_json(fac.weights),
             }
             
     return {'grammar': jg, 'interpretation': ji}
