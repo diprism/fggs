@@ -78,7 +78,7 @@ We store these three pieces of information together in a PatternedTensor.
 """
 
 from __future__ import annotations
-from typing import Sequence, Iterator, List, Tuple, Dict, Set, FrozenSet, Any, Optional, Union, Callable, cast
+from typing import Sequence, Iterable, Iterator, List, Tuple, Dict, Set, FrozenSet, Any, Optional, Union, Callable, cast
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from warnings import warn
@@ -93,7 +93,7 @@ from torch import Tensor, Size
 import torch_semiring_einsum
 from fggs.semirings import Semiring
 
-__all__ = ['Axis', 'PhysicalAxis', 'ProductAxis', 'SumAxis',
+__all__ = ['Axis', 'PhysicalAxis', 'ProductAxis', 'productAxis', 'unitAxis', 'SumAxis',
            'PatternedTensor', 'stack', 'einsum', 'log_viterbi_einsum_forward']
 
 Rename = Dict["PhysicalAxis", "PhysicalAxis"]
@@ -105,6 +105,13 @@ Subst = Dict["PhysicalAxis", "Axis"]
 AntiSubst = Tuple[Dict[Tuple["Axis", "Axis"], "PhysicalAxis"],
                   Dict["PhysicalAxis", Tuple["Axis", "Axis"]]]
 # populated by Axis.antiunify
+def extend_antisubst(e: Axis, f: Axis, antisubst: AntiSubst) -> Axis:
+    if (e, f) in antisubst[0]:
+        return antisubst[0][(e, f)]
+    new = PhysicalAxis(e.numel())
+    antisubst[0][(e, f)] = new
+    antisubst[1][new] = (e, f)
+    return new
 
 NumberType = Union[bool, int, float] # omit the complex type to work around https://github.com/pytorch/pytorch/pull/91345
 
@@ -140,6 +147,9 @@ class Axis(ABC):
     def numel(self) -> int:
         """The virtual indices in the image of this mapping lie in [0,numel())."""
         pass
+
+    def zero(self) -> bool:
+        return self.numel() == 0
 
     @abstractmethod
     def fv(self, subst: Subst) -> Iterator[PhysicalAxis]:
@@ -183,8 +193,9 @@ class Axis(ABC):
         pass
 
     @abstractmethod
-    def reassociate(self) -> Iterator[Axis]:
-        """Remove PhysicalAxes of size 1, and merge nested ProductAxes."""
+    def index(self, physical: Dict[PhysicalAxis, int], virtual: int) -> bool:
+        """Convert virtual index into physical indices, and return whether
+           the virtual index is even occupied."""
         pass
 
     def unify(e: Axis, f: Axis, subst: Subst) -> bool:
@@ -196,26 +207,46 @@ class Axis(ABC):
         e = e.lookup(subst)
         f = f.lookup(subst)
         if e is f: return True
-        if isinstance(e, ProductAxis) and isinstance(f, ProductAxis):
-            if len(e.factors) == len(f.factors):
-                return all(e1.unify(f1, subst) for e1, f1 in zip(e.factors, f.factors))
-            else:
+        if __debug__:
+            if e.numel() != f.numel():
                 warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
-                return False
+        if isinstance(e, ProductAxis) and isinstance(f, ProductAxis):
+            if e.zero(): return True
+            es = list(e.factors)
+            fs = list(f.factors)
+            while es and fs:
+                e9 = es.pop()
+                f9 = fs.pop()
+                m = e9.numel()
+                n = f9.numel()
+                if m == n:
+                    if not e9.unify(f9, subst): return False
+                elif m < n:
+                    if n % m:
+                        warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
+                        return False
+                    else:
+                        k = PhysicalAxis(n // m)
+                        if not f9.unify(productAxis((k, e9)), subst): return False
+                        fs.append(k)
+                else:
+                    if m % n:
+                        warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
+                        return False
+                    else:
+                        k = PhysicalAxis(m // n)
+                        if not e9.unify(productAxis((k, f9)), subst): return False
+                        es.append(k)
+            return all(e.unify(unitAxis, subst) for e in chain(es, fs))
         if isinstance(e, SumAxis) and isinstance(f, SumAxis):
             if e.before == f.before and e.after == f.after:
                 return e.term.unify(f.term, subst)
             else:
                 if __debug__:
-                    etn = e.term.numel()
-                    ftn = f.term.numel()
-                    if e.before + etn + e.after != f.before + ftn + f.after \
-                       or e.before + etn > f.before and f.before + ftn > e.before:
+                    if e.before + e.term.numel() > f.before and \
+                       f.before + f.term.numel() > e.before: # overlap
                         warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
                 return False
-        if __debug__:
-            if e.numel() != f.numel():
-                warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
         if isinstance(e, PhysicalAxis):
             subst[e] = f
             return True
@@ -235,19 +266,38 @@ class Axis(ABC):
         if __debug__:
             if e.numel() != f.numel():
                 warn(f"Attempt to antiunify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
-        if isinstance(e, ProductAxis) and isinstance(f, ProductAxis) and \
-           len(e.factors) == len(f.factors):
-            return ProductAxis(tuple(e1.antiunify(f1, antisubst)
-                                     for e1, f1 in zip(e.factors, f.factors)))
+        if isinstance(e, ProductAxis) and isinstance(f, ProductAxis) and not e.zero() and not f.zero():
+            el = er = fl = fr = 0
+            # 0 <= el <= er <= len(e.factors)
+            # 0 <= fl <= fr <= len(f.factors)
+            #    product(e.factors[i].numel() for i in range(0, el)) \
+            # == product(f.factors[j].numel() for j in range(0, fl))
+            en = fn = 1
+            # en == product(e.factors[i].numel() for i in range(el, er))
+            # fn == product(f.factors[j].numel() for j in range(fl, fr))
+            ret : List[Axis] = []
+            while el < len(e.factors) or fl < len(f.factors):
+                # Each loop iteration increases one of el, fl, er, fr
+                if en == fn and (el < er or fl < fr):
+                    e1 = productAxis(e.factors[el:er])
+                    f1 = productAxis(f.factors[fl:fr])
+                    ret.append(extend_antisubst(e1, f1, antisubst)
+                               if isinstance(e1, ProductAxis) and
+                                  isinstance(f1, ProductAxis)
+                               else e1.antiunify(f1, antisubst))
+                    el = er
+                    fl = fr
+                elif en < fn:
+                    en *= e.factors[er].numel()
+                    er += 1
+                else:
+                    fn *= f.factors[fr].numel()
+                    fr += 1
+            return productAxis(ret)
         if isinstance(e, SumAxis) and isinstance(f, SumAxis) and \
            e.before == f.before and e.after == f.after:
             return SumAxis(e.before, e.term.antiunify(f.term, antisubst), e.after)
-        if (e, f) in antisubst[0]:
-            return antisubst[0][(e, f)]
-        new = PhysicalAxis(e.numel())
-        antisubst[0][(e, f)] = new
-        antisubst[1][new] = (e, f)
-        return new
+        return extend_antisubst(e, f, antisubst)
 
 @dataclass(eq=False, frozen=True) # The identity of PhysicalAxis objects matters,
 # not just its content field _numel, because we need to distinguish the axes of
@@ -268,6 +318,9 @@ class PhysicalAxis(Axis):
 
     def numel(self) -> int:
         return self._numel
+
+    def zero(self) -> bool:
+        return self._numel == 0
 
     def fv(self, subst: Subst) -> Iterator[PhysicalAxis]:
         look = self.lookup(subst)
@@ -308,20 +361,29 @@ class PhysicalAxis(Axis):
             rename[self] = ret = PhysicalAxis(self._numel)
             return ret
 
-    def reassociate(self) -> Iterator[Axis]:
-        if self._numel != 1:
-            yield self
+    def index(self, physical: Dict[PhysicalAxis, int], virtual: int) -> bool:
+        if __debug__:
+            if not (0 <= virtual < self._numel):
+                raise IndexError
+        if self in physical:
+            return (physical[self] == virtual)
+        else:
+            physical[self] = virtual
+            return True
 
 @dataclass(frozen=True)
 class ProductAxis(Axis):
     factors: Tuple[Axis, ...]
 
     def depict(self, letterer: Callable[[PhysicalAxis], str]) -> str:
-        # Produce a string like "(X(2) * Y(3))"
-        return f"({'*'.join(e.depict(letterer) for e in self.factors)})"
+        # Produce a string like "X(2) * Y(3)"
+        return '*'.join(e.depict(letterer) for e in self.factors)
 
     def numel(self) -> int:
         return reduce(mul, (e.numel() for e in self.factors), 1)
+
+    def zero(self) -> bool:
+        return any(e.zero() for e in self.factors)
 
     def fv(self, subst: Subst) -> Iterator[PhysicalAxis]:
         for e in self.factors:
@@ -345,19 +407,36 @@ class ProductAxis(Axis):
             yield from e.prime_factors(subst)
 
     def clone(self, subst: Subst) -> Axis:
-        return ProductAxis(tuple(e.clone(subst) for e in self.factors))
+        return productAxis(e.clone(subst) for e in self.factors)
 
     def alpha(e, f: Axis, rename: Rename) -> bool:
         return isinstance(f, ProductAxis) and \
                len(e.factors) == len(f.factors) and \
                all(e1.alpha(f1, rename) for e1, f1 in zip(e.factors, f.factors))
 
-    def freshen(self, rename: Rename) -> Axis:
+    def freshen(self, rename: Rename) -> ProductAxis:
         return ProductAxis(tuple(e.freshen(rename) for e in self.factors))
 
-    def reassociate(self) -> Iterator[Axis]:
-        for e in self.factors:
-            yield from e.reassociate()
+    def index(self, physical: Dict[PhysicalAxis, int], virtual: int) -> bool:
+        for e in reversed(self.factors):
+            q, r = divmod(virtual, e.numel())
+            if not e.index(physical, r): return False
+            virtual = q
+        if __debug__:
+            if virtual != 0:
+                raise IndexError
+        return True
+
+def productAxis(factors: Iterable[Axis]) -> Axis:
+    """Smart constructor to enforce these invariants:
+       - isinstance(factors, tuple)
+       - len(factors) != 1
+       - not any(isinstance(e, ProductAxis) for e in factors)"""
+    es = tuple(e for f in factors
+                 for e in (f.factors if isinstance(f, ProductAxis) else (f,)))
+    return (es[0] if len(es) == 1 else ProductAxis(es))
+
+unitAxis = ProductAxis(())
 
 @dataclass(frozen=True)
 class SumAxis(Axis):
@@ -371,6 +450,9 @@ class SumAxis(Axis):
 
     def numel(self) -> int:
         return self.before + self.term.numel() + self.after
+
+    def zero(self) -> bool:
+        return self.before == 0 == self.after and self.term.zero()
 
     def fv(self, subst: Subst) -> Iterator[PhysicalAxis]:
         yield from self.term.fv(subst)
@@ -387,14 +469,16 @@ class SumAxis(Axis):
                e.before == f.before and e.after == f.after and \
                e.term.alpha(f.term, rename)
 
-    def freshen(self, rename: Rename) -> Axis:
+    def freshen(self, rename: Rename) -> SumAxis:
         return SumAxis(self.before, self.term.freshen(rename), self.after)
 
-    def reassociate(self) -> Iterator[Axis]:
-        factors = tuple(self.term.reassociate())
-        yield SumAxis(self.before,
-                      factors[0] if len(factors) == 1 else ProductAxis(factors),
-                      self.after)
+    def index(self, physical: Dict[PhysicalAxis, int], virtual: int) -> bool:
+        i = virtual - self.before
+        n = self.term.numel()
+        if __debug__:
+            if virtual < 0 or i >= n + self.after:
+                raise IndexError
+        return 0 <= i < n and self.term.index(physical, i)
 
 def project(virtual: Tensor,
             paxes: Optional[Sequence[PhysicalAxis]],
@@ -436,9 +520,9 @@ def reshape_or_view(f: Callable[[Tensor, List[int]], Tensor],
     """Produce a new PatternedTensor, with the same elements when flattened,
        whose size() is equal to s."""
     s = list(n for arg in shape for n in ((arg,) if isinstance(arg, int) else arg))
-    if self.physical.numel() <= 1:
-        return PatternedTensor(f(self.physical, s), default=self.default)
     numel = self.numel()
+    if numel == self.physical.numel() <= 1:
+        return PatternedTensor(f(self.physical, s), default=self.default)
     try:
         inferred = s.index(-1)
     except ValueError:
@@ -448,46 +532,17 @@ def reshape_or_view(f: Callable[[Tensor, List[int]], Tensor],
     assert(all(goal >= 0 for goal in s))
     assert(numel == reduce(mul, s, 1))
     subst : Subst = {}
-    primes : Iterator[Axis] = (prime for e in self.vaxes
-                                     for prime in e.prime_factors(subst))
-    packs : List[List[Axis]] = []
-    for goal in s:
-        pack = []
-        while goal != 1:
-            try:
-                prime = next(primes)
-            except StopIteration:
-                raise RuntimeError(f'Cannot reshape_or_view {self} to {s}')
-            pn = prime.numel()
-            if pn > goal:
-                if isinstance(prime, PhysicalAxis) and 0 == pn % goal:
-                    p1 = PhysicalAxis(goal)
-                    p2 = PhysicalAxis(pn // goal)
-                    subst[prime] = ProductAxis((p1, p2))
-                    prime = p1
-                    pn = goal
-                    primes = chain((p2,), primes)
-                else:
-                    raise RuntimeError(f'Cannot reshape_or_view {self} to {s}')
-            if 0 != goal % pn:
-                raise RuntimeError(f'Cannot reshape_or_view {self} to {s}')
-            pack.append(prime)
-            goal //= pn
-        packs.append(pack)
-    try:
-        while True:
-            packs[-1].append(next(primes))
-    except StopIteration:
-        pass
+    vaxes = tuple(unitAxis if goal == 1 else PhysicalAxis(goal)
+                  for goal in s)
+    if not productAxis(vaxes).unify(productAxis(self.vaxes), subst):
+        raise RuntimeError(f'Cannot reshape_or_view {self} to {s}')
     paxes = tuple(cast(PhysicalAxis, k) for e in self.paxes
                                         for k in e.prime_factors(subst))
-    vaxes = tuple(pack[0].clone(subst) if len(pack) == 1
-                  else ProductAxis(tuple(e.clone(subst) for e in pack))
-                  for pack in packs)
+    vaxes = tuple(e.clone(subst) for e in vaxes)
     assert(len(vaxes) == len(s) and
            all(e.numel() == goal for e, goal in zip(vaxes, s)))
     return PatternedTensor(f(self.physical, list(k._numel for k in paxes)),
-                           paxes, vaxes, self.default).reassociate()
+                           paxes, vaxes, self.default)
 
 def broadcast(vaxess: Sequence[Sequence[Axis]]) \
     -> Tuple[Tuple[List[Axis], List[PhysicalAxis]], ...]:
@@ -498,7 +553,7 @@ def broadcast(vaxess: Sequence[Sequence[Axis]]) \
     rets : Tuple[Tuple[List[Axis], List[PhysicalAxis]], ...] \
          = tuple(([], []) for vaxes in vaxess)
     for es in zip_longest(*(reversed(vaxes) for vaxes in vaxess),
-                          fillvalue=ProductAxis(())):
+                          fillvalue=unitAxis):
         ns = tuple(e.numel() for e in es)
         Ns = frozenset(n for n in ns if n != 1)
         if len(Ns) > 1: raise RuntimeError(f"Size mismatch {ns}")
@@ -506,10 +561,12 @@ def broadcast(vaxess: Sequence[Sequence[Axis]]) \
         for ret, e, n in zip(rets, es, ns):
             if n != N:
                 k = PhysicalAxis(N)
-                e = k if e == ProductAxis(()) else ProductAxis((e, k))
+                e = k if e == unitAxis else productAxis((e, k))
                 ret[1].insert(0, k)
             ret[0].insert(0, e)
     return rets
+
+_COLON = slice(None)
 
 @dataclass
 class PatternedTensor:
@@ -520,15 +577,27 @@ class PatternedTensor:
 
     def __post_init__(self):
         assert(isinstance(self.physical, Tensor))
+        size = self.physical.size()
         # Default to the trivial (dense) axis, to convert from Tensor
         if self.paxes is None:
-            self.paxes = tuple(PhysicalAxis(n) for n in self.physical.size())
+            assert(self.vaxes is None)
+            self.vaxes = tuple(unitAxis if n == 1 else PhysicalAxis(n)
+                               for n in size)
+            self.paxes = tuple(k for k in self.vaxes
+                                 if isinstance(k, PhysicalAxis))
+            if len(self.paxes) != len(size):
+                self.physical = self.physical.squeeze() # invariant: no axis has size 1
         else:
+            assert(self.vaxes is not None)
             if __debug__:
-                if self.physical.size() != Size(k.numel() for k in self.paxes):
-                    raise ValueError(f"PatternedTensor(tensor of {self.physical.size()}, paxes of {Size(k.numel() for k in self.paxes)}, ...)")
-        if self.vaxes is None:
-            self.vaxes = self.paxes
+                psize = Size(k.numel() for k in self.paxes)
+                if size != psize:
+                    raise ValueError(f"PatternedTensor(tensor of {size}, paxes of {psize}, ...)")
+            subst = {k:unitAxis for k in self.paxes if k._numel == 1}
+            if subst:
+                self.physical = self.physical.squeeze() # invariant: no axis has size 1
+                self.paxes = tuple(k for k in self.paxes if k._numel != 1)
+                self.vaxes = tuple(e.clone(subst) for e in self.vaxes)
 
     @staticmethod
     def from_int(x: int, semiring: Semiring) -> PatternedTensor:
@@ -537,9 +606,25 @@ class PatternedTensor:
 
     @staticmethod
     def eye(size: int, semiring: Semiring) -> PatternedTensor:
-        k = PhysicalAxis(size)
-        return PatternedTensor(semiring.from_int(1).expand(size), (k,), (k,k),
-                               semiring.from_int(0).item())
+        if size == 1:
+            return PatternedTensor(semiring.from_int(1), (), (unitAxis, unitAxis),
+                                   semiring.from_int(0).item())
+        else:
+            k = PhysicalAxis(size)
+            return PatternedTensor(semiring.from_int(1).expand(size), (k,), (k,k),
+                                   semiring.from_int(0).item())
+
+    @staticmethod
+    def full(size: Union[Size, List[int], Tuple[int, ...]],
+             fill_value: NumberType,
+             dtype: Optional[torch.dtype] = None) -> PatternedTensor:
+        """Fill size with fill_value.
+           Maybe we should make this special case more efficient."""
+        if dtype is None:
+            t = torch.as_tensor(fill_value)
+        else:
+            t = torch.as_tensor(fill_value, dtype=dtype)
+        return PatternedTensor(t.expand(size), default=fill_value)
 
     def depict(self, letterer: Callable[[PhysicalAxis], str]) -> str:
         """Produce a string summary of this PatternedTensor, using the given
@@ -564,6 +649,9 @@ class PatternedTensor:
     ndimension = dim
     ndim = property(dim)
 
+    def __len__(self) -> int:
+        return self.vaxes[0].numel()
+
     @property
     def dtype(self) -> torch.dtype:
         return self.physical.dtype
@@ -586,6 +674,11 @@ class PatternedTensor:
     def is_complex(self) -> bool:
         return self.physical.is_complex()
 
+    def nonphysical(self) -> Callable[[Tensor], PatternedTensor]:
+        """Set aside all the information other than self.physical.
+           Return a function that reconstructs self from self.physical."""
+        return lambda physical: PatternedTensor(physical, self.paxes, self.vaxes, self.default)
+
     def freshen(self) -> PatternedTensor:
         """Return a new PatternedTensor (with same underlying physical storage)
            with fresh PhysicalAxes."""
@@ -595,14 +688,20 @@ class PatternedTensor:
                                tuple(e.freshen(rename) for e in self.vaxes),
                                self.default)
 
-    def reassociate(self) -> PatternedTensor:
-        """Remove physical axes of size 1, and merge nested ProductAxes."""
-        return PatternedTensor(self.physical.squeeze(),
-                               tuple(k for k in self.paxes if k._numel != 1),
-                               tuple(factors[0] if len(factors) == 1 else ProductAxis(factors)
-                                     for e in self.vaxes
-                                     for factors in (tuple(e.reassociate()),)),
-                               self.default)
+    def __getitem__(self, vis: Union[int, Sequence[int]]) -> PatternedTensor:
+        if isinstance(vis, int): vis = (vis,)
+        assert(len(vis) <= len(self.vaxes))
+        vaxes: Sequence[Axis] = self.vaxes[len(vis):]
+        pi: Dict[PhysicalAxis, int] = {}
+        for e, vi in zip(self.vaxes, vis):
+            if not e.index(pi, vi):
+                return PatternedTensor.full(tuple(e.numel() for e in vaxes),
+                                            self.default, dtype=self.dtype)
+        physical: Tensor = self.physical[tuple(pi.get(k, _COLON) for k in self.paxes)]
+        paxes: Tuple[PhysicalAxis, ...] = tuple(k for k in self.paxes if not k in pi)
+        subst: Subst = {k: SumAxis(i, unitAxis, k._numel-i-1) for k, i in pi.items()}
+        vaxes = tuple(e.clone(subst) for e in vaxes)
+        return PatternedTensor(physical, paxes, vaxes, self.default)
 
     def default_to(self, default: NumberType) -> PatternedTensor:
         return self if self.default == default or isnan(self.default) and isnan(default) \
@@ -676,28 +775,36 @@ class PatternedTensor:
             projected.masked_fill_(self.physical, value)
 
     def dim_to_dense(self, dim: int) -> PatternedTensor:
-        """Expand to an equivalent PatternedTensor but make sure that the given
-           axis is dense and independent of the other axes."""
+        """Expand to an equivalent PatternedTensor but make sure that the
+           given axis is dense (i.e., either unitAxis or a PhysicalAxis)
+           and independent of the other axes."""
         vaxes = list(self.vaxes)
         e_dense = vaxes.pop(dim)
         rename : Rename = {}
         vaxes = list(e.freshen(rename) for e in vaxes)
-        if isinstance(e_dense, PhysicalAxis) and e_dense not in rename:
+        if e_dense == unitAxis or \
+           isinstance(e_dense, PhysicalAxis) and e_dense not in rename:
             return self
         fv  = tuple(rename.keys())
         fv0 = tuple(rename.values())
-        k = PhysicalAxis(e_dense.numel())
-        vaxes.insert(dim, k)
-        paxes = fv0 + (k,)
+        n = e_dense.numel()
         default = self.default
-        physical = self.physical.new_full(tuple(e._numel for e in paxes), default)
+        physical = self.physical.new_full(tuple(chain((e._numel for e in fv0), (n,))), default)
         project(physical, self.paxes, fv + (e_dense,), {})[0].copy_(self.physical)
+        if n == 1:
+            vaxes.insert(dim, unitAxis)
+            paxes = fv0
+            physical.squeeze_(-1)
+        else:
+            k = PhysicalAxis(n)
+            vaxes.insert(dim, k)
+            paxes = fv0 + (k,)
         return PatternedTensor(physical, paxes, vaxes, default)
 
     def any(self, dim: int, keepdim: bool = False) -> PatternedTensor:
         vaxes = list(self.vaxes)
         if keepdim:
-            vaxes[dim] = ProductAxis(())
+            vaxes[dim] = unitAxis
         else:
             del vaxes[dim]
         ks = frozenset(self.vaxes[dim].fv({})) - frozenset(k for e in vaxes for k in e.fv({}))
@@ -723,13 +830,16 @@ class PatternedTensor:
         self = self.dim_to_dense(0)
         vaxes = list(self.vaxes)
         k = vaxes.pop(0)
-        assert(isinstance(k, PhysicalAxis))
-        paxes = list(self.paxes)
-        i = paxes.index(k)
-        paxes.pop(i)
-        perm = (i, *range(0, i), *range(i+1, len(self.paxes)))
-        for p in self.physical.permute(perm):
-            yield PatternedTensor(p, paxes, vaxes, self.default)
+        if isinstance(k, PhysicalAxis):
+            paxes = list(self.paxes)
+            i = paxes.index(k)
+            paxes.pop(i)
+            perm = (i, *range(0, i), *range(i+1, len(self.paxes)))
+            for p in self.physical.permute(perm):
+                yield PatternedTensor(p, paxes, vaxes, self.default)
+        else:
+            assert(k == unitAxis)
+            yield PatternedTensor(self.physical, self.paxes, vaxes, self.default)
 
     def neg_(self) -> PatternedTensor:
         self.default = -self.default
@@ -839,9 +949,14 @@ class PatternedTensor:
         if dim < 0: dim += self.ndim
         self = self.dim_to_dense(dim)
         k = self.vaxes[dim]
-        i = self.paxes.index(k)
-        return PatternedTensor(self.physical.log_softmax(dim = i),
-                               self.paxes, self.vaxes, -log(k._numel))
+        if isinstance(k, PhysicalAxis):
+            i = self.paxes.index(k)
+            return PatternedTensor(self.physical.log_softmax(dim = i),
+                                   self.paxes, self.vaxes, -log(k._numel))
+        else:
+            assert(k == unitAxis)
+            return PatternedTensor(self.physical.new_zeros(()).expand(self.physical.size()),
+                                   self.paxes, self.vaxes, 0.)
 
     def equal_default(self) -> bool:
         return cast(bool, self.physical.eq(self.default).all().item())
@@ -909,14 +1024,14 @@ class PatternedTensor:
         lggs : List[Axis] = []
         for e, f in zip_longest(reversed(t.vaxes),
                                 reversed(u.vaxes),
-                                fillvalue=ProductAxis(())):
-            if e == ProductAxis(()) != f:
+                                fillvalue=unitAxis):
+            if e == unitAxis != f:
                 new = PhysicalAxis(f.numel())
                 paxes1.insert(0, new)
                 antisubst[0][(new, f)] = new
                 antisubst[1][new] = (new, f)
                 lggs.insert(0, new)
-            elif f == ProductAxis(()) != e:
+            elif f == unitAxis != e:
                 new = PhysicalAxis(e.numel())
                 paxes2.insert(0, new)
                 antisubst[0][(e, new)] = new
@@ -1097,17 +1212,17 @@ class PatternedTensor:
 
     def flatten(self) -> PatternedTensor:
         if len(self.vaxes) == 1:
-            return self.reassociate()
+            return self
         else:
             return PatternedTensor(self.physical,
                                    self.paxes,
-                                   (ProductAxis(tuple(self.vaxes)),),
-                                   self.default).reassociate()
+                                   (productAxis(self.vaxes),),
+                                   self.default)
 
     def unsqueeze(self, dim: int) -> PatternedTensor:
         if dim < 0: dim += self.ndim + 1
         vaxes = list(self.vaxes)
-        vaxes.insert(dim, ProductAxis(()))
+        vaxes.insert(dim, unitAxis)
         return PatternedTensor(self.physical, self.paxes, vaxes, self.default)
 
     def reshape(self, *shape: Union[int, Sequence[int]]) -> PatternedTensor:
@@ -1124,7 +1239,7 @@ class PatternedTensor:
                 raise RuntimeError(f"PatternedTensor.expand: the number of sizes provided ({len(sizes)}) must be greater or equal to the number of dimensions in the tensor ({len(self.vaxes)})")
             if e is None or e.numel() == 1 != n:
                 k = PhysicalAxis(n)
-                e = k if e is None or e == ProductAxis(()) else ProductAxis((e, k))
+                e = k if e is None or e == unitAxis else productAxis((e, k))
                 paxes.insert(0, k)
             if e.numel() != n:
                 raise RuntimeError(f"PatternedTensor.expand: cannot extend {self.size()} to {sizes}")
@@ -1173,8 +1288,8 @@ class PatternedTensor:
         projected_b = project(b.physical, None, b.paxes, subst)
         dense_b = PatternedTensor(projected_b[0],
                                   projected_b[1],
-                                  (ProductAxis(fv ).clone(subst),
-                                   ProductAxis(fvb).clone(subst)),
+                                  (productAxis(fv ).clone(subst),
+                                   productAxis(fvb).clone(subst)),
                                   b.default).to_dense()
         # Convert relevant portion of a to regular matrix tensor
         subst = {}
@@ -1183,8 +1298,8 @@ class PatternedTensor:
         projected_a = project(a.physical, None, a.paxes, subst)
         dense_a = PatternedTensor(projected_a[0],
                                   projected_a[1],
-                                  (ProductAxis(fv0).clone(subst),
-                                   ProductAxis(fv ).clone(subst)),
+                                  (productAxis(fv0).clone(subst),
+                                   productAxis(fv ).clone(subst)),
                                   a.default).to_dense()
         # Solve
         x = semiring.solve(dense_a, dense_b)
@@ -1207,7 +1322,7 @@ def stack(tensors: Sequence[PatternedTensor], dim: int = 0) -> PatternedTensor:
     lggs = head.vaxes
     if not tail:
         lggs = list(lggs)
-        lggs.insert(dim, ProductAxis(()))
+        lggs.insert(dim, unitAxis)
         return PatternedTensor(head.physical, head.paxes, lggs, default)
     for t in tail: # Antiunify all input vaxes
         assert(size == t.size())
@@ -1371,7 +1486,18 @@ def log_viterbi_einsum_forward(tensors: Sequence[PatternedTensor],
         p = ptr.new_tensor(o, dtype=torch.long).expand(out.size())
         for k, alpha in s.items(): p = p.add(paxis_to_ptr[k], alpha=alpha)
         ptrs.append(p)
-    k = PhysicalAxis(ptr.size(-1))
-    assert(k.numel() == len(ptrs))
+    n = ptr.size(-1)
+    assert(n == len(ptrs))
+    if n == 1:
+        patterned_ptr = PatternedTensor(ptrs[0],
+                                        output_paxes,
+                                        output_vaxes + (unitAxis,),
+                                        default=0)
+    else:
+        k = PhysicalAxis(n)
+        patterned_ptr = PatternedTensor(torch.stack(ptrs),
+                                        (k,) + output_paxes,
+                                        output_vaxes + (k,),
+                                        default=0)
     return (PatternedTensor(out, output_paxes, output_vaxes, default=zero.item()),
-            PatternedTensor(torch.stack(ptrs), (k,) + output_paxes, output_vaxes + (k,), default=0))
+            patterned_ptr)

@@ -1,7 +1,13 @@
-__all__ = ['json_to_fgg', 'fgg_to_json', 'json_to_hrg', 'hrg_to_json', 'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
+__all__ = ['json_to_fgg', 'fgg_to_json',
+           'json_to_hrg', 'hrg_to_json',
+           'json_to_weights', 'weights_to_json',
+           'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
 
+from itertools import repeat
 from fggs.fggs import *
+from fggs.indices import PhysicalAxis, productAxis, SumAxis, PatternedTensor
 from fggs import domains, factors
+import torch
 
 ### JSON
 
@@ -20,7 +26,7 @@ def json_to_fgg(j):
     for name, d in ji['factors'].items():
         el = fgg.get_edge_label(name)
         if d['function'] == 'finite':
-            weights = d['weights']
+            weights = json_to_weights(d['weights'])
             fgg.add_factor(el, factors.FiniteFactor([fgg.domains[nl.name] for nl in el.type], weights))
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
@@ -48,7 +54,7 @@ def fgg_to_json(fgg):
         if isinstance(fac, factors.FiniteFactor):
             ji['factors'][el] = {
                 'function': 'finite',
-                'weights': fac.weights,
+                'weights': weights_to_json(fac.weights),
             }
             
     return {'grammar': jg, 'interpretation': ji}
@@ -144,11 +150,39 @@ def hrg_to_json(g):
         
     return j
 
+def json_to_weights(j):
+    """Convert an object loaded by json.load to an PatternedTensor."""
+    if isinstance(j, dict):
+        physical = torch.tensor(j["physical"], dtype=torch.get_default_dtype())
+        expand = j.get("expand")
+        if expand:
+            physical = physical.expand([*expand, *repeat(-1, physical.ndim)])
+        paxes = tuple(PhysicalAxis(n) for n in physical.size())
+        vaxes = j.get("vaxes")
+        if vaxes is not None:
+            vaxes = tuple(json_to_axis(r, paxes) for r in vaxes)
+        default = j.get("default", 0.)
+        return PatternedTensor(physical, paxes, vaxes, default)
+    else:
+        physical = torch.tensor(j, dtype=torch.get_default_dtype())
+        return PatternedTensor(physical)
+
 def weights_to_json(weights):
     if isinstance(weights, float) or hasattr(weights, 'shape') and len(weights.shape) == 0:
         return float(weights)
     else:
         return [weights_to_json(w) for w in weights]
+
+def json_to_axis(r, env):
+    if isinstance(r, list):
+        return productAxis(json_to_axis(r1, env) for r1 in r)
+    elif isinstance(r, dict):
+        return SumAxis(r["before"],
+                       json_to_axis(r["term"], env),
+                       r["after"])
+    else:
+        return env[r]
+
 
 
 ### GraphViz and TikZ
