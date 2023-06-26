@@ -9,7 +9,7 @@ FGGs are described in the following paper:
 
 David Chiang and Darcey Riley. [Factor graph grammars.](https://arxiv.org/abs/2010.12048) In Proc. NeurIPS. 2020.
 
-This code is written by David Chiang, Darcey Riley, and Ken Sible, at the University of Notre Dame, and is licensed under the MIT License.
+This code is written by David Chiang, Darcey Riley, and Ken Sible, at the University of Notre Dame, and is licensed under the MIT License. It is based upon work supported by the National Science Foundation under Award Nos. CCF-2019266 and CCF-2019291.
 
 ## Installing
 
