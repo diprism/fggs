@@ -40,7 +40,7 @@ class TestSumProduct(unittest.TestCase):
     def test_viterbi(self):
         fgg = self.fgg.copy()
         for fac in fgg.factors.values():
-            fac.weights = torch.log(torch.as_tensor(fac.weights))
+            fac.weights = fac.weights.log()
         (facgraph, asst) = viterbi(fgg, ()).derive()
         result, m = naive_graph_isomorphism(facgraph, self.graph)
         self.assertTrue(result, m)

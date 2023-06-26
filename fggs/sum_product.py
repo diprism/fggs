@@ -7,6 +7,7 @@ from fggs.factors import FiniteFactor
 from fggs.semirings import *
 from fggs.multi import *
 from fggs.utils import scc, nonterminal_graph
+from itertools import chain
 from math import inf
 from sys import stderr
 
@@ -300,33 +301,49 @@ def linear(fgg: FGG, inputs: MultiTensor, out_labels: Sequence[EdgeLabel], semir
 class SumProduct(torch.autograd.Function):
     """Compute the sum-product of a subset of the nonterminals of an FGG.
 
-    The interface is slightly awkward because PyTorch does not
-    autodifferentiate with respect to arguments that are not Tensors.
+    The interface is awkward because PyTorch does not autodifferentiate
+    with respect to arguments and outputs that are not Tensors.
 
     - fgg: The FGG
     - opts: A dict of options (see documentation for sum_product).
-    - in_labels: The (terminal or nonterminal) EdgeLabels whose
-      sum-products are already computed.
+    - in_labels: A sequence of sum-products already computed.
+      For each (terminal or nonterminal) EdgeLabel whose sum-products
+      are already computed, the element in_labels[i] is a pair
+      (el[i], in_np[i]) where
+      - el[i] is the EdgeLabel and
+      - in_np[i] is the nonphysical part of the PatternedTensor
+        that is the sum-product of el[i].
+        A nonphysical part of a PatternedTensor pt is a function
+        that produces pt when passed the Tensor pt.physical.
     - out_labels: The nonterminal EdgeLabels whose sum-products to compute.
-    - in_values: A sequence of Tensors such that in_values[i] is the
-      sum-product of in_labels[i].
+    - in_values: A sequence of Tensors such that the PatternedTensor
+      in_np[i](in_values[i]) is the sum-product of in_labels[i].
 
-    Returns: A sequence of Tensors out_values such that out_values[i]
-    is the sum-product of out_labels[i].
+    Returns: A sequence (out_np, *out_values), where
+    - out_np consists of len(out_labels) nonphysical parts and
+    - out_values consists of len(out_labels) Tensors,
+    such that out_np[i](out_values[i]) is the sum-product of
+    out_labels[i].
     """
     
     @staticmethod
-    def forward(ctx, fgg: FGG, opts: Dict, in_labels: Sequence[EdgeLabel], out_labels: Sequence[EdgeLabel], *in_values: Tensor) -> Tuple[Tensor, ...]: # type: ignore
+    def forward(ctx, # type: ignore
+                fgg: FGG,
+                opts: Dict,
+                in_labels: Sequence[Tuple[EdgeLabel, Callable[[Tensor], PatternedTensor]]],
+                out_labels: Sequence[EdgeLabel],
+                *in_values: Tensor) -> Tuple[Union[
+            Tuple[Optional[Callable[[Tensor], PatternedTensor]], ...], # first tuple component (same length as out_labels)
+            Optional[Tensor]                                           # rest tuple components (same length as out_labels)
+        ], ...]:
         ctx.fgg = fgg
         method, semiring = opts['method'], opts['semiring']
-        def from_dense(t: Tensor) -> PatternedTensor:
-            return PatternedTensor(t, default=semiring.from_int(0).item())
         ctx.opts = opts
         ctx.in_labels = in_labels
         ctx.out_labels = out_labels
         ctx.save_for_backward(*in_values)
 
-        inputs: MultiTensor = dict(zip(in_labels, map(from_dense, in_values))) # type: ignore
+        inputs: MultiTensor = {label: nonphysical(physical) for (label, nonphysical), physical in zip(in_labels, in_values)} # type: ignore
 
         if method == 'linear':
             out = linear(fgg, inputs, out_labels, semiring)
@@ -346,11 +363,13 @@ class SumProduct(torch.autograd.Function):
             out = x0
 
         ctx.out_values = out
-        return tuple(out[nt].to_dense() if nt in out else semiring.zeros(fgg.shape(nt))
-                     for nt in out_labels)
+        return tuple(chain((tuple(out[nt].nonphysical() if nt in out else None
+                                  for nt in out_labels),),
+                           (out[nt].physical if nt in out else None
+                            for nt in out_labels)))
 
     @staticmethod
-    def backward(ctx, *grad_out):
+    def backward(ctx, grad_nonphysicals, *grad_out):
         semiring = ctx.opts['semiring']
         def from_dense(t: Tensor) -> PatternedTensor:
             return PatternedTensor(t, default=semiring.from_int(0).item())
@@ -359,11 +378,13 @@ class SumProduct(torch.autograd.Function):
         # TODO: should from_dense sometimes use default=real_semiring.from_int(0).item()?
 
         # Construct and solve linear system of equations
-        inputs = dict(zip(ctx.in_labels, map(from_dense, ctx.saved_tensors)))
-        f = dict(zip(ctx.out_labels, map(from_dense, grad_out)))
-            
+        inputs = {label: nonphysical(physical) for (label, nonphysical), physical in zip(ctx.in_labels, ctx.saved_tensors)}
+        f = {nt: ctx.out_values[nt].nonphysical()(g)
+             for nt, g in zip(ctx.out_labels, grad_out)
+             if g is not None}
+
         jf_inputs = MultiTensor((FGGMultiShape(ctx.fgg, ctx.out_labels),
-                                 FGGMultiShape(ctx.fgg, ctx.in_labels)),
+                                 FGGMultiShape(ctx.fgg, (el for el, _ in ctx.in_labels))),
                                 real_semiring)
         if isinstance(semiring, RealSemiring):
             jf = J(ctx.fgg, ctx.out_values, inputs, semiring, jf_inputs)
@@ -376,10 +397,22 @@ class SumProduct(torch.autograd.Function):
                     
         # Compute gradients of inputs
         grad_t = multi_mv(jf_inputs, grad_nt, transpose=True)
-        grad_in = tuple(grad_t[el].to_dense() for el in ctx.in_labels)
+        grad_in = tuple(grad_t[el].to_dense() for el, _ in ctx.in_labels)
         
         return (None, None, None, None) + grad_in
 
+    @staticmethod
+    def apply_to_patterned_tensors(fgg: FGG, opts: Dict, in_labels: Iterable[EdgeLabel], out_labels: Sequence[EdgeLabel], *in_values: PatternedTensor) -> Tuple[PatternedTensor, ...]:
+        (nonphysicals, *physicals) = SumProduct.apply(
+            fgg, opts,
+            tuple((in_label, tensor.nonphysical())
+                  for in_label, tensor in zip(in_labels, in_values)),
+            out_labels,
+            *(tensor.physical for tensor in in_values))
+        return tuple(PatternedTensor(opts['semiring'].zeros(fgg.shape(nt)))
+                     if nonphysical is None is physical
+                     else nonphysical(physical)
+                     for nt, nonphysical, physical in zip(out_labels, nonphysicals, physicals))
 
 def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
     opts.setdefault('method',   'fixed-point')
@@ -389,10 +422,10 @@ def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
     if isinstance(opts['semiring'], BoolSemiring):
         opts['tol'] = 0
 
-    all = {t:cast(FiniteFactor, fgg.factors[t.name]).weights for t in fgg.terminals()}
+    all: Dict[EdgeLabel, PatternedTensor] = {t:cast(FiniteFactor, fgg.factors[t.name]).weights for t in fgg.terminals()}
     for comp in scc(nonterminal_graph(fgg)):
 
-        inputs = {}
+        inputs: Dict[EdgeLabel, PatternedTensor] = {}
         max_rhs = 0
         for x in comp:
             for r in fgg.rules(x):
@@ -413,9 +446,9 @@ def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
             comp_opts['method'] = 'linear'
 
         comp_labels = list(comp)
-        comp_values = SumProduct.apply(fgg, comp_opts, inputs.keys(), comp_labels, *inputs.values())
+        comp_values = SumProduct.apply_to_patterned_tensors(fgg, comp_opts, inputs.keys(), comp_labels, *inputs.values())
         all.update(zip(comp_labels, comp_values))
-    return all
+    return {label: t.to_dense() for label, t in all.items()}
         
 def sum_product(fgg: FGG, **opts) -> Tensor:
     """Compute the sum-product of an FGG.
