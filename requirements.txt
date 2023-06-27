@@ -1,4 +1,4 @@
-torch>=1.8
+torch>=1.9
 pydot
 git+https://github.com/bdusell/semiring-einsum
 tqdm
