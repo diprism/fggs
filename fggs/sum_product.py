@@ -86,12 +86,18 @@ def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) 
     x1 = MultiTensor(x0.shapes, x0.semiring)
     #timer = make_timer('newton')
     for k in range(kmax):
-        F0 = F(x0)
+        # The inequality x0 <= F(x0) <= x0+dX is theoretically guaranteed
+        # (Etessami and Yannakakis), but due to rounding error it may fail to
+        # hold in practice, preventing convergence. So we use maximum_ twice
+        # below to force it to hold (cf. Nederhof and Satta, who suggest a
+        # similar trick). The first use of maximum_ seems especially helpful.
+        F0 = F(x0).maximum_(x0)
         stop = F0.shouldStop(x0, tol)
         JF = J(x0)
         dX = multi_solve(JF, F0 - x0)
         #^ For the derivative blowup issue, it's only JF that's bigger than it needs to be, so dX above could be back to an ordinary dense tensor
-        x0.copy_(x0 + dX)
+        x0 += dX
+        x0.maximum_(F0)
         #timer()
         if stop: break
 
