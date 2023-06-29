@@ -35,20 +35,20 @@ def singleton_fgg(fac_graph: FactorGraph) -> FGG:
     return fgg
 
 
-def nonterminal_graph(hrg: HRG) -> Dict[EdgeLabel, Set[EdgeLabel]]:
+def nonterminal_graph(hrg: HRG) -> Dict[EdgeLabel, Dict[EdgeLabel, None]]:
     """Returns a directed graph g (of type Dict[EdgeLabel,
     Set[EdgeLabel]]) such that g[x] contains y iff there is rule with
     lhs x and a nonterminal y occurring on the rhs.
     """
-    g: Dict[EdgeLabel, Set[EdgeLabel]] = {x:set() for x in hrg.nonterminals()}
+    g: Dict[EdgeLabel, Dict[EdgeLabel, None]] = {x:dict() for x in hrg.nonterminals()}
     for r in hrg.all_rules():
         for e in r.rhs.edges():
             if e.label.is_nonterminal:
-                g[r.lhs].add(e.label)
+                g[r.lhs][e.label] = None
     return g
 
 T = TypeVar('T')
-def scc(g: Dict[T, Set[T]]) -> List[Set[T]]:
+def scc(g: Dict[T, Dict[T, None]]) -> List[Dict[T, None]]:
     """Decompose an HRG into a its strongly-connected components using
     Tarjan's algorithm.
 
@@ -86,11 +86,11 @@ def scc(g: Dict[T, Set[T]]) -> List[Set[T]]:
                 lowlink[v] = min(lowlink[v], indexof[w])
 
         if lowlink[v] == indexof[v]:
-            comp = set()
+            comp = dict()
             while v not in comp:
                 w = stack.pop()
                 onstack.remove(w)
-                comp.add(w)
+                comp[w] = None
             comps.append(comp)
     
     for v in g:
