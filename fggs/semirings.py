@@ -1,6 +1,7 @@
 import torch
 from math import inf
 import torch_semiring_einsum, torch_semiring_einsum.utils
+from torch_semiring_einsum import AutomaticBlockSize, AUTOMATIC_BLOCK_SIZE
 from abc import ABC, abstractmethod
 from typing import Union
 from fggs.typing import TensorLikeT
@@ -49,7 +50,8 @@ class Semiring(ABC):
         pass
     
     @abstractmethod
-    def einsum(self, equation, *args: torch.Tensor) -> torch.Tensor:
+    def einsum(self, equation, *args: torch.Tensor,
+               block_size: Union[int, AutomaticBlockSize] = AUTOMATIC_BLOCK_SIZE) -> torch.Tensor:
         pass
     
     def mm(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
@@ -113,7 +115,7 @@ class RealSemiring(Semiring):
         return y
         
     @staticmethod
-    def einsum(equation, *args):
+    def einsum(equation, *args, block_size = AUTOMATIC_BLOCK_SIZE):
         # Make inf * 0 = 0
         def multiply_in_place(a, b):
             a.mul_(b)
@@ -122,8 +124,7 @@ class RealSemiring(Semiring):
             return compute_sum(torch_semiring_einsum.utils.add_in_place,
                                torch_semiring_einsum.utils.sum_block,
                                multiply_in_place)
-        # TODO: Why blocksize=1?
-        return torch_semiring_einsum.semiring_einsum_forward(equation, args, torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE, callback)
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, block_size, callback)
     
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         # We want the least nonnegative solution of (I-a)x = b, and
@@ -178,7 +179,7 @@ class LogSemiring(Semiring):
                             torch.log(-torch.expm1(x))).nan_to_num(nan=-inf, neginf=-inf) # type: ignore
 
     @staticmethod
-    def einsum(equation, *args):
+    def einsum(equation, *args, block_size = AUTOMATIC_BLOCK_SIZE):
         
         # Slightly modified from torch_semiring_einsum/log_forward.py
         # to make log(inf) + log(0) = log(0)
@@ -201,7 +202,7 @@ class LogSemiring(Semiring):
             result.add_(max_values)
             return result
 
-        return torch_semiring_einsum.semiring_einsum_forward(equation, args, torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE, callback)
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, block_size, callback)
 
 
 class ViterbiSemiring(Semiring):
@@ -230,7 +231,7 @@ class ViterbiSemiring(Semiring):
         return torch.where(x >= 0, inf, 0.).to(self.dtype)
     
     @staticmethod
-    def einsum(equation, *args):
+    def einsum(equation, *args, block_size = AUTOMATIC_BLOCK_SIZE):
         # Make log(inf) + log(0) = log(0)
         def add_in_place(a, b):
             a.add_(b)
@@ -240,7 +241,7 @@ class ViterbiSemiring(Semiring):
                                torch_semiring_einsum.utils.max_block,
                                add_in_place,
                                include_indexes=False)
-        return torch_semiring_einsum.semiring_einsum_forward(equation, args, torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE, callback)
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, block_size, callback)
 
     
 class BoolSemiring(Semiring):
@@ -271,5 +272,6 @@ class BoolSemiring(Semiring):
         return torch.full_like(x, True)
 
     @staticmethod
-    def einsum(equation, *args: torch.Tensor) -> torch.Tensor:
-        return torch_semiring_einsum.einsum(equation, *args, block_size=torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE) > 0
+    def einsum(equation, *args: torch.Tensor,
+               block_size: Union[int, AutomaticBlockSize] = AUTOMATIC_BLOCK_SIZE) -> torch.Tensor:
+        return torch_semiring_einsum.einsum(equation, *args, block_size = block_size) > 0
