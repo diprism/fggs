@@ -1409,7 +1409,8 @@ def einsum(tensors: Sequence[PatternedTensor],
                          for tensor in freshened_tensors]
     paxis_to_char = dict(zip(chain.from_iterable(paxes for view, paxes in projected_tensors),
                              map(chr, count(ord('a')))))
-    output_paxes = tuple(frozenset(k for e in output_vaxes for k in e.fv(subst)))
+    output_paxes_set = dict.fromkeys(k for e in output_vaxes for k in e.fv(subst))
+    output_paxes = tuple(output_paxes_set)
     equation = ','.join(''.join(paxis_to_char[k] for k in paxes)
                         for view, paxes in projected_tensors) \
              + '->' + ''.join(paxis_to_char[k] for k in output_paxes)
@@ -1461,7 +1462,7 @@ def log_viterbi_einsum_forward(tensors: Sequence[PatternedTensor],
                          for tensor in freshened_tensors]
     paxis_to_char = dict(zip(chain.from_iterable(paxes for (view, paxes) in projected_tensors),
                              map(chr, count(ord('a')))))
-    output_paxes_set = frozenset(k for e in output_vaxes for k in e.fv(subst))
+    output_paxes_set = dict.fromkeys(k for e in output_vaxes for k in e.fv(subst))
     output_paxes = tuple(output_paxes_set)
     equation = ','.join(''.join(paxis_to_char[k] for k in paxes)
                         for view, paxes in projected_tensors) \
