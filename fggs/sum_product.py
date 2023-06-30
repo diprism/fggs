@@ -19,7 +19,6 @@ import torch
 from torch import Tensor
 from fggs.typing import TensorLikeT
 from fggs.indices import PatternedTensor, einsum, stack
-from torch_semiring_einsum import AutomaticBlockSize, AUTOMATIC_BLOCK_SIZE
 
 Function = Callable[[MultiTensor], MultiTensor]
 
@@ -78,8 +77,7 @@ def fixed_point(F: Function, x0: MultiTensor, *, tol: float, kmax: int) -> None:
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
 
-def newton(F: Function, J: Function, x0: MultiTensor, *,
-           tol: float, kmax: int, block_size: Union[int, AutomaticBlockSize]) -> None:
+def newton(F: Function, J: Function, x0: MultiTensor, *, tol: float, kmax: int) -> None:
     """Newton's method for solving x = F(x) in a commutative semiring.
 
     Javier Esparza, Stefan Kiefer, and Michael Luttenberger. On fixed
@@ -96,7 +94,7 @@ def newton(F: Function, J: Function, x0: MultiTensor, *,
         F0 = F(x0).maximum_(x0)
         stop = F0.shouldStop(x0, tol)
         JF = J(x0)
-        dX = multi_solve(JF, F0 - x0, block_size=block_size)
+        dX = multi_solve(JF, F0 - x0)
         #^ For the derivative blowup issue, it's only JF that's bigger than it needs to be, so dX above could be back to an ordinary dense tensor
         x0 += dX
         x0.maximum_(F0)
@@ -107,14 +105,11 @@ def newton(F: Function, J: Function, x0: MultiTensor, *,
         warnings.warn('maximum iteration exceeded; convergence not guaranteed')
 
 
-def F(fgg: FGG, x: MultiTensor, inputs: MultiTensor,
-      semiring: Semiring, block_size: Union[int, AutomaticBlockSize]) -> MultiTensor:
+def F(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring) -> MultiTensor:
     Fx = MultiTensor(x.shapes, x.semiring)
     for n in x.shapes[0]:
         for rule in fgg.rules(n):
-            tau_rule = sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(),
-                                         rule.rhs.ext, x, inputs,
-                                         semiring=semiring, block_size=block_size)
+            tau_rule = sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(), rule.rhs.ext, x, inputs, semiring=semiring)
             if tau_rule is not None: Fx.add_single(n, tau_rule)
     return Fx
 
@@ -132,8 +127,7 @@ def print_duplicate(loc: str, xs: Sequence[Node], ys: Sequence[Node]) -> bool:
         return False
 
 
-def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor,
-      semiring: Semiring, block_size: Union[int, AutomaticBlockSize],
+def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
       J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
     """The Jacobian of F."""
     Jx = MultiTensor(x.shapes+x.shapes, semiring)
@@ -144,9 +138,7 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor,
                 duplicate = print_duplicate('J', rule.rhs.ext, edge.nodes)
                 ext = rule.rhs.ext + edge.nodes
                 edges = set(rule.rhs.edges()) - {edge}
-                tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), edges,
-                                             ext, x, inputs,
-                                             semiring=semiring, block_size=block_size)
+                tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), edges, ext, x, inputs, semiring=semiring)
                 if tau_edge is not None:
                     if duplicate:
                         print('sum_product_edges produced', tau_edge.physical.size(), 'for', tau_edge.size(), file=stderr)
@@ -165,8 +157,7 @@ def log_softmax(a: TensorLikeT, dim: int) -> TensorLikeT:
     return a.gt(-inf).log().to(dtype=a.dtype).where(a.eq(inf).any(dim, keepdim=True),
                                                     a.log_softmax(dim))
     
-def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor,
-          semiring: Semiring, block_size: Union[int, AutomaticBlockSize],
+def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
           J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
     """The Jacobian of F(semiring=LogSemiring), computed in the real semiring."""
     Jx = MultiTensor(x.shapes+x.shapes, semiring=RealSemiring(dtype=semiring.dtype, device=semiring.device))
@@ -176,8 +167,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor,
             [(rule, tau_rule)
              for rule in rules
              for tau_rule in (sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(),
-                                                rule.rhs.ext, x, inputs,
-                                                semiring=semiring, block_size=block_size),)
+                                                rule.rhs.ext, x, inputs, semiring=semiring),)
              if tau_rule is not None]
         if len(tau_rule_pairs) == 0: continue
         rules, tau_rules = zip(*tau_rule_pairs)
@@ -188,9 +178,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor,
                 if edge.label not in Jx.shapes[1] and J_inputs is None: continue
                 duplicate = print_duplicate('J_log', rule.rhs.ext, edge.nodes)
                 ext = rule.rhs.ext + edge.nodes
-                tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(),
-                                             ext, x, inputs,
-                                             semiring=semiring, block_size=block_size)
+                tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(), ext, x, inputs, semiring=semiring)
                 if tau_edge is not None:
                     if duplicate:
                         print('sum_product_edges produced', tau_edge.physical.size(), 'for', tau_edge.size(), file=stderr)
@@ -208,13 +196,7 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor,
     return Jx
 
 
-def sum_product_edges(fgg: FGG,
-                      nodes: Iterable[Node],
-                      edges: Iterable[Edge],
-                      ext: Sequence[Node],
-                      *inputses: MultiTensor,
-                      semiring: Semiring,
-                      block_size: Union[int, AutomaticBlockSize]) -> Optional[PatternedTensor]:
+def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ext: Sequence[Node], *inputses: MultiTensor, semiring: Semiring) -> Optional[PatternedTensor]:
     """Compute the sum-product of a set of edges.
 
     Parameters:
@@ -265,7 +247,7 @@ def sum_product_edges(fgg: FGG,
     outputs = [node for node in ext if node in connected]
 
     assert(all(tensor.physical.dtype == semiring.dtype for tensor in tensors))
-    out = einsum(tensors, indexing, outputs, semiring, block_size)
+    out = einsum(tensors, indexing, outputs, semiring)
     if duplicate:
         print('einsum produced', out.physical.size(), 'for', out.size(), file=stderr)
 
@@ -286,8 +268,7 @@ def sum_product_edges(fgg: FGG,
     return out
 
 
-def linear(fgg: FGG, inputs: MultiTensor, out_labels: Sequence[EdgeLabel],
-           semiring: Semiring, block_size: Union[int, AutomaticBlockSize]) -> MultiTensor:
+def linear(fgg: FGG, inputs: MultiTensor, out_labels: Sequence[EdgeLabel], semiring: Semiring) -> MultiTensor:
     """Compute the sum-product of the nonterminals of `fgg`, which is
     linearly recursive given that each nonterminal `x` in `inputs` is
     treated as a terminal with weight `inputs[x]`.
@@ -304,16 +285,14 @@ def linear(fgg: FGG, inputs: MultiTensor, out_labels: Sequence[EdgeLabel],
             edges = [e for e in rule.rhs.edges() if e.label not in inputs]
             if len(edges) == 0:
                 t = sum_product_edges(fgg, rule.rhs.nodes(), rule.rhs.edges(),
-                                      rule.rhs.ext, inputs,
-                                      semiring=semiring, block_size=block_size)
+                                      rule.rhs.ext, inputs, semiring=semiring)
                 if t is not None:
                     F0.add_single(n, t)
             elif len(edges) == 1:
                 [edge] = edges
                 duplicate = print_duplicate('linear', rule.rhs.ext, edge.nodes)
                 t = sum_product_edges(fgg, rule.rhs.nodes(), set(rule.rhs.edges()) - {edge},
-                                      rule.rhs.ext + edge.nodes, inputs,
-                                      semiring=semiring, block_size=block_size)
+                                      rule.rhs.ext + edge.nodes, inputs, semiring=semiring)
                 if t is not None:
                     if duplicate:
                         print('sum_product_edges produced', t.physical.size(), 'for', t.size(), file=stderr)
@@ -322,7 +301,7 @@ def linear(fgg: FGG, inputs: MultiTensor, out_labels: Sequence[EdgeLabel],
                 rhs = ' '.join(e.label.name for e in edges)
                 raise ValueError(f'FGG is not linearly recursive ({rule.lhs.name} -> {rhs})')
 
-    return multi_solve(J0, F0, block_size=block_size)
+    return multi_solve(J0, F0)
 
 
 class SumProduct(torch.autograd.Function):
@@ -364,7 +343,7 @@ class SumProduct(torch.autograd.Function):
             Optional[Tensor]                                           # rest tuple components (same length as out_labels)
         ], ...]:
         ctx.fgg = fgg
-        method, semiring, block_size = opts['method'], opts['semiring'], opts['block_size']
+        method, semiring = opts['method'], opts['semiring']
         ctx.opts = opts
         ctx.in_labels = in_labels
         ctx.out_labels = out_labels
@@ -373,18 +352,18 @@ class SumProduct(torch.autograd.Function):
         inputs: MultiTensor = {label: nonphysical(physical) for (label, nonphysical), physical in zip(in_labels, in_values)} # type: ignore
 
         if method == 'linear':
-            out = linear(fgg, inputs, out_labels, semiring, block_size)
+            out = linear(fgg, inputs, out_labels, semiring)
         else:
             x0 = MultiTensor(FGGMultiShape(fgg, out_labels), semiring)
             if method == 'fixed-point':
-                fixed_point(lambda x: F(fgg, x, inputs, semiring, block_size),
+                fixed_point(lambda x: F(fgg, x, inputs, semiring),
                             x0, tol=opts['tol'], kmax=opts['kmax'])
             elif method == 'newton':
-                newton(lambda x: F(fgg, x, inputs, semiring, block_size),
-                       lambda x: J(fgg, x, inputs, semiring, block_size),
-                       x0, tol=opts['tol'], kmax=opts['kmax'], block_size=opts['block_size'])
+                newton(lambda x: F(fgg, x, inputs, semiring),
+                       lambda x: J(fgg, x, inputs, semiring),
+                       x0, tol=opts['tol'], kmax=opts['kmax'])
             elif method == 'one-step':
-                x0.copy_(F(fgg, x0, inputs, semiring, block_size))
+                x0.copy_(F(fgg, x0, inputs, semiring))
             else:
                 raise ValueError('unsupported method for computing sum-product')
             out = x0
@@ -397,7 +376,7 @@ class SumProduct(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_nonphysicals, *grad_out):
-        semiring, block_size = ctx.opts['semiring'], ctx.opts['block_size']
+        semiring = ctx.opts['semiring']
         def from_dense(t: Tensor) -> PatternedTensor:
             return PatternedTensor(t, default=semiring.from_int(0).item())
         # gradients are always computed in the real semiring
@@ -414,16 +393,16 @@ class SumProduct(torch.autograd.Function):
                                  FGGMultiShape(ctx.fgg, (el for el, _ in ctx.in_labels))),
                                 real_semiring)
         if isinstance(semiring, RealSemiring):
-            jf = J(ctx.fgg, ctx.out_values, inputs, semiring, block_size, jf_inputs)
+            jf = J(ctx.fgg, ctx.out_values, inputs, semiring, jf_inputs)
         elif isinstance(semiring, LogSemiring):
-            jf = J_log(ctx.fgg, ctx.out_values, inputs, semiring, block_size, jf_inputs)
+            jf = J_log(ctx.fgg, ctx.out_values, inputs, semiring, jf_inputs)
         else:
             raise ValueError(f'invalid semiring: {semiring}')
 
-        grad_nt = multi_solve(jf, f, transpose=True, block_size=block_size)
+        grad_nt = multi_solve(jf, f, transpose=True)
                     
         # Compute gradients of inputs
-        grad_t = multi_mv(jf_inputs, grad_nt, transpose=True, block_size=block_size)
+        grad_t = multi_mv(jf_inputs, grad_nt, transpose=True)
         grad_in = tuple(grad_t[el].to_dense() for el, _ in ctx.in_labels)
         
         return (None, None, None, None) + grad_in
@@ -442,11 +421,10 @@ class SumProduct(torch.autograd.Function):
                      for nt, nonphysical, physical in zip(out_labels, nonphysicals, physicals))
 
 def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
-    opts.setdefault('method',     'fixed-point')
-    opts.setdefault('semiring',   RealSemiring())
-    opts.setdefault('tol',        1e-5) # with float32, 1e-6 can fail
-    opts.setdefault('kmax',       1000) # for fixed-point, 100 is too low
-    opts.setdefault('block_size', AUTOMATIC_BLOCK_SIZE)
+    opts.setdefault('method',   'fixed-point')
+    opts.setdefault('semiring', RealSemiring())
+    opts.setdefault('tol',      1e-5) # with float32, 1e-6 can fail
+    opts.setdefault('kmax',     1000) # for fixed-point, 100 is too low
     if isinstance(opts['semiring'], BoolSemiring):
         opts['tol'] = 0
 

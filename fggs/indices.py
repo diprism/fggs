@@ -91,7 +91,6 @@ from sys import float_info#, stderr
 import torch
 from torch import Tensor, Size
 import torch_semiring_einsum
-from torch_semiring_einsum import AutomaticBlockSize, AUTOMATIC_BLOCK_SIZE
 from fggs.semirings import Semiring
 
 __all__ = ['Axis', 'PhysicalAxis', 'ProductAxis', 'productAxis', 'unitAxis', 'SumAxis',
@@ -1307,13 +1306,11 @@ class PatternedTensor:
         return PatternedTensor(x.reshape(tuple(k._numel for k in fv + fvb0)),
                                fv + fvb0, (e,) + ebs0, b.default)
 
-    def mv(self, v: PatternedTensor, semiring: Semiring,
-           block_size: Union[int, AutomaticBlockSize] = AUTOMATIC_BLOCK_SIZE) -> PatternedTensor:
-        return einsum((self,v), ("ij", "j"), "i", semiring, block_size)
+    def mv(self, v: PatternedTensor, semiring: Semiring) -> PatternedTensor:
+        return einsum((self,v), ("ij", "j"), "i", semiring)
 
-    def mm(self, m: PatternedTensor, semiring: Semiring,
-           block_size: Union[int, AutomaticBlockSize] = AUTOMATIC_BLOCK_SIZE) -> PatternedTensor:
-        return einsum((self,m), ("ij", "jk"), "ik", semiring, block_size)
+    def mm(self, m: PatternedTensor, semiring: Semiring) -> PatternedTensor:
+        return einsum((self,m), ("ij", "jk"), "ik", semiring)
 
 def stack(tensors: Sequence[PatternedTensor], dim: int = 0) -> PatternedTensor:
     """Concatenate PatternedTensors along a new axis.
@@ -1361,12 +1358,10 @@ def depict_einsum(fun: str,
                       for tensor, input in zip(tensors, inputs)] +
                      [f"    -> {' '.join(map(letterer, output))})"])
 
-def einsum(
-        tensors: Sequence[PatternedTensor],
-        inputs: Sequence[Sequence[Any]],
-        output: Sequence[Any],
-        semiring: Semiring,
-        block_size: Union[int, AutomaticBlockSize] = AUTOMATIC_BLOCK_SIZE) -> PatternedTensor:
+def einsum(tensors: Sequence[PatternedTensor],
+           inputs: Sequence[Sequence[Any]],
+           output: Sequence[Any],
+           semiring: Semiring) -> PatternedTensor:
     """
     To perform an einsum operation on PatternedTensors, we start with
     PatternedTensors whose sets of physical PhysicalAxes do not overlap, but
@@ -1420,17 +1415,14 @@ def einsum(
              + '->' + ''.join(paxis_to_char[k] for k in output_paxes)
     #print(equation, file=stderr)
     compiled = torch_semiring_einsum.compile_equation(equation)
-    out = semiring.einsum(compiled, *(view for view, paxes in projected_tensors),
-                          block_size = block_size)
+    out = semiring.einsum(compiled, *(view for view, paxes in projected_tensors))
     assert(out.dtype == semiring.dtype)
     return PatternedTensor(out, output_paxes, output_vaxes, default=zero.item())
 
-def log_viterbi_einsum_forward(
-        tensors: Sequence[PatternedTensor],
-        inputs: Sequence[Sequence[Any]],
-        output: Sequence[Any],
-        semiring: Semiring,
-        block_size: Union[int, AutomaticBlockSize] = AUTOMATIC_BLOCK_SIZE) -> Tuple[PatternedTensor, PatternedTensor]:
+def log_viterbi_einsum_forward(tensors: Sequence[PatternedTensor],
+                               inputs: Sequence[Sequence[Any]],
+                               output: Sequence[Any],
+                               semiring: Semiring) -> Tuple[PatternedTensor, PatternedTensor]:
     assert(len(tensors) == len(inputs))
     assert(len(tensor.vaxes) == len(input)
            for tensor, input in zip(tensors, inputs))
@@ -1478,7 +1470,7 @@ def log_viterbi_einsum_forward(
     compiled = torch_semiring_einsum.compile_equation(equation)
     out, ptr = torch_semiring_einsum.log_viterbi_einsum_forward(compiled,
                  *(view for view, paxes in projected_tensors),
-                 block_size = block_size)
+                 block_size = semiring.block_size)
     assert(len(output_paxes) == out.ndim == ptr.ndim - 1)
     assert(len(paxis_to_char) == len(output_paxes) + ptr.size(-1))
     paxis_to_ptr = dict(chain(((k, torch.arange(k._numel)

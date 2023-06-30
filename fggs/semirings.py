@@ -22,10 +22,12 @@ def get_block_sizes(block_size: Union[int, AutomaticBlockSize],
 
 class Semiring(ABC):
     """A complete, commutative star-semiring (https://en.wikipedia.org/wiki/Semiring)."""
-    def __init__(self, dtype=None, device='cpu'):
+    def __init__(self, dtype=None, device='cpu',
+                 block_size: Union[int, AutomaticBlockSize] = AUTOMATIC_BLOCK_SIZE):
         if dtype is None: dtype = torch.get_default_dtype()
-        self.dtype = dtype
-        self.device = device
+        self.dtype      = dtype
+        self.device     = device
+        self.block_size = block_size
         
     @abstractmethod
     def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
@@ -64,13 +66,12 @@ class Semiring(ABC):
         pass
     
     @abstractmethod
-    def einsum(self, equation, *args: torch.Tensor,
-               block_size: Union[int, AutomaticBlockSize] = AUTOMATIC_BLOCK_SIZE) -> torch.Tensor:
+    def einsum(self, equation, *args: torch.Tensor) -> torch.Tensor:
         pass
     
     def mm(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         a = a.unsqueeze(-1)
-        block_size = 10
+        [_, block_size] = get_block_sizes(self.block_size, a, a.shape)
         out = self.sum(self.mul(a[:,:block_size], b[:block_size]), dim=1)
         for j in range(block_size, a.shape[1], block_size):
             out = self.add(out, self.sum(self.mul(a[:,j:j+block_size], b[j:j+block_size]), dim=1))
@@ -94,7 +95,7 @@ class Semiring(ABC):
         """
         a = a.clone()
         x = b.clone()
-        block_sizes = get_block_sizes(AUTOMATIC_BLOCK_SIZE, a, a.shape)
+        block_sizes = get_block_sizes(self.block_size, a, a.shape)
         for k in range(a.shape[0]):
             a[:,k]           = self.mul(a[:,k], self.star(a[k,k]))
             for rows, cols in equation.block_sizes_to_indexes((a.shape[0], a.shape[1]-k-1), block_sizes):
@@ -131,8 +132,7 @@ class RealSemiring(Semiring):
         y.masked_fill_(x >= 1, inf)
         return y
         
-    @staticmethod
-    def einsum(equation, *args, block_size = AUTOMATIC_BLOCK_SIZE):
+    def einsum(self, equation, *args):
         # Make inf * 0 = 0
         def multiply_in_place(a, b):
             a.mul_(b)
@@ -141,7 +141,7 @@ class RealSemiring(Semiring):
             return compute_sum(torch_semiring_einsum.utils.add_in_place,
                                torch_semiring_einsum.utils.sum_block,
                                multiply_in_place)
-        return torch_semiring_einsum.semiring_einsum_forward(equation, args, block_size, callback)
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, self.block_size, callback)
     
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         # We want the least nonnegative solution of (I-a)x = b, and
@@ -195,8 +195,7 @@ class LogSemiring(Semiring):
                             torch.log1p(-torch.exp(x)), # type: ignore
                             torch.log(-torch.expm1(x))).nan_to_num(nan=-inf, neginf=-inf) # type: ignore
 
-    @staticmethod
-    def einsum(equation, *args, block_size = AUTOMATIC_BLOCK_SIZE):
+    def einsum(self, equation, *args):
         
         # Slightly modified from torch_semiring_einsum/log_forward.py
         # to make log(inf) + log(0) = log(0)
@@ -219,7 +218,7 @@ class LogSemiring(Semiring):
             result.add_(max_values)
             return result
 
-        return torch_semiring_einsum.semiring_einsum_forward(equation, args, block_size, callback)
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, self.block_size, callback)
 
 
 class ViterbiSemiring(Semiring):
@@ -247,8 +246,7 @@ class ViterbiSemiring(Semiring):
     def star(self, x: torch.Tensor) -> torch.Tensor:
         return torch.where(x >= 0, inf, 0.).to(self.dtype)
     
-    @staticmethod
-    def einsum(equation, *args, block_size = AUTOMATIC_BLOCK_SIZE):
+    def einsum(self, equation, *args):
         # Make log(inf) + log(0) = log(0)
         def add_in_place(a, b):
             a.add_(b)
@@ -258,13 +256,14 @@ class ViterbiSemiring(Semiring):
                                torch_semiring_einsum.utils.max_block,
                                add_in_place,
                                include_indexes=False)
-        return torch_semiring_einsum.semiring_einsum_forward(equation, args, block_size, callback)
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, self.block_size, callback)
 
     
 class BoolSemiring(Semiring):
     
-    def __init__(self, device='cpu'):
-        super().__init__(dtype=torch.bool, device=device)
+    def __init__(self, device='cpu',
+                 block_size: Union[int, AutomaticBlockSize] = AUTOMATIC_BLOCK_SIZE):
+        super().__init__(dtype=torch.bool, device=device, block_size=block_size)
         
     def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
         n = torch.as_tensor(n, device=self.device)
@@ -288,7 +287,5 @@ class BoolSemiring(Semiring):
     def star(x: torch.Tensor) -> torch.Tensor:
         return torch.full_like(x, True)
 
-    @staticmethod
-    def einsum(equation, *args: torch.Tensor,
-               block_size: Union[int, AutomaticBlockSize] = AUTOMATIC_BLOCK_SIZE) -> torch.Tensor:
-        return torch_semiring_einsum.einsum(equation, *args, block_size = block_size) > 0
+    def einsum(self, equation, *args: torch.Tensor) -> torch.Tensor:
+        return torch_semiring_einsum.einsum(equation, *args, block_size = self.block_size) > 0

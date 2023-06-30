@@ -4,7 +4,6 @@ from fggs.semirings import Semiring
 from fggs.indices import PatternedTensor
 from math import inf
 import torch
-from torch_semiring_einsum import AutomaticBlockSize, AUTOMATIC_BLOCK_SIZE
 from torch import Tensor, Size
 from sys import stderr
 
@@ -150,8 +149,7 @@ class MultiTensor(MutableMapping[MultiTensorKey, PatternedTensor]):
                 self[x] = t
         return self
 
-def multi_mv(a: MultiTensor, b: MultiTensor, transpose: bool = False,
-             block_size: Union[int, AutomaticBlockSize] = AUTOMATIC_BLOCK_SIZE) -> MultiTensor:
+def multi_mv(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> MultiTensor:
     """Compute the product a @ b, where the elements of a are flattened into
     matrices and the elements of b are flattened into vectors.
 
@@ -170,15 +168,14 @@ def multi_mv(a: MultiTensor, b: MultiTensor, transpose: bool = False,
         if transpose:
             if x in b:
                 bx = b[x].reshape(flat_ishapes[x])
-                c.add_single(y, axy.T.mv(bx, semiring, block_size).reshape(jshapes[y]))
+                c.add_single(y, axy.T.mv(bx, semiring).reshape(jshapes[y]))
         else:
             if y in b:
                 by = b[y].reshape(flat_jshapes[y])
-                c.add_single(x, axy.mv(by, semiring, block_size).reshape(ishapes[x]))
+                c.add_single(x, axy.mv(by, semiring).reshape(ishapes[x]))
     return c
 
-def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False,
-                block_size: Union[int, AutomaticBlockSize] = AUTOMATIC_BLOCK_SIZE) -> MultiTensor:
+def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> MultiTensor:
     """Solve x = a @ x + b for x, where the elements of a are flattened into
     matrices and the elements of b are flattened into vectors.
     
@@ -216,9 +213,9 @@ def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False,
                     a[x,z].copy_(a[z,z].T.solve(a[x,z].T, semiring).T)
                 for y in order[k+1:]:
                     if (z,y) in a:
-                        a.add_single((x,y), a[x,z].mm(a[z,y], semiring, block_size))
+                        a.add_single((x,y), a[x,z].mm(a[z,y], semiring))
                 if z in b:
-                    b.add_single(x, a[x,z].mv(b[z], semiring, block_size))
+                    b.add_single(x, a[x,z].mv(b[z], semiring))
 
     # Solve block-triangular systems
     for k,z in reversed(list(enumerate(order))):
@@ -227,7 +224,7 @@ def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False,
                 b[z].copy_(a[z,z].solve(b[z], semiring))
             for x in reversed(order[:k]):
                 if (x,z) in a:
-                    b.add_single(x, a[x,z].mv(b[z], semiring, block_size))
+                    b.add_single(x, a[x,z].mv(b[z], semiring))
 
     # Unflatten and return solution
     b.shapes = (shapes,)

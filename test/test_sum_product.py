@@ -99,8 +99,7 @@ class TestSumProduct(unittest.TestCase):
                 out_labels = list(fgg.nonterminals())
                 def f(*physicals):
                     opts = {'method': 'newton', 'tol': 1e-6, 'kmax': 100,
-                            'semiring': RealSemiring(dtype=torch.double),
-                            'block_size': 42}
+                            'semiring': RealSemiring(dtype=torch.double)}
                     (nonphysicals, *physicals) = SumProduct.apply(
                         fgg, opts, in_labels, out_labels, *physicals)
                     return tuple(torch.zeros(fgg.shape(nt))
@@ -123,8 +122,7 @@ class TestSumProduct(unittest.TestCase):
                 out_labels = list(fgg.nonterminals())
                 def f(*physicals):
                     opts = {'method': 'newton', 'tol': 1e-6, 'kmax': 100,
-                            'semiring': LogSemiring(dtype=torch.double),
-                            'block_size': 42}
+                            'semiring': LogSemiring(dtype=torch.double)}
                     (nonphysicals, *physicals) = SumProduct.apply(fgg, opts, in_labels, out_labels, *physicals)
                     # put exp inside f to avoid gradcheck computing -inf - -inf
                     return tuple(torch.zeros(fgg.shape(nt))

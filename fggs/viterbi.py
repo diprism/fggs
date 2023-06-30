@@ -7,18 +7,16 @@ from fggs.derivations import *
 from fggs.sum_product import FGGMultiShape
 from fggs.multi import MultiTensor
 
-from typing import Dict, Tuple, NamedTuple, Set, List, Sequence, Optional, Union
+from typing import Dict, Tuple, NamedTuple, Set, List, Sequence, Optional
 import torch
 from torch import Tensor
-from torch_semiring_einsum import AutomaticBlockSize, AUTOMATIC_BLOCK_SIZE
 from fggs.indices import PatternedTensor, log_viterbi_einsum_forward
 
 # The Viterbi algorithm can be thought of as a sum-product in a
 # special semiring, but there are enough little differences that it
 # seems easier to implement it separately.
 
-def sum_product_edges(fgg: FGG, rule: HRGRule, *inputses: MultiTensor,
-                      semiring: Semiring, block_size: Union[int, AutomaticBlockSize]) -> Optional[Tuple[PatternedTensor, PatternedTensor]]:
+def sum_product_edges(fgg: FGG, rule: HRGRule, *inputses: MultiTensor, semiring: Semiring) -> Optional[Tuple[PatternedTensor, PatternedTensor]]:
 
     connected: Set[Node] = set()
     indexing: List[Sequence[Node]] = []
@@ -49,8 +47,7 @@ def sum_product_edges(fgg: FGG, rule: HRGRule, *inputses: MultiTensor,
 
     return out, ptr
 
-def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor,
-              semiring: Semiring, block_size: Union[int, AutomaticBlockSize]):
+def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring):
     """
     Store the back-pointers as (maximum[nt], lhs_pointer[nt], rhs_pointer[nt]) where
       maximum[nt][ext_asst] is the maximum weight of ext_asst
@@ -62,7 +59,7 @@ def F_viterbi(fgg: FGG, x: MultiTensor, inputs: MultiTensor,
     rhs_pointer: Dict = {n:[] for n in x.shapes[0]}
     for n in x.shapes[0]:
         for ri, rule in enumerate(fgg.rules(n)):
-            result = sum_product_edges(fgg, rule, x, inputs, semiring=semiring, block_size=block_size)
+            result = sum_product_edges(fgg, rule, x, inputs, semiring=semiring)
             if result is not None:
                 tau_rule, pointer = result
                 if n in Fx:
@@ -94,7 +91,6 @@ def viterbi(fgg: FGG, start_asst: Tuple[int,...], **opts) -> FGGDerivation:
     semiring = opts.get('semiring', ViterbiSemiring())
     kmax = opts.get('kmax', 1000)
     tol = opts.get('tol', 1e-6)
-    block_size = opts.get('block_size', AUTOMATIC_BLOCK_SIZE)
 
     maximum: MultiTensor = {t:fgg.factors[t.name].weights for t in fgg.terminals()} # type: ignore
     lhs_pointer = {}
@@ -111,11 +107,11 @@ def viterbi(fgg: FGG, start_asst: Tuple[int,...], **opts) -> FGGDerivation:
 
         if trivial:
             # The component has one nonterminal and is acyclic
-            x1, lp1, rp1 = F_viterbi(fgg, x, maximum, semiring, block_size)
+            x1, lp1, rp1 = F_viterbi(fgg, x, maximum, semiring)
         else:
             # General case: fixed-point iteration
             for k in range(kmax):
-                x1, lp1, rp1 = F_viterbi(fgg, x, maximum, semiring, block_size)
+                x1, lp1, rp1 = F_viterbi(fgg, x, maximum, semiring)
                 if x.allclose(x1, tol): break
                 x = x1
             

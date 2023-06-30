@@ -97,9 +97,9 @@ if __name__ == '__main__':
             error(f'factor {el.name} needs weights (use -w option)')
 
     zs = fggs.sum_products(fgg, method=args.method,
+                                semiring=fggs.RealSemiring(block_size=args.block_size),
                                 tol=args.tol,
-                                kmax=args.kmax,
-                                block_size=args.block_size)
+                                kmax=args.kmax)
     z = zs[fgg.start]
 
     if args.trace:
