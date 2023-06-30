@@ -100,7 +100,7 @@ class Semiring(ABC):
             a[:,k]           = self.mul(a[:,k], self.star(a[k,k]))
             for rows, cols in equation.block_sizes_to_indexes((a.shape[0], a.shape[1]-k-1), block_sizes):
                 cols = slice(cols.start+k+1, cols.stop+k+1, cols.step)
-                a[rows,cols] = self.add(a[rows,k+1:], self.mul(a[rows,k,None], a[k,cols]))
+                a[rows,cols] = self.add(a[rows,cols], self.mul(a[rows,k,None], a[k,cols]))
             if x.ndim == 1:
                 x[:]         = self.add(x,            self.mul(a[:,k],         x[k]))
             elif x.ndim == 2:
