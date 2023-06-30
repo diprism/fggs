@@ -1,10 +1,24 @@
 import torch
 from math import inf
 import torch_semiring_einsum, torch_semiring_einsum.utils
-from torch_semiring_einsum import AutomaticBlockSize, AUTOMATIC_BLOCK_SIZE
+from torch_semiring_einsum import AutomaticBlockSize, AUTOMATIC_BLOCK_SIZE, equation
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, Sequence, List
 from fggs.typing import TensorLikeT
+
+def get_block_sizes(block_size: Union[int, AutomaticBlockSize],
+                    arg: torch.Tensor, sizes: Sequence[int]) -> List[int]:
+    """Like torch_semiring_einsum.equation.get_summed_variable_indexes,
+       but for some in-place operation such as addcmul_ rather than einsum."""
+    if isinstance(block_size, int):
+        return [block_size for size in sizes]
+    elif isinstance(block_size, AutomaticBlockSize):
+        available_bytes = equation.get_available_bytes(arg.device, block_size)
+        bytes_per_element = equation.get_bytes_per_element(arg.dtype)
+        available_elements = available_bytes // bytes_per_element
+        return equation.get_automatic_block_sizes(sizes, available_elements)
+    else:
+        raise ValueError(f'unrecognized block_size: {block_size!r}')
 
 class Semiring(ABC):
     """A complete, commutative star-semiring (https://en.wikipedia.org/wiki/Semiring)."""
@@ -80,13 +94,16 @@ class Semiring(ABC):
         """
         a = a.clone()
         x = b.clone()
+        block_sizes = get_block_sizes(AUTOMATIC_BLOCK_SIZE, a, a.shape)
         for k in range(a.shape[0]):
-            a[:,k]    = self.mul(a[:,k], self.star(a[k,k]))
-            a[:,k+1:] = self.add(a[:,k+1:], self.mul(a[:,k,None], a[k,k+1:]))
+            a[:,k]           = self.mul(a[:,k], self.star(a[k,k]))
+            for rows, cols in equation.block_sizes_to_indexes((a.shape[0], a.shape[1]-k-1), block_sizes):
+                cols = slice(cols.start+k+1, cols.stop+k+1, cols.step)
+                a[rows,cols] = self.add(a[rows,k+1:], self.mul(a[rows,k,None], a[k,cols]))
             if x.ndim == 1:
-                x[:]  = self.add(x,         self.mul(a[:,k],      x[k]))
+                x[:]         = self.add(x,            self.mul(a[:,k],         x[k]))
             elif x.ndim == 2:
-                x[:]  = self.add(x,         self.mul(a[:,k,None], x[k]))
+                x[:]         = self.add(x,            self.mul(a[:,k,None],    x[k]))
         return x
 
 class RealSemiring(Semiring):
