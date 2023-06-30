@@ -1470,7 +1470,8 @@ def log_viterbi_einsum_forward(tensors: Sequence[PatternedTensor],
     #print(equation, file=stderr)
     compiled = torch_semiring_einsum.compile_equation(equation)
     out, ptr = torch_semiring_einsum.log_viterbi_einsum_forward(compiled,
-                 *(view for view, paxes in projected_tensors))
+                 *(view for view, paxes in projected_tensors),
+                 block_size = semiring.block_size)
     assert(len(output_paxes) == out.ndim == ptr.ndim - 1)
     assert(len(paxis_to_char) == len(output_paxes) + ptr.size(-1))
     paxis_to_ptr = dict(chain(((k, torch.arange(k._numel)

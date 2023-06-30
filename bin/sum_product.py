@@ -5,6 +5,7 @@ import sys
 import argparse
 import torch
 import fggs
+from torch_semiring_einsum import AutomaticBlockSize
 
 def error(s):
     print('error:', s, file=sys.stderr)
@@ -23,12 +24,19 @@ def string_to_tensor(s, name="tensor", shape=None):
 def tensor_to_string(t):
     return json.dumps(fggs.formats.weights_to_json(t))
 
+def block_gb(s):
+    max_cpu_bytes = int(float(s) * (1 << 30))
+    return AutomaticBlockSize(max_cpu_bytes = max_cpu_bytes,
+                              repr_string = f'AutomaticBlockSize({max_cpu_bytes})')
+
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='Compute the sum-product of an FGG.')
     ap.add_argument('fgg', metavar='<fgg>', help='the FGG, in JSON format')
     ap.add_argument('-m', metavar='<method>', dest='method', default='newton', choices=['fixed-point', 'linear', 'newton'], help='use <method> (fixed-point, linear, or newton)')
     ap.add_argument('-l', metavar='<tol>', dest='tol', type=float, default=1e-5, help="stop iterating when change is below <tol>")
     ap.add_argument('-k', metavar='<kmax>', dest='kmax', type=int, default=1000, help="iterate at most <kmax> times")
+    ap.add_argument('-b', metavar='<block_size>', dest='block_size', type=int, default=argparse.SUPPRESS, help="fix einsum block size")
+    ap.add_argument('-B', metavar='<max_cpu_gb>', dest='block_size', type=block_gb, default='1', help="set einsum block size by max memory use")
     ap.add_argument('-w', metavar=('<factor>', '<weights>'), dest='weights', action='append', default=[], nargs=2, help="set <factor>'s weights to <weights>")
     ap.add_argument('-n', metavar=('<factor>', '<dim>'), dest='normalize', action='append', default=[], nargs=2, help="normalize <factor> along <dim>")
     ap.add_argument('-o', metavar='<out_weights>', dest='out_weights', help='for -g and -e options, weight the elements of sum-product by <weights> (default: all 1)')
@@ -88,7 +96,10 @@ if __name__ == '__main__':
         if el.name not in fgg.factors:
             error(f'factor {el.name} needs weights (use -w option)')
 
-    zs = fggs.sum_products(fgg, method=args.method, tol=args.tol, kmax=args.kmax)
+    zs = fggs.sum_products(fgg, method=args.method,
+                                semiring=fggs.RealSemiring(block_size=args.block_size),
+                                tol=args.tol,
+                                kmax=args.kmax)
     z = zs[fgg.start]
 
     if args.trace:
