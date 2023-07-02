@@ -1286,23 +1286,24 @@ class PatternedTensor:
         subst = {}
         if not e.unify(b.vaxes[0], subst): raise AssertionError
         projected_b = project(b.physical, None, b.paxes, subst)
-        dense_b = PatternedTensor(projected_b[0],
-                                  projected_b[1],
-                                  (productAxis(fv ).clone(subst),
-                                   productAxis(fvb).clone(subst)),
-                                  b.default).to_dense()
+        relevant_b = PatternedTensor(projected_b[0],
+                                     projected_b[1],
+                                     (productAxis(fv ).clone(subst),
+                                      productAxis(fvb).clone(subst)),
+                                     b.default)
         # Convert relevant portion of a to regular matrix tensor
         subst = {}
         if not (e0.unify(a.vaxes[0], subst) and
                 e .unify(a.vaxes[1], subst)): raise AssertionError
         projected_a = project(a.physical, None, a.paxes, subst)
-        dense_a = PatternedTensor(projected_a[0],
-                                  projected_a[1],
-                                  (productAxis(fv0).clone(subst),
-                                   productAxis(fv ).clone(subst)),
-                                  a.default).to_dense()
+        relevant_a = PatternedTensor(projected_a[0],
+                                     projected_a[1],
+                                     (productAxis(fv0).clone(subst),
+                                      productAxis(fv ).clone(subst)),
+                                     a.default)
         # Solve
-        x = semiring.solve(dense_a, dense_b)
+        x = semiring.solve_thunks(lambda: relevant_a.to_dense(),
+                                  lambda: relevant_b.to_dense())
         return PatternedTensor(x.reshape(tuple(k._numel for k in fv + fvb0)),
                                fv + fvb0, (e,) + ebs0, b.default)
 
