@@ -879,14 +879,20 @@ class PatternedTensor:
         self.physical.nan_to_num_(nan=nan, posinf=posinf)
         return self
 
-    def __imul__(self, other: NumberType) -> PatternedTensor:
-        self.default  *= other
-        self.physical *= other
+    def __imul__(self, other: Union[NumberType, PatternedTensor]) -> PatternedTensor:
+        if isinstance(other, PatternedTensor):
+            self.copy_(self.mul(other))
+        else:
+            self.default  *= other
+            self.physical *= other
         return self
 
-    def __itruediv__(self, other: NumberType) -> PatternedTensor:
-        self.default  /= other
-        self.physical /= other
+    def __itruediv__(self, other: Union[NumberType, PatternedTensor]) -> PatternedTensor:
+        if isinstance(other, PatternedTensor):
+            self.copy_(self.div(other))
+        else:
+            self.default  /= other
+            self.physical /= other
         return self
 
     def lt(self, other: Union[float, PatternedTensor]) -> PatternedTensor:
@@ -939,11 +945,11 @@ class PatternedTensor:
     def logical_not(self) -> PatternedTensor:
         return PatternedTensor(~self.physical, self.paxes, self.vaxes, not self.default)
 
-    def __mul__(self, other: NumberType) -> PatternedTensor:
-        return PatternedTensor(self.physical * other, self.paxes, self.vaxes, self.default * other)
+    def clamp_min(self, min: NumberType) -> PatternedTensor:
+        return PatternedTensor(self.physical.clamp_min(min), self.paxes, self.vaxes, max(self.default, min))
 
-    def __truediv__(self, other: NumberType) -> PatternedTensor:
-        return PatternedTensor(self.physical / other, self.paxes, self.vaxes, self.default / other)
+    def clamp_max(self, max: NumberType) -> PatternedTensor:
+        return PatternedTensor(self.physical.clamp_max(max), self.paxes, self.vaxes, min(self.default, max))
 
     def log_softmax(self, dim) -> PatternedTensor:
         if dim < 0: dim += self.ndim
@@ -957,6 +963,25 @@ class PatternedTensor:
             assert(k == unitAxis)
             return PatternedTensor(self.physical.new_zeros(()).expand(self.physical.size()),
                                    self.paxes, self.vaxes, 0.)
+
+    def norm(self, p, dim: int, keepdim: bool = False) -> PatternedTensor:
+        if dim < 0: dim += self.ndim
+        self = self.dim_to_dense(dim)
+        k = self.vaxes[dim]
+        vaxes = list(self.vaxes)
+        if keepdim:
+            vaxes[dim] = unitAxis
+        else:
+            del vaxes[dim]
+        if isinstance(k, PhysicalAxis):
+            i = self.paxes.index(k)
+            paxes = list(self.paxes)
+            del paxes[i]
+            return PatternedTensor(self.physical.norm(p, dim=i, keepdim=False),
+                                   paxes, vaxes, self.default * k._numel**(1/p))
+        else:
+            assert(k == unitAxis)
+            return PatternedTensor(self.physical, self.paxes, vaxes, self.default)
 
     def equal_default(self) -> bool:
         return cast(bool, self.physical.eq(self.default).all().item())
@@ -1076,15 +1101,21 @@ class PatternedTensor:
         ud = PatternedTensor(up, paxes2, fs, u.default).to_dense()
         return PatternedTensor(operate(td, ud), gs, lggs, default)
 
-    def add(t, u: PatternedTensor) -> PatternedTensor:
-        return t.commutative(u, 0, t.default + u.default,
-                             lambda x, y: x.add_(y))
+    def add(self, other: PatternedTensor) -> PatternedTensor:
+        if isinstance(other, PatternedTensor):
+            return self.commutative(other, 0, self.default + other.default,
+                                    lambda x, y: x.add_(y))
+        else:
+            return PatternedTensor(self.physical + other, self.paxes, self.vaxes, self.default + other)
 
-    def mul(t, u: PatternedTensor) -> PatternedTensor:
-        # TODO: if one or both of the defaults is 0, then that input's sparsity
-        # pattern bounds the result's sparsity pattern (NaN be damned)
-        return t.commutative(u, 1, t.default * u.default,
-                             lambda x, y: x.mul_(y))
+    def mul(self, other: Union[NumberType, PatternedTensor]) -> PatternedTensor:
+        if isinstance(other, PatternedTensor):
+            # TODO: if one or both of the defaults is 0, then that input's sparsity
+            # pattern bounds the result's sparsity pattern (NaN be damned)
+            return self.commutative(other, 1, self.default * other.default,
+                                    lambda x, y: x.mul_(y))
+        else:
+            return PatternedTensor(self.physical * other, self.paxes, self.vaxes, self.default * other)
 
     def logaddexp(t, u: PatternedTensor) -> PatternedTensor:
         return t.commutative(u, -inf, t.physical.new_tensor(t.default).logaddexp(
@@ -1105,32 +1136,68 @@ class PatternedTensor:
         return t.commutative(u, True, t.default and u.default,
                              lambda x, y: x.logical_and_(y))
 
-    def sub(t, u: PatternedTensor) -> PatternedTensor:
-        """Subtract two PatternedTensors."""
-        (gs, lggs, paxes1, es, paxes2, fs) = t.expansion(u)
-        tp = t.physical.expand(tuple(k._numel for k in paxes1))
-        default = t.default - u.default
-        if t.default != 0 or \
-           len(paxes1) != len(t.paxes) or \
-           len(paxes2) == len(u.paxes) and t.physical.numel() >= u.physical.numel():
-            up = u.physical.expand(tuple(k._numel for k in paxes2))
-            td = PatternedTensor(tp, paxes1, es, t.default).to_dense()
-            if u.default == 0:
-                tp = project(td, paxes2, fs, {})[0]
-                tp.sub_(up)
+    def sub(self, other: Union[NumberType, PatternedTensor]) -> PatternedTensor:
+        if isinstance(other, PatternedTensor):
+            """Subtract two PatternedTensors."""
+            (gs, lggs, paxes1, es, paxes2, fs) = self.expansion(other)
+            tp = self.physical.expand(tuple(k._numel for k in paxes1))
+            default = self.default - other.default
+            if self.default != 0 or \
+               len(paxes1) != len(self.paxes) or \
+               len(paxes2) == len(other.paxes) and self.physical.numel() >= other.physical.numel():
+                up = other.physical.expand(tuple(k._numel for k in paxes2))
+                td = PatternedTensor(tp, paxes1, es, self.default).to_dense()
+                if other.default == 0:
+                    tp = project(td, paxes2, fs, {})[0]
+                    tp.sub_(up)
+                else:
+                    ud = PatternedTensor(up, paxes2, fs, other.default).to_dense()
+                    td.sub_(ud)
+                return PatternedTensor(td, gs, lggs, default)
             else:
-                ud = PatternedTensor(up, paxes2, fs, u.default).to_dense()
-                td.sub_(ud)
-            return PatternedTensor(td, gs, lggs, default)
+                up = (-other.physical).expand(tuple(k._numel for k in paxes2))
+                ud = PatternedTensor(up, paxes2, fs, -other.default).to_dense()
+                up = project(ud, paxes1, es, {})[0]
+                up.add_(tp)
+                return PatternedTensor(ud, gs, lggs, default)
         else:
-            up = (-u.physical).expand(tuple(k._numel for k in paxes2))
-            ud = PatternedTensor(up, paxes2, fs, -u.default).to_dense()
-            up = project(ud, paxes1, es, {})[0]
-            up.add_(tp)
-            return PatternedTensor(ud, gs, lggs, default)
+            return PatternedTensor(self.physical - other, self.paxes, self.vaxes, self.default - other)
 
-    __add__ = add
-    __sub__ = sub
+    def div(self, other: Union[NumberType, PatternedTensor]) -> PatternedTensor:
+        if isinstance(other, PatternedTensor):
+            """Divide two PatternedTensors."""
+            (gs, lggs, paxes1, es, paxes2, fs) = self.expansion(other)
+            tp = self.physical.expand(tuple(k._numel for k in paxes1))
+            default = self.default / other.default
+            if self.default != 1 or \
+               len(paxes1) != len(self.paxes) or \
+               len(paxes2) == len(other.paxes) and self.physical.numel() >= other.physical.numel():
+                up = other.physical.expand(tuple(k._numel for k in paxes2))
+                td = PatternedTensor(tp, paxes1, es, self.default).to_dense()
+                if other.default == 1:
+                    tp = project(td, paxes2, fs, {})[0]
+                    tp.div_(up)
+                else:
+                    ud = PatternedTensor(up, paxes2, fs, other.default).to_dense()
+                    td.div_(ud)
+                return PatternedTensor(td, gs, lggs, default)
+            else:
+                up = other.physical.reciprocal().expand(tuple(k._numel for k in paxes2))
+                ud = PatternedTensor(up, paxes2, fs, 1/other.default).to_dense()
+                up = project(ud, paxes1, es, {})[0]
+                up.mul_(tp)
+                return PatternedTensor(ud, gs, lggs, default)
+        else:
+            return PatternedTensor(self.physical / other, self.paxes, self.vaxes, self.default / other)
+
+    __add__     = add
+    __sub__     = sub
+
+    def __mul__(self, other: Union[NumberType, PatternedTensor]) -> PatternedTensor:
+        return self.mul(other)
+
+    def __truediv__(self, other: Union[NumberType, PatternedTensor]) -> PatternedTensor:
+        return self.div(other)
 
     def where(t, c, u) -> PatternedTensor:
         if c.default: t, u = u, t
@@ -1246,6 +1313,9 @@ class PatternedTensor:
             vaxes.insert(0, e)
         return PatternedTensor(self.physical.expand(tuple(k._numel for k in paxes)),
                                paxes, vaxes, self.default)
+
+    def expand_as(self: PatternedTensor, other: PatternedTensor) -> PatternedTensor:
+        return self.expand(*other.size())
 
     def repeat(self: PatternedTensor, *sizes: int) -> PatternedTensor:
         return self.expand(*sizes).clone()
