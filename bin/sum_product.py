@@ -74,10 +74,13 @@ if __name__ == '__main__':
 
     for name, dim in args.normalize:
         if name not in fgg.factors:
-            error(f'cannot normalize nonexistent factor {name}')
-        else:
-            fgg.factors[name].weights = torch.nn.functional.normalize(
-                fgg.factors[name].weights, p=1, dim=int(dim))
+            weights_name = name + "_weights"
+            if weights_name in fgg.factors:
+                name = weights_name
+            else:
+                error(f'cannot normalize nonexistent factor {name}')
+        fgg.factors[name].weights = torch.nn.functional.normalize(
+            fgg.factors[name].weights, p=1, dim=int(dim))
 
     if args.out_weights:
         out_weights = string_to_tensor(args.out_weights, f"<out_weights>", fgg.shape(fgg.start))
