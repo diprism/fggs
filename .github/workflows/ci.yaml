@@ -40,7 +40,9 @@ jobs:
         with:
           python-version: 3.7
       - name: install dependencies
-        run: python -m pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
       - name: change PyTorch version to oldest supported
         run: python -m pip install torch==${{ matrix.pytorch-version }}
       - name: check types
@@ -68,7 +70,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: install dependencies
-        run: python -m pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
       - name: check types
         run: make typecheck
       - name: download perpl
