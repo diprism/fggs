@@ -1,8 +1,33 @@
 name: CI
 on: [push]
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+    - name: require haskell
+      uses: haskell/actions/setup@v2
+      with:
+        ghc-version: '9.2.4'
+    - name: checkout perpl
+      uses: actions/checkout@v2
+      with:
+        repository: diprism/perpl
+        ref: 'testing'
+        path: ./perpl
+    - name: build perpl
+      run: make
+      working-directory: ./perpl
+    - name: prepare artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: perpl
+        path: |
+          ./perpl/perplc
+          ./perpl/tests
+
   test-torch:
     runs-on: ubuntu-latest
+    needs: prepare
     strategy:
       matrix:
         pytorch-version: [ '1.9', '1.10', '1.11', '1.12', '1.13' ]
@@ -20,10 +45,17 @@ jobs:
         run: python -m pip install torch==${{ matrix.pytorch-version }}
       - name: check types
         run: make typecheck
+      - name: download perpl
+        uses: actions/download-artifact@v3
+        with:
+          name: perpl
       - name: perform unit testing
-        run: make test
+        run: |
+          chmod u+x ./perplc
+          make test
   test-python:
     runs-on: ubuntu-latest
+    needs: prepare
     strategy:
       matrix:
         python-version: [ '3.7', '3.8', '3.9', '3.10', '3.11' ]
@@ -39,5 +71,11 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: check types
         run: make typecheck
+      - name: download perpl
+        uses: actions/download-artifact@v3
+        with:
+          name: perpl
       - name: perform unit testing
-        run: make test
+        run: |
+          chmod u+x ./perplc
+          make test
