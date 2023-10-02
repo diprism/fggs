@@ -155,7 +155,7 @@ class LabelingMixin:
 
     def has_node_label_name(self, name: str) -> bool:
         """Returns true if there is a used node label with the given name."""
-        return name in self._node_labels.keys()
+        return name in self._node_labels
 
     def get_node_label(self, name: str) -> NodeLabel:
         """Returns the unique used node label with the given name."""
