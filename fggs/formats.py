@@ -17,6 +17,8 @@ def json_to_fgg(j):
 
     ji = j['interpretation']
     for name, d in ji['domains'].items():
+        if not fgg.has_node_label_name(name):
+            fgg.add_node_label(NodeLabel(name))
         nl = fgg.get_node_label(name)
         if d['class'] == 'finite':
             fgg.add_domain(nl, domains.FiniteDomain(d['values']))
