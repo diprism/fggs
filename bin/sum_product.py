@@ -110,7 +110,8 @@ if __name__ == '__main__':
         if args.weights:
             grad_weights = extern_weights
         else:
-            print('no -w or -e is provided, print gradients with respect to factors')
+            print('no -w or -e is provided, print gradients with respect to factors',
+                  file=sys.stderr)
             grad_weights = {}
             for k in fgg.factors.keys():
                 grad_weights[k] = fgg.factors[k].weights.physical
