@@ -91,6 +91,9 @@ if __name__ == '__main__':
         if el.name not in fgg.factors:
             error(f'factor {el.name} needs weights (use -w option)')
 
+    if args.grad:
+        for w in fgg.factors.values():
+            w.weights.requires_grad_(True)
     zs = fggs.sum_products(fgg, method=args.method, tol=args.tol, kmax=args.kmax)
     z = zs[fgg.start]
 
@@ -101,11 +104,18 @@ if __name__ == '__main__':
         print(tensor_to_string(z))
 
     if args.grad or args.expect:
-        if not args.weights:
-            error('the -g and -e options require the -w option')
         f = (z * out_weights).sum()
         f.backward()
-        for name, weights in extern_weights.items():
+
+        if args.weights:
+            grad_weights = extern_weights
+        else:
+            print('no -w or -e is provided, print gradients with respect to factors')
+            grad_weights = {}
+            for k in fgg.factors.keys():
+                grad_weights[k] = fgg.factors[k].weights.physical
+
+        for name, weights in grad_weights.items():
             grad = weights.grad
             
             if args.grad:
