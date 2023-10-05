@@ -24,7 +24,7 @@ for case in "${all_test_cases[@]}"; do
     file=${file_and_ans[0]}
     ans=${file_and_ans[1]}
     printf '%-40s' "Testing ${file}... "
-    result=$(./perplc $file | ${PYTHON:-python} bin/sum_product.py -d /dev/stdin)
+    result=$(./perplc $file | ${PYTHON:-python} bin/sum_product.py -g -d /dev/stdin)
     if [ $? = 0 ]; then
         correct=$(echo ${ans} | round)
         out=$(echo ${result} | round)
