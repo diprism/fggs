@@ -85,7 +85,7 @@ from warnings import warn
 from itertools import zip_longest, chain, count, product, repeat
 from functools import reduce
 from operator import mul
-from math import inf, log, log1p, exp, expm1, isnan, isinf
+from math import inf, nan, log, log1p, exp, expm1, isnan, isinf
 from string import ascii_uppercase
 from sys import float_info#, stderr
 import torch
@@ -94,7 +94,7 @@ import torch_semiring_einsum
 from fggs.semirings import Semiring
 
 __all__ = ['Axis', 'PhysicalAxis', 'ProductAxis', 'productAxis', 'unitAxis', 'SumAxis',
-           'PatternedTensor', 'stack', 'einsum', 'log_viterbi_einsum_forward']
+           'Nonphysical', 'PatternedTensor', 'stack', 'einsum', 'log_viterbi_einsum_forward']
 
 Rename = Dict["PhysicalAxis", "PhysicalAxis"]
 # populated by Axis.freshen
@@ -566,6 +566,18 @@ def broadcast(vaxess: Sequence[Sequence[Axis]]) \
             ret[0].insert(0, e)
     return rets
 
+@dataclass
+class Nonphysical:
+    paxes   : Sequence[PhysicalAxis]
+    vaxes   : Sequence[Axis]
+    default : NumberType
+
+    def reincarnate(self, physical: Tensor) -> PatternedTensor:
+        return PatternedTensor(physical, self.paxes, self.vaxes, self.default)
+
+    def default_to_nan(self) -> Nonphysical:
+        return Nonphysical(self.paxes, self.vaxes, nan)
+
 _COLON = slice(None)
 
 @dataclass
@@ -669,15 +681,15 @@ class PatternedTensor:
         p = self.physical.grad
         if p is None: return None
         assert(p.size() == self.physical.size())
-        return PatternedTensor(p, self.paxes, self.vaxes, self.default)
+        return PatternedTensor(p, self.paxes, self.vaxes, nan)
 
     def is_complex(self) -> bool:
         return self.physical.is_complex()
 
-    def nonphysical(self) -> Callable[[Tensor], PatternedTensor]:
+    def nonphysical(self) -> Nonphysical:
         """Set aside all the information other than self.physical.
            Return a function that reconstructs self from self.physical."""
-        return lambda physical: PatternedTensor(physical, self.paxes, self.vaxes, self.default)
+        return Nonphysical(self.paxes, self.vaxes, self.default)
 
     def freshen(self) -> PatternedTensor:
         """Return a new PatternedTensor (with same underlying physical storage)
