@@ -103,7 +103,7 @@ if __name__ == '__main__':
     else:
         print(tensor_to_string(z))
 
-    if args.grad or args.expect:
+    if (args.grad or args.expect) and len(fgg.factors) > 0:
         f = (z * out_weights).sum()
         f.backward()
 
