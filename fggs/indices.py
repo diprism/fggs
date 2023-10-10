@@ -1483,14 +1483,18 @@ def einsum(tensors: Sequence[PatternedTensor],
             else:
                 index_to_vaxis[index] = vaxis
     output_vaxes = tuple(index_to_vaxis[index].clone(subst) for index in output)
-    if result_is_zero:
+    def zero_result() -> PatternedTensor:
         # TODO: represent all-zero tensor with empty physical?
         outsize = tuple(e.numel() for e in output_vaxes)
         return PatternedTensor(zero.expand(outsize), default=zero.item())
+    if result_is_zero: return zero_result()
     projected_tensors = [project(tensor.physical, None, tensor.paxes, subst)
                          for tensor in freshened_tensors]
-    paxis_to_char = dict(zip(chain.from_iterable(paxes for view, paxes in projected_tensors),
-                             map(chr, count(ord('a')))))
+    paxis_to_char = {}
+    for k, c in zip(chain.from_iterable(paxes for view, paxes in projected_tensors),
+                    map(chr, count(ord('a')))):
+        if k._numel == 0: return zero_result()
+        paxis_to_char[k] = c
     output_paxes_set = dict.fromkeys(k for e in output_vaxes for k in e.fv(subst))
     output_paxes = tuple(output_paxes_set)
     equation = ','.join(''.join(paxis_to_char[k] for k in paxes)
@@ -1534,16 +1538,20 @@ def log_viterbi_einsum_forward(tensors: Sequence[PatternedTensor],
                 index_to_vaxis[index] = vaxis
     output_vaxes = tuple(index_to_vaxis.pop(index).clone(subst) for index in output)
     # Remaining entries in index_to_vaxis are what's summed out, ordered by first appearance in inputs
-    if result_is_zero:
+    def zero_result() -> Tuple[PatternedTensor, PatternedTensor]:
         # TODO: represent all-zero tensor with empty physical?
         outsize = tuple(e.numel() for e in output_vaxes)
         return (PatternedTensor(zero.expand(outsize), default=zero.item()),
                 PatternedTensor(zero.new_zeros((), dtype=torch.long)
                                     .expand(outsize + (len(output_vaxes),)), default=0))
+    if result_is_zero: return zero_result()
     projected_tensors = [project(tensor.physical, None, tensor.paxes, subst)
                          for tensor in freshened_tensors]
-    paxis_to_char = dict(zip(chain.from_iterable(paxes for (view, paxes) in projected_tensors),
-                             map(chr, count(ord('a')))))
+    paxis_to_char = {}
+    for k, c in zip(chain.from_iterable(paxes for view, paxes in projected_tensors),
+                    map(chr, count(ord('a')))):
+        if k._numel == 0: return zero_result()
+        paxis_to_char[k] = c
     output_paxes_set = dict.fromkeys(k for e in output_vaxes for k in e.fv(subst))
     output_paxes = tuple(output_paxes_set)
     equation = ','.join(''.join(paxis_to_char[k] for k in paxes)
