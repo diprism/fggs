@@ -402,7 +402,8 @@ class SumProduct(torch.autograd.Function):
         # Compute gradients of inputs
         grad_t = multi_mv(jf_inputs, grad_nt, transpose=True)
         # TODO: optimize project(to_dense()) composition below
-        grad_in = tuple(project(grad_t[el].to_dense(), np.paxes, np.vaxes, {})[0] for el, np in ctx.in_labels)
+        grad_in = tuple(np.reincarnate(torch.ones_like(physical)).mul(grad_t[el]).physical
+                        for (el, np), physical in zip(ctx.in_labels, ctx.saved_tensors))
 
         return (None, None, None, None) + grad_in
 
