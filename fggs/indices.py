@@ -94,7 +94,8 @@ import torch_semiring_einsum
 from fggs.semirings import Semiring
 
 __all__ = ['Axis', 'PhysicalAxis', 'ProductAxis', 'productAxis', 'unitAxis', 'SumAxis',
-           'Nonphysical', 'PatternedTensor', 'stack', 'einsum', 'log_viterbi_einsum_forward']
+           'Nonphysical', 'PatternedTensor', 'stack', 'einsum', 'log_viterbi_einsum_forward',
+           'reproject']
 
 Rename = Dict["PhysicalAxis", "PhysicalAxis"]
 # populated by Axis.freshen
@@ -480,6 +481,86 @@ class SumAxis(Axis):
                 raise IndexError
         return 0 <= i < n and self.term.index(physical, i)
 
+def project_shape(v_offset: int,
+                  v_stride: Sequence[int],
+                  paxes: Optional[Sequence[PhysicalAxis]],
+                  vaxes: Sequence[Axis],
+                  subst: Subst) -> Tuple[Sequence[int], Sequence[int], int, Sequence[PhysicalAxis]]:
+    offset = v_offset
+    stride : Dict[PhysicalAxis, int] = {}
+    for e, n in zip(vaxes, v_stride):
+        o, s = e.stride(subst)
+        offset += o * n
+        for k in s: stride[k] = stride.get(k, 0) + s[k] * n
+    if paxes is None:
+        paxes = tuple(stride.keys())
+    else:
+        if __debug__:
+            vaxes_fv = frozenset(stride.keys())
+            paxes_fv = frozenset(paxes)
+            if vaxes_fv != paxes_fv:
+                raise ValueError(f"project(..., paxes with {paxes_fv}, vaxes with {vaxes_fv})")
+    new_size = tuple(k._numel  for k in paxes)
+    new_stride = tuple(stride[k] for k in paxes)
+    new_offset = torch.zeros(len(new_stride), dtype=torch.int)
+    return new_size, new_stride, offset, paxes
+
+
+def project_index(size: Sequence[int],
+                  stride: Sequence[int],
+                  offset: int) -> torch.Tensor:
+    """Given a size, a stride, and an offset, return a 1-D tensor of shape size,
+       in which each element is an offset relative to the begging of the
+       storage.
+
+    """
+    dims = [torch.arange(0, n) for n in size]
+    dim_base = torch.cartesian_prod(*dims) if len(dims) > 0 else torch.tensor(0)
+    dim_stride = torch.tensor(stride) if len(stride) > 0 else torch.tensor(0)
+    dim_indices = dim_base * dim_stride
+    if len(size) > 1:
+        dim_indices = torch.sum(dim_indices, -1, keepdim=False)
+    dim_indices += offset
+    return dim_indices
+
+def reproject(t1: PatternedTensor, t2: PatternedTensor) -> PatternedTensor:
+    """Given two patterned tensors of the same size, convert the first one into
+    the second, with all values not in the second tensor replaced with the
+    default value of the second.
+
+    """
+    if __debug__:
+        if t1.size() != t2.size():
+            raise ValueError(f"reproject(tensor of {t1.size()} is not the same size as tensor of {t2.size()}")
+    if t1.numel() == 0 or t2.numel() == 0:
+        return PatternedTensor(torch.zeros_like(t2.physical), t2.paxes, t2.vaxes, t2.default)
+    elif t1.numel() == 1 and t2.numel() == 1:
+        return PatternedTensor(t1.physical, t2.paxes, t2.vaxes, t2.default)
+    elif (t1.paxes == t1.vaxes) and \
+         (t2.paxes == t2.vaxes):
+        # in case paxes == vaxes is true for both t1 and t2, there is no need to
+        # reproject
+        return PatternedTensor(t1.physical, t2.paxes, t2.vaxes, t2.default)
+    else:
+        t1_virtual_stride = t1.size()[1:] + torch.Size([1])
+        t1_size, t1_stride, t1_offset, _ = \
+            project_shape(0, t1_virtual_stride, t1.paxes, t1.vaxes, {})
+        t1_indices = project_index(t1_size, t1_stride, t1_offset)
+
+        t2_virtual_stride = t2.size()[1:] + torch.Size([1])
+        t2_size, t2_stride, t2_offset, _ = \
+            project_shape(0, t2_virtual_stride, t2.paxes, t2.vaxes, {})
+        t2_indices = project_index(t2_size, t2_stride, t2_offset)
+
+        # because torch doesn't support isin until 1.10, we use this instead
+        if len(t2_indices.size()) > 0:
+            out_indices = torch.tensor([True if idx in t1_indices else False for idx in t2_indices], dtype=torch.bool)
+        else:
+            out_indices = t2_indices
+        out_physical = t2.physical * out_indices.view(t2.physical.size())
+
+        return PatternedTensor(out_physical, t2.paxes, t2.vaxes, t2.default)
+
 def project(virtual: Tensor,
             paxes: Optional[Sequence[PhysicalAxis]],
             vaxes: Sequence[Axis],
@@ -496,23 +577,9 @@ def project(virtual: Tensor,
         # Try to optimize for a common case
         return (virtual, cast(Sequence[PhysicalAxis], vaxes))
     offset = virtual.storage_offset()
-    stride : Dict[PhysicalAxis, int] = {}
-    for e, n in zip(vaxes, virtual.stride()):
-        o, s = e.stride(subst)
-        offset += o * n
-        for k in s: stride[k] = stride.get(k, 0) + s[k] * n
-    if paxes is None:
-        paxes = tuple(stride.keys())
-    else:
-        if __debug__:
-            vaxes_fv = frozenset(stride.keys())
-            paxes_fv = frozenset(paxes)
-            if vaxes_fv != paxes_fv:
-                raise ValueError(f"project(..., paxes with {paxes_fv}, vaxes with {vaxes_fv})")
-    return (virtual.as_strided(tuple(k._numel  for k in paxes),
-                               tuple(stride[k] for k in paxes),
-                               offset),
-            paxes)
+    new_size, new_stride, new_offset, new_paxes = \
+        project_shape(offset, virtual.stride(), paxes, vaxes, subst)
+    return (virtual.as_strided(tuple(new_size), tuple(new_stride), new_offset), new_paxes)
 
 def reshape_or_view(f: Callable[[Tensor, List[int]], Tensor],
                     self: PatternedTensor,
