@@ -837,6 +837,22 @@ class PatternedTensor:
         project(virtual, self.paxes, self.vaxes, {})[0].copy_(self.physical)
         return virtual
 
+    def project(self, paxes: Sequence[PhysicalAxis], vaxes: Sequence[Axis]) -> Tensor:
+        """Extract a view of self, so that indexing into the returned
+           tensor according to paxes is equivalent to indexing into
+           self according to vaxes."""
+        if not frozenset(self.paxes).isdisjoint(paxes):
+            rename : Rename = {}
+            paxes = tuple(k.freshen(rename) for k in paxes)
+            vaxes = tuple(e.freshen(rename) for e in vaxes)
+        ret = self.physical.new_full(Size(k._numel for k in paxes), self.default)
+        subst : Subst = {}
+        if all(e.unify(f, subst) for e, f in zip(self.vaxes, vaxes)):
+            subret, subaxes = project(ret, None, paxes, subst)
+            subself, _ = project(self.physical, subaxes, self.paxes, subst)
+            subret.copy_(subself)
+        return ret
+
     def __float__(self) -> float:
         return float(self.physical)
 

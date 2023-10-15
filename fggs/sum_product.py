@@ -18,7 +18,7 @@ import warnings
 import torch
 from torch import Tensor
 from fggs.typing import TensorLikeT
-from fggs.indices import Nonphysical, PatternedTensor, einsum, stack, reproject
+from fggs.indices import Nonphysical, PatternedTensor, einsum, stack
 
 Function = Callable[[MultiTensor], MultiTensor]
 
@@ -401,7 +401,7 @@ class SumProduct(torch.autograd.Function):
                     
         # Compute gradients of inputs
         grad_t = multi_mv(jf_inputs, grad_nt, transpose=True)
-        grad_in = tuple(reproject(grad_t[el], inputs[el]).physical for el, _ in ctx.in_labels)
+        grad_in = tuple(grad_t[el].project(np.paxes, np.vaxes) for el, np in ctx.in_labels)
 
         return (None, None, None, None) + grad_in
 
