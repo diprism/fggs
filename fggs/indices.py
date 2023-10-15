@@ -510,7 +510,7 @@ def project_index(size: Sequence[int],
                   stride: Sequence[int],
                   offset: int) -> torch.Tensor:
     """Given a size, a stride, and an offset, return a 1-D tensor of shape size,
-       in which each element is an offset relative to the begging of the
+       in which each element is an offset relative to the beginning of the
        storage.
 
     """
