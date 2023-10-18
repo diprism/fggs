@@ -32,13 +32,16 @@ if __name__ == '__main__':
     ap.add_argument('-w', metavar=('<factor>', '<weights>'), dest='weights', action='append', default=[], nargs=2, help="set <factor>'s weights to <weights>")
     ap.add_argument('-n', metavar=('<factor>', '<dim>'), dest='normalize', action='append', default=[], nargs=2, help="normalize <factor> along <dim>")
     ap.add_argument('-o', metavar='<out_weights>', dest='out_weights', help='for -g and -e options, weight the elements of sum-product by <weights> (default: all 1)')
-    ap.add_argument('-g', dest='grad', action='store_true', help='compute gradient with respect to factors from -w option')
-    ap.add_argument('-e', dest='expect', action='store_true', help='compute expected counts of factors from -w option')
+    ap.add_argument('-g', dest='grad', action='store_true', help='compute gradient with respect to factor(s) from -w option(s)')
+    ap.add_argument('-G', dest='grad_all', action='store_true', help='compute gradient with respect to all factors')
+    ap.add_argument('-e', dest='expect', action='store_true', help='compute expected counts of factor(s) from -w option(s)')
     ap.add_argument('-t', dest='trace', action='store_true', help='print out all intermediate sum-products')
     ap.add_argument('-d', dest='double', action='store_true', help='use double-precision floating-point')
 
     args = ap.parse_args()
     if args.double: torch.set_default_dtype(torch.float64)
+    if (args.grad or args.expect) and not args.weights:
+        error('the -g and -e options require the -w option')
 
     fgg = fggs.json_to_fgg(json.load(open(args.fgg)))
 
@@ -91,9 +94,10 @@ if __name__ == '__main__':
         if el.name not in fgg.factors:
             error(f'factor {el.name} needs weights (use -w option)')
 
-    if args.grad:
+    if args.grad_all:
         for w in fgg.factors.values():
-            w.weights.requires_grad_(True)
+            w.weights.requires_grad_()
+
     zs = fggs.sum_products(fgg, method=args.method, tol=args.tol, kmax=args.kmax)
     z = zs[fgg.start]
 
@@ -103,18 +107,14 @@ if __name__ == '__main__':
     else:
         print(tensor_to_string(z))
 
-    if (args.grad or args.expect) and len(fgg.factors) > 0:
+    if (args.grad_all or args.grad or args.expect) and len(fgg.factors) > 0:
         f = (z * out_weights).sum()
         f.backward()
 
         if args.weights:
             grad_weights = extern_weights
         else:
-            print('no -w or -e is provided, print gradients with respect to factors',
-                  file=sys.stderr)
-            grad_weights = {}
-            for k in fgg.factors.keys():
-                grad_weights[k] = fgg.factors[k].weights.physical
+            grad_weights = {k: v.weights.to_dense() for k, v in fgg.factors.items()}
 
         for name, weights in grad_weights.items():
             grad = weights.grad
