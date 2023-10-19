@@ -111,10 +111,10 @@ if __name__ == '__main__':
         f = (z * out_weights).sum()
         f.backward()
 
-        if args.weights:
-            grad_weights = extern_weights
-        else:
+        if args.grad_all:
             grad_weights = {k: v.weights.to_dense() for k, v in fgg.factors.items()}
+        else:
+            grad_weights = extern_weights
 
         for name, weights in grad_weights.items():
             grad = weights.grad
