@@ -376,8 +376,8 @@ class ProductAxis(Axis):
     factors: Tuple[Axis, ...]
 
     def depict(self, letterer: Callable[[PhysicalAxis], str]) -> str:
-        # Produce a string like "X(2) * Y(3)"
-        return '*'.join(e.depict(letterer) for e in self.factors)
+        # Produce a string like "(X(2) * Y(3))"
+        return f'({"*".join(e.depict(letterer) for e in self.factors)})'
 
     def numel(self) -> int:
         return reduce(mul, (e.numel() for e in self.factors), 1)
