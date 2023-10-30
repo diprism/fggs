@@ -257,10 +257,10 @@ class Axis(ABC):
             # PatternedTensor.__post_init__ rewrites PhysicalAxis(1) to unitAxis,
             # so anything that can be unified with PhysicalAxis(1) (whether successfully or not)
             # should be allowed to unify with unitAxis (whether successfully or not).
-            return f.before == 0 == f.after and e.unify(f.term)
+            return f.before == 0 == f.after and e.unify(f.term, subst)
         if f == unitAxis and isinstance(e, SumAxis):
             # Similarly to above.
-            return e.before == 0 == e.after and e.unify(f.term)
+            return e.before == 0 == e.after and f.unify(e.term, subst)
         warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
         return False
 
