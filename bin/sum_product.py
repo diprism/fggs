@@ -112,7 +112,7 @@ if __name__ == '__main__':
         f.backward()
 
         if args.grad_all:
-            grad_weights = {k: v.weights.to_dense() for k, v in fgg.factors.items()}
+            grad_weights = {k: v.weights for k, v in fgg.factors.items()}
         else:
             grad_weights = extern_weights
 
