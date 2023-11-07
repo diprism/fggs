@@ -2,7 +2,7 @@ import torch
 from math import inf
 import torch_semiring_einsum, torch_semiring_einsum.utils
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, Callable
 from fggs.typing import TensorLikeT
 
 class Semiring(ABC):
@@ -25,6 +25,10 @@ class Semiring(ABC):
     
     @abstractmethod
     def add(self, x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        pass
+
+    @abstractmethod
+    def add_(self, x: torch.Tensor, y: torch.Tensor) -> None:
         pass
 
     @abstractmethod
@@ -57,14 +61,23 @@ class Semiring(ABC):
         block_size = 10
         out = self.sum(self.mul(a[:,:block_size], b[:block_size]), dim=1)
         for j in range(block_size, a.shape[1], block_size):
-            out = self.add(out, self.sum(self.mul(a[:,j:j+block_size], b[j:j+block_size]), dim=1))
+            self.add_(out, self.sum(self.mul(a[:,j:j+block_size], b[j:j+block_size]), dim=1))
         return out
     
     def mv(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
         return self.sum(self.mul(a, b), dim=1)
 
     def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        """Find the least nonnegative solution of x = ax+b. Equivalently, compute ∑ aⁿb.
+        """Find the least nonnegative solution of x = ax+b.
+           Equivalently, compute ∑ aⁿb."""
+        return self.solve_thunks(lambda: a.clone(), lambda: b.clone())
+
+    def solve_thunks(self,
+                     make_a: Callable[[], torch.Tensor],
+                     make_b: Callable[[], torch.Tensor]) -> torch.Tensor:
+        """Like solve, but the inputs are not tensors that remain unmodified.
+           Instead, the inputs are thunks that must produce fresh tensor copies
+           that might be modified.
 
         This is the semiring version of Gauss-Jordan elimination /
         Floyd-Warshall transitive closure.
@@ -76,15 +89,15 @@ class Semiring(ABC):
         (Thanks to Ryan Cotterell for pointing this out.)
 
         """
-        a = a.clone()
-        x = b.clone()
+        a = make_a()
+        x = make_b()
         for k in range(a.shape[0]):
-            a[:,k]    = self.mul(a[:,k], self.star(a[k,k]))
-            a[:,k+1:] = self.add(a[:,k+1:], self.mul(a[:,k,None], a[k,k+1:]))
+            a[:,k] = self.mul(a[:,k], self.star(a[k,k]))
+            self.add_(a[:,k+1:], self.mul(a[:,k,None], a[k,k+1:]))
             if x.ndim == 1:
-                x[:]  = self.add(x,         self.mul(a[:,k],      x[k]))
+                self.add_(x,     self.mul(a[:,k],      x[k]))
             elif x.ndim == 2:
-                x[:]  = self.add(x,         self.mul(a[:,k,None], x[k]))
+                self.add_(x,     self.mul(a[:,k,None], x[k]))
         return x
 
 class RealSemiring(Semiring):
@@ -97,6 +110,10 @@ class RealSemiring(Semiring):
     @staticmethod
     def add(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.add(y)
+
+    @staticmethod
+    def add_(x: torch.Tensor, y: torch.Tensor) -> None:
+        x.add_(y)
 
     @staticmethod
     def sub(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
@@ -125,7 +142,9 @@ class RealSemiring(Semiring):
         # TODO: Why blocksize=1?
         return torch_semiring_einsum.semiring_einsum_forward(equation, args, torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE, callback)
     
-    def solve(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    def solve_thunks(self,
+                     make_a: Callable[[], torch.Tensor],
+                     make_b: Callable[[], torch.Tensor]) -> torch.Tensor:
         # We want the least nonnegative solution of (I-a)x = b, and
         # want to use torch.linalg.solve if we can, but there are a
         # number of things that can go wrong:
@@ -133,13 +152,17 @@ class RealSemiring(Semiring):
         # - If a has an eigenvalue > 1, the solution will have negative components.
         # - If a has an eigenvalue = inf, the solution will have -0.0 components.
         # In these cases, we have to fall back to Semiring.solve.
+        a = make_a()
+        b = make_b()
         try:
-            x = torch.linalg.solve(self.eye(a.shape[0])-a, b)
+            a.neg_().diagonal().add_(1)
+            x = torch.linalg.solve(a, b)
             if torch.all(torch.copysign(torch.tensor(1.), x) > 0.): # catches -0.0
                 return x
-        except RuntimeError:
+        except RuntimeError as e:
+            if '(Cannot allocate memory)' in str(e): raise
             pass
-        return Semiring.solve(self, a, b)
+        return Semiring.solve_thunks(self, make_a, make_b)
 
 
 class LogSemiring(Semiring):
@@ -151,6 +174,10 @@ class LogSemiring(Semiring):
     @staticmethod
     def add(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.logaddexp(y)
+
+    @staticmethod
+    def add_(x: torch.Tensor, y: torch.Tensor) -> None:
+        torch.logaddexp(x, y, out=x)
 
     sum = staticmethod(torch.logsumexp) # type: ignore
 
@@ -215,6 +242,10 @@ class ViterbiSemiring(Semiring):
         return x.maximum(y)
 
     @staticmethod
+    def add_(x: torch.Tensor, y: torch.Tensor) -> None:
+        torch.maximum(x, y, out=x)
+
+    @staticmethod
     def sum(x: torch.Tensor, dim: int) -> torch.Tensor:
         return torch.max(x, dim=dim)[0]
 
@@ -255,6 +286,10 @@ class BoolSemiring(Semiring):
     @staticmethod
     def add(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.logical_or(y)
+
+    @staticmethod
+    def add_(x: torch.Tensor, y: torch.Tensor) -> None:
+        x.logical_or_(y)
 
     sum = staticmethod(torch.any) # type: ignore
 
