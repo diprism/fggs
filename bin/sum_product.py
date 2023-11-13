@@ -119,7 +119,7 @@ if __name__ == '__main__':
         for name, weights in grad_weights.items():
             grad = weights.grad
             
-            if args.grad:
+            if args.grad or args.grad_all:
                 print(f'grad[{name}]:', tensor_to_string(grad))
 
             if args.expect:
