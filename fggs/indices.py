@@ -85,7 +85,7 @@ from warnings import warn
 from itertools import zip_longest, chain, count, product, repeat
 from functools import reduce
 from operator import mul
-from math import inf, log, log1p, exp, expm1, isnan, isinf
+from math import inf, nan, log, log1p, exp, expm1, isnan, isinf
 from string import ascii_uppercase
 from sys import float_info#, stderr
 import torch
@@ -94,7 +94,7 @@ import torch_semiring_einsum
 from fggs.semirings import Semiring
 
 __all__ = ['Axis', 'PhysicalAxis', 'ProductAxis', 'productAxis', 'unitAxis', 'SumAxis',
-           'PatternedTensor', 'stack', 'einsum', 'log_viterbi_einsum_forward']
+           'Nonphysical', 'PatternedTensor', 'stack', 'einsum', 'log_viterbi_einsum_forward']
 
 Rename = Dict["PhysicalAxis", "PhysicalAxis"]
 # populated by Axis.freshen
@@ -253,6 +253,14 @@ class Axis(ABC):
         if isinstance(f, PhysicalAxis):
             subst[f] = e
             return True
+        if e == unitAxis and isinstance(f, SumAxis):
+            # PatternedTensor.__post_init__ rewrites PhysicalAxis(1) to unitAxis,
+            # so anything that can be unified with PhysicalAxis(1) (whether successfully or not)
+            # should be allowed to unify with unitAxis (whether successfully or not).
+            return f.before == 0 == f.after and e.unify(f.term, subst)
+        if f == unitAxis and isinstance(e, SumAxis):
+            # Similarly to above.
+            return e.before == 0 == e.after and f.unify(e.term, subst)
         warn(f"Attempt to unify {e.depict(debugging_letterer)} and {f.depict(debugging_letterer)} indicates index type mismatch")
         return False
 
@@ -376,8 +384,8 @@ class ProductAxis(Axis):
     factors: Tuple[Axis, ...]
 
     def depict(self, letterer: Callable[[PhysicalAxis], str]) -> str:
-        # Produce a string like "X(2) * Y(3)"
-        return '*'.join(e.depict(letterer) for e in self.factors)
+        # Produce a string like "(X(2) * Y(3))"
+        return f'({"*".join(e.depict(letterer) for e in self.factors)})'
 
     def numel(self) -> int:
         return reduce(mul, (e.numel() for e in self.factors), 1)
@@ -566,6 +574,18 @@ def broadcast(vaxess: Sequence[Sequence[Axis]]) \
             ret[0].insert(0, e)
     return rets
 
+@dataclass
+class Nonphysical:
+    paxes   : Sequence[PhysicalAxis]
+    vaxes   : Sequence[Axis]
+    default : NumberType
+
+    def reincarnate(self, physical: Tensor) -> PatternedTensor:
+        return PatternedTensor(physical, self.paxes, self.vaxes, self.default)
+
+    def default_to_nan(self) -> Nonphysical:
+        return Nonphysical(self.paxes, self.vaxes, nan)
+
 _COLON = slice(None)
 
 @dataclass
@@ -666,18 +686,43 @@ class PatternedTensor:
 
     @property
     def grad(self) -> Optional[PatternedTensor]:
+        """Return what's known of the gradient.
+
+           When it comes to autodiff, it's not quite accurate to say that a
+           PatternedTensor is equivalent to a Tensor with many zeros/defaults.
+           For example, say that self is
+           ```python
+           k = PhysicalAxis(2)
+           self = PatternedTensor(torch.asarray([2.0, 1.0]), [k], [k, SumAxis(0,k,1)])
+           ```
+           which corresponds to
+           ```python
+           self.to_dense() == [[2.0, 0.0, 0.0],
+                               [0.0, 1.0, 0.0]]
+           ```
+           Whereas self.to_dense().grad has 6 elements (which may be all
+           different), self.physical.grad has only 2 elements (because
+           self.physical has only 2 elements).  In general, gradient elements
+           are computed only where they are physically backed.  So the best we
+           can do in this method is to use nan to mark uncomputed gradient
+           elements:
+           ```python
+           self.grad.to_dense() == [[..., nan, nan],
+                                    [nan, ..., nan]]
+           ```
+        """
         p = self.physical.grad
         if p is None: return None
         assert(p.size() == self.physical.size())
-        return PatternedTensor(p, self.paxes, self.vaxes, self.default)
+        return PatternedTensor(p, self.paxes, self.vaxes, nan)
 
     def is_complex(self) -> bool:
         return self.physical.is_complex()
 
-    def nonphysical(self) -> Callable[[Tensor], PatternedTensor]:
+    def nonphysical(self) -> Nonphysical:
         """Set aside all the information other than self.physical.
            Return a function that reconstructs self from self.physical."""
-        return lambda physical: PatternedTensor(physical, self.paxes, self.vaxes, self.default)
+        return Nonphysical(self.paxes, self.vaxes, self.default)
 
     def freshen(self) -> PatternedTensor:
         """Return a new PatternedTensor (with same underlying physical storage)
@@ -757,6 +802,22 @@ class PatternedTensor:
         virtual = self.physical.new_full(self.size(), self.default)
         project(virtual, self.paxes, self.vaxes, {})[0].copy_(self.physical)
         return virtual
+
+    def project(self, paxes: Sequence[PhysicalAxis], vaxes: Sequence[Axis]) -> Tensor:
+        """Extract a view of self, so that indexing into the returned
+           tensor according to paxes is equivalent to indexing into
+           self according to vaxes."""
+        if not frozenset(self.paxes).isdisjoint(paxes):
+            rename : Rename = {}
+            paxes = tuple(k.freshen(rename) for k in paxes)
+            vaxes = tuple(e.freshen(rename) for e in vaxes)
+        ret = self.physical.new_full(Size(k._numel for k in paxes), self.default)
+        subst : Subst = {}
+        if all(e.unify(f, subst) for e, f in zip(self.vaxes, vaxes)):
+            subret, subaxes = project(ret, None, paxes, subst)
+            subself, _ = project(self.physical, subaxes, self.paxes, subst)
+            subret.copy_(subself)
+        return ret
 
     def __float__(self) -> float:
         return float(self.physical)
@@ -1472,14 +1533,18 @@ def einsum(tensors: Sequence[PatternedTensor],
             else:
                 index_to_vaxis[index] = vaxis
     output_vaxes = tuple(index_to_vaxis[index].clone(subst) for index in output)
-    if result_is_zero:
+    def zero_result() -> PatternedTensor:
         # TODO: represent all-zero tensor with empty physical?
         outsize = tuple(e.numel() for e in output_vaxes)
         return PatternedTensor(zero.expand(outsize), default=zero.item())
+    if result_is_zero: return zero_result()
     projected_tensors = [project(tensor.physical, None, tensor.paxes, subst)
                          for tensor in freshened_tensors]
-    paxis_to_char = dict(zip(chain.from_iterable(paxes for view, paxes in projected_tensors),
-                             map(chr, count(ord('a')))))
+    paxis_to_char = {}
+    for k, c in zip(chain.from_iterable(paxes for view, paxes in projected_tensors),
+                    map(chr, count(ord('a')))):
+        if k._numel == 0: return zero_result()
+        paxis_to_char[k] = c
     output_paxes_set = dict.fromkeys(k for e in output_vaxes for k in e.fv(subst))
     output_paxes = tuple(output_paxes_set)
     equation = ','.join(''.join(paxis_to_char[k] for k in paxes)
@@ -1523,16 +1588,20 @@ def log_viterbi_einsum_forward(tensors: Sequence[PatternedTensor],
                 index_to_vaxis[index] = vaxis
     output_vaxes = tuple(index_to_vaxis.pop(index).clone(subst) for index in output)
     # Remaining entries in index_to_vaxis are what's summed out, ordered by first appearance in inputs
-    if result_is_zero:
+    def zero_result() -> Tuple[PatternedTensor, PatternedTensor]:
         # TODO: represent all-zero tensor with empty physical?
         outsize = tuple(e.numel() for e in output_vaxes)
         return (PatternedTensor(zero.expand(outsize), default=zero.item()),
                 PatternedTensor(zero.new_zeros((), dtype=torch.long)
                                     .expand(outsize + (len(output_vaxes),)), default=0))
+    if result_is_zero: return zero_result()
     projected_tensors = [project(tensor.physical, None, tensor.paxes, subst)
                          for tensor in freshened_tensors]
-    paxis_to_char = dict(zip(chain.from_iterable(paxes for (view, paxes) in projected_tensors),
-                             map(chr, count(ord('a')))))
+    paxis_to_char = {}
+    for k, c in zip(chain.from_iterable(paxes for view, paxes in projected_tensors),
+                    map(chr, count(ord('a')))):
+        if k._numel == 0: return zero_result()
+        paxis_to_char[k] = c
     output_paxes_set = dict.fromkeys(k for e in output_vaxes for k in e.fv(subst))
     output_paxes = tuple(output_paxes_set)
     equation = ','.join(''.join(paxis_to_char[k] for k in paxes)

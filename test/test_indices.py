@@ -235,6 +235,11 @@ class TestPatternedTensor(unittest.TestCase):
                 self.assertTrue(t1_.equal(t2_) and t2_.equal(t1_))
                 self.assertTEqual(t1_.to_dense(), t2_.to_dense())
 
+    def test_project(self):
+        self.assertTEqual(PatternedTensor(torch.Tensor([1,2,3]), (self.k3,), (SumAxis(0,ProductAxis(()),1), self.k3), 9)
+                          .project((self.k2,), (self.k2, SumAxis(0,self.k2,1))),
+                          torch.Tensor([1,9]))
+
     def test_equal_default(self):
         self.assertFalse(PatternedTensor(torch.Tensor([-1,0,1]), (self.k3,), (self.k3, self.k3)).equal_default())
         self.assertTrue (PatternedTensor(torch.Tensor([ 0,0,0]), (self.k3,), (self.k3, self.k3)).equal_default())

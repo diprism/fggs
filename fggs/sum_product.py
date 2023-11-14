@@ -18,7 +18,7 @@ import warnings
 import torch
 from torch import Tensor
 from fggs.typing import TensorLikeT
-from fggs.indices import PatternedTensor, einsum, stack
+from fggs.indices import Nonphysical, PatternedTensor, einsum, stack
 
 Function = Callable[[MultiTensor], MultiTensor]
 
@@ -319,16 +319,17 @@ class SumProduct(torch.autograd.Function):
       - el[i] is the EdgeLabel and
       - in_np[i] is the nonphysical part of the PatternedTensor
         that is the sum-product of el[i].
-        A nonphysical part of a PatternedTensor pt is a function
-        that produces pt when passed the Tensor pt.physical.
+        A nonphysical part of a PatternedTensor pt is a Nonphysical object
+        whose reincarnate() method produces pt when passed the Tensor
+        pt.physical.
     - out_labels: The nonterminal EdgeLabels whose sum-products to compute.
     - in_values: A sequence of Tensors such that the PatternedTensor
-      in_np[i](in_values[i]) is the sum-product of in_labels[i].
+      in_np[i].reincarnate(in_values[i]) is the sum-product of in_labels[i].
 
     Returns: A sequence (out_np, *out_values), where
     - out_np consists of len(out_labels) nonphysical parts and
     - out_values consists of len(out_labels) Tensors,
-    such that out_np[i](out_values[i]) is the sum-product of
+    such that out_np[i].reincarnate(out_values[i]) is the sum-product of
     out_labels[i].
     """
     
@@ -336,11 +337,11 @@ class SumProduct(torch.autograd.Function):
     def forward(ctx, # type: ignore
                 fgg: FGG,
                 opts: Dict,
-                in_labels: Sequence[Tuple[EdgeLabel, Callable[[Tensor], PatternedTensor]]],
+                in_labels: Sequence[Tuple[EdgeLabel, Nonphysical]],
                 out_labels: Sequence[EdgeLabel],
                 *in_values: Tensor) -> Tuple[Union[
-            Tuple[Optional[Callable[[Tensor], PatternedTensor]], ...], # first tuple component (same length as out_labels)
-            Optional[Tensor]                                           # rest tuple components (same length as out_labels)
+            Tuple[Optional[Nonphysical], ...], # first tuple component (same length as out_labels)
+            Optional[Tensor]                   # rest tuple components (same length as out_labels)
         ], ...]:
         ctx.fgg = fgg
         method, semiring = opts['method'], opts['semiring']
@@ -349,7 +350,7 @@ class SumProduct(torch.autograd.Function):
         ctx.out_labels = out_labels
         ctx.save_for_backward(*in_values)
 
-        inputs: MultiTensor = {label: nonphysical(physical) for (label, nonphysical), physical in zip(in_labels, in_values)} # type: ignore
+        inputs: MultiTensor = {label: nonphysical.reincarnate(physical) for (label, nonphysical), physical in zip(in_labels, in_values)} # type: ignore
 
         if method == 'linear':
             out = linear(fgg, inputs, out_labels, semiring)
@@ -377,15 +378,12 @@ class SumProduct(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_nonphysicals, *grad_out):
         semiring = ctx.opts['semiring']
-        def from_dense(t: Tensor) -> PatternedTensor:
-            return PatternedTensor(t, default=semiring.from_int(0).item())
         # gradients are always computed in the real semiring
         real_semiring = RealSemiring(dtype=semiring.dtype, device=semiring.device)
-        # TODO: should from_dense sometimes use default=real_semiring.from_int(0).item()?
 
         # Construct and solve linear system of equations
-        inputs = {label: nonphysical(physical) for (label, nonphysical), physical in zip(ctx.in_labels, ctx.saved_tensors)}
-        f = {nt: ctx.out_values[nt].nonphysical()(g)
+        inputs = {label: nonphysical.reincarnate(physical) for (label, nonphysical), physical in zip(ctx.in_labels, ctx.saved_tensors)}
+        f = {nt: ctx.out_values[nt].nonphysical().default_to_nan().reincarnate(g)
              for nt, g in zip(ctx.out_labels, grad_out)
              if g is not None}
 
@@ -403,8 +401,8 @@ class SumProduct(torch.autograd.Function):
                     
         # Compute gradients of inputs
         grad_t = multi_mv(jf_inputs, grad_nt, transpose=True)
-        grad_in = tuple(grad_t[el].to_dense() for el, _ in ctx.in_labels)
-        
+        grad_in = tuple(grad_t[el].project(np.paxes, np.vaxes) for el, np in ctx.in_labels)
+
         return (None, None, None, None) + grad_in
 
     @staticmethod
@@ -417,7 +415,7 @@ class SumProduct(torch.autograd.Function):
             *(tensor.physical for tensor in in_values))
         return tuple(PatternedTensor(opts['semiring'].zeros(fgg.shape(nt)))
                      if nonphysical is None is physical
-                     else nonphysical(physical)
+                     else nonphysical.reincarnate(physical)
                      for nt, nonphysical, physical in zip(out_labels, nonphysicals, physicals))
 
 def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:

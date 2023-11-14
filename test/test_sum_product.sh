@@ -24,13 +24,15 @@ for case in "${all_test_cases[@]}"; do
     file=${file_and_ans[0]}
     ans=${file_and_ans[1]}
     printf '%-40s' "Testing ${file}... "
-    result=$(./perplc $file | ${PYTHON:-python} bin/sum_product.py -d /dev/stdin)
+    result=$(./perplc $file | ${PYTHON:-python} bin/sum_product.py -G -d /dev/stdin)
     if [ $? = 0 ]; then
         correct=$(echo ${ans} | round)
-        out=$(echo ${result} | round)
+        out=$(echo ${result} | sed -E 's|([^grad]*)grad.*|\1|g' | round)
+        nl=$'\n'
+        grad=$(echo ${result} | sed -E 's|([^grad]*)(grad.*)|\2|g' | sed -E 's/grad/'"\\${nl}"'/g')
         if [ -n "$correct" ]; then
             if [ "$correct" = "$out" ]; then
-                echo "Success"
+                echo "Success, gradients: ${grad}"
             else
                 echo "Failure"
                 echo "Incorrect result in ${file}: ${correct} != ${out}"
