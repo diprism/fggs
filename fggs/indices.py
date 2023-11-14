@@ -686,6 +686,31 @@ class PatternedTensor:
 
     @property
     def grad(self) -> Optional[PatternedTensor]:
+        """Return what's known of the gradient.
+
+           When it comes to autodiff, it's not quite accurate to say that a
+           PatternedTensor is equivalent to a Tensor with many zeros/defaults.
+           For example, say that self is
+           ```python
+           k = PhysicalAxis(2)
+           self = PatternedTensor(torch.asarray([2.0, 1.0]), [k], [k, SumAxis(0,k,1)])
+           ```
+           which corresponds to
+           ```python
+           self.to_dense() == [[2.0, 0.0, 0.0],
+                               [0.0, 1.0, 0.0]]
+           ```
+           Whereas self.to_dense().grad has 6 elements (which may be all
+           different), self.physical.grad has only 2 elements (because
+           self.physical has only 2 elements).  In general, gradient elements
+           are computed only where they are physically backed.  So the best we
+           can do in this method is to use nan to mark uncomputed gradient
+           elements:
+           ```python
+           self.grad.to_dense() == [[..., nan, nan],
+                                    [nan, ..., nan]]
+           ```
+        """
         p = self.physical.grad
         if p is None: return None
         assert(p.size() == self.physical.size())
