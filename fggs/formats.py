@@ -352,10 +352,7 @@ def graph_to_tikz(g: Graph, factor_formats=None, lhs=None):
             if pos.startswith('"') and pos.endswith('"'):
                 pos = pos[1:-1]
             x, y = pos.split(',', 1)
-            if re.match(r'"(.*)"', v.get_name()):
-                name = re.sub(r'"(.*)"', r'\1', v.get_name())
-            else:
-                name = v.get_name()
+            name = re.sub(r'"(.*)"', r'\1', v.get_name())
             positions[name] = (float(x), float(y))
         for s in d.get_subgraphs():
             visit(s)
