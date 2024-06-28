@@ -23,6 +23,9 @@ def string_to_tensor(s, name="tensor", shape=None):
 def tensor_to_string(t):
     return json.dumps(fggs.formats.weights_to_json(t))
 
+def tensor_to_dict_string(fgg, node, t):
+    return json.dumps(fggs.formats.weights_to_dict_json(fgg, node, t))
+
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='Compute the sum-product of an FGG.')
     ap.add_argument('fgg', metavar='<fgg>', help='the FGG, in JSON format')
@@ -103,9 +106,9 @@ if __name__ == '__main__':
 
     if args.trace:
         for el, zel in zs.items():
-            print(el.name, tensor_to_string(zel))
+            print(tensor_to_dict_string(fgg, el, zel))
     else:
-        print(tensor_to_string(z))
+        print(tensor_to_dict_string(fgg, fgg.start, z))
 
     if (args.grad_all or args.grad or args.expect) and len(fgg.factors) > 0:
         f = (z * out_weights).sum()

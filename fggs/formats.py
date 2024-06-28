@@ -8,6 +8,7 @@ from fggs.fggs import *
 from fggs.indices import PhysicalAxis, productAxis, SumAxis, PatternedTensor
 from fggs import domains, factors
 import torch
+from torch import Tensor
 
 ### JSON
 
@@ -174,6 +175,29 @@ def weights_to_json(weights):
         return float(weights)
     else:
         return [weights_to_json(w) for w in weights]
+
+
+def weights_to_dict_json(fgg : FGG, edge_label : EdgeLabel, weights : Tensor):
+    def to_dict(edge_type, edge_type_sizes, indices, weights):
+        if len(edge_type_sizes) == 0:
+            return weights[indices].item()
+        else:
+            return {fgg.domains[edge_type[0].name].denumberize(i):
+                    to_dict(edge_type[1:], edge_type_sizes[1:],
+                            indices + (i,), weights)
+                    for i in range(edge_type_sizes[0])}
+
+    domains_dict = fgg.domains
+    edge_type = edge_label.type
+    if all(n.name in domains_dict for n in edge_type):
+        edge_type_sizes = [domains_dict[n.name].size() for n in edge_type]
+        if torch.Size(edge_type_sizes) == weights.shape:
+            return to_dict(edge_type, edge_type_sizes, (), weights)
+        else:
+            return weights_to_json(weights)
+    else:
+        return weights_to_json(weights)
+
 
 def json_to_axis(r, env):
     if isinstance(r, list):
