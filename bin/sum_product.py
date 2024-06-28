@@ -23,8 +23,11 @@ def string_to_tensor(s, name="tensor", shape=None):
 def tensor_to_string(t):
     return json.dumps(fggs.formats.weights_to_json(t))
 
-def tensor_to_dict_string(fgg, node, t):
-    return json.dumps(fggs.formats.weights_to_dict_json(fgg, node, t))
+def tensor_to_dict_string(is_pretty, fgg, node, t):
+    if is_pretty:
+        return json.dumps(fggs.formats.weights_to_dict_json(fgg, node, t))
+    else:
+        return tensor_to_string(t)
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='Compute the sum-product of an FGG.')
@@ -40,6 +43,7 @@ if __name__ == '__main__':
     ap.add_argument('-e', dest='expect', action='store_true', help='compute expected counts of factor(s) from -w option(s)')
     ap.add_argument('-t', dest='trace', action='store_true', help='print out all intermediate sum-products')
     ap.add_argument('-d', dest='double', action='store_true', help='use double-precision floating-point')
+    ap.add_argument('-p', dest='pretty', action='store_true', help='pretty print weights together with the value names')
 
     args = ap.parse_args()
     if args.double: torch.set_default_dtype(torch.float64)
@@ -106,9 +110,9 @@ if __name__ == '__main__':
 
     if args.trace:
         for el, zel in zs.items():
-            print(tensor_to_dict_string(fgg, el, zel))
+            print(tensor_to_dict_string(args.pretty, fgg, el, zel))
     else:
-        print(tensor_to_dict_string(fgg, fgg.start, z))
+        print(tensor_to_dict_string(args.pretty, fgg, fgg.start, z))
 
     if (args.grad_all or args.grad or args.expect) and len(fgg.factors) > 0:
         f = (z * out_weights).sum()
