@@ -9,6 +9,7 @@ from fggs.indices import PhysicalAxis, productAxis, SumAxis, PatternedTensor
 from fggs import domains, factors
 import torch
 from torch import Tensor
+from typing import cast
 
 ### JSON
 
@@ -189,8 +190,10 @@ def weights_to_dict_json(fgg : FGG, edge_label : EdgeLabel, weights : Tensor):
 
     domains_dict = fgg.domains
     edge_type = edge_label.type
-    if all(n.name in domains_dict for n in edge_type):
-        edge_type_sizes = [domains_dict[n.name].size() for n in edge_type]
+    if all(n.name in domains_dict and
+           isinstance(domains_dict[n.name], domains.FiniteDomain)
+           for n in edge_type):
+        edge_type_sizes = [cast(domains.FiniteDomain, domains_dict[n.name]).size() for n in edge_type]
         if torch.Size(edge_type_sizes) == weights.shape:
             return to_dict(edge_type, edge_type_sizes, (), weights)
         else:
