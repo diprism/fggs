@@ -20,14 +20,11 @@ def string_to_tensor(s, name="tensor", shape=None):
         error(f"{name} should have shape {shape}")
     return t
 
-def tensor_to_string(t):
-    return json.dumps(fggs.formats.weights_to_json(t))
-
 def tensor_to_dict_string(is_pretty, fgg, node, t):
     if is_pretty:
         return json.dumps(fggs.formats.weights_to_dict_json(fgg, node, t))
     else:
-        return tensor_to_string(t)
+        return json.dumps(fggs.formats.weights_to_json(t))
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='Compute the sum-product of an FGG.')
@@ -124,11 +121,12 @@ if __name__ == '__main__':
             grad_weights = extern_weights
 
         for name, weights in grad_weights.items():
+            edge = fgg.get_edge_label(name)
             grad = weights.grad
             
             if args.grad or args.grad_all:
-                print(f'grad[{name}]:', tensor_to_string(grad))
+                print(f'grad[{name}]:', tensor_to_dict_string(args.pretty, fgg, edge, grad))
 
             if args.expect:
                 expect = grad * weights / f
-                print(f'E[#{name}]:', tensor_to_string(expect))
+                print(f'E[#{name}]:', tensor_to_dict_string(args.pretty, fgg, edge, expect))
