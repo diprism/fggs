@@ -37,6 +37,7 @@ if __name__ == '__main__':
     ap.add_argument('-e', dest='expect', action='store_true', help='compute expected counts of factor(s) from -w option(s)')
     ap.add_argument('-t', dest='trace', action='store_true', help='print out all intermediate sum-products')
     ap.add_argument('-d', dest='double', action='store_true', help='use double-precision floating-point')
+    ap.add_argument('--tikz', metavar='<file>', dest='tikz', default=None, help='convert the input JSON to tikz and write the output to the given file')
 
     args = ap.parse_args()
     if args.double: torch.set_default_dtype(torch.float64)
@@ -84,6 +85,12 @@ if __name__ == '__main__':
                 error(f'cannot normalize nonexistent factor {name}')
         fgg.factors[name].weights = torch.nn.functional.normalize(
             fgg.factors[name].weights, p=1, dim=int(dim))
+
+    if args.tikz:
+        with open(args.tikz, "w") as f:
+            tex = fggs.hrg_to_tikz(fgg)
+            f.write(tex)
+        sys.exit(0)
 
     if args.out_weights:
         out_weights = string_to_tensor(args.out_weights, f"<out_weights>", fgg.shape(fgg.start))
