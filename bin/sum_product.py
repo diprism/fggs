@@ -20,8 +20,11 @@ def string_to_tensor(s, name="tensor", shape=None):
         error(f"{name} should have shape {shape}")
     return t
 
-def tensor_to_string(t):
-    return json.dumps(fggs.formats.weights_to_json(t))
+def tensor_to_dict_string(is_pretty, fgg, node, t):
+    if is_pretty:
+        return json.dumps(fggs.formats.weights_to_dict_json(fgg, node, t))
+    else:
+        return json.dumps(fggs.formats.weights_to_json(t))
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='Compute the sum-product of an FGG.')
@@ -37,6 +40,7 @@ if __name__ == '__main__':
     ap.add_argument('-e', dest='expect', action='store_true', help='compute expected counts of factor(s) from -w option(s)')
     ap.add_argument('-t', dest='trace', action='store_true', help='print out all intermediate sum-products')
     ap.add_argument('-d', dest='double', action='store_true', help='use double-precision floating-point')
+    ap.add_argument('-p', dest='pretty', action='store_true', help='pretty print weights together with the value names')
     ap.add_argument('--tikz', metavar='<file>', dest='tikz', default=None, help='convert the input JSON to tikz and write the output to the given file')
 
     args = ap.parse_args()
@@ -110,9 +114,9 @@ if __name__ == '__main__':
 
     if args.trace:
         for el, zel in zs.items():
-            print(el.name, tensor_to_string(zel))
+            print(tensor_to_dict_string(args.pretty, fgg, el, zel))
     else:
-        print(tensor_to_string(z))
+        print(tensor_to_dict_string(args.pretty, fgg, fgg.start, z))
 
     if (args.grad_all or args.grad or args.expect) and len(fgg.factors) > 0:
         f = (z * out_weights).sum()
@@ -124,11 +128,12 @@ if __name__ == '__main__':
             grad_weights = extern_weights
 
         for name, weights in grad_weights.items():
+            edge = fgg.get_edge_label(name)
             grad = weights.grad
             
             if args.grad or args.grad_all:
-                print(f'grad[{name}]:', tensor_to_string(grad))
+                print(f'grad[{name}]:', tensor_to_dict_string(args.pretty, fgg, edge, grad))
 
             if args.expect:
                 expect = grad * weights / f
-                print(f'E[#{name}]:', tensor_to_string(expect))
+                print(f'E[#{name}]:', tensor_to_dict_string(args.pretty, fgg, edge, expect))
