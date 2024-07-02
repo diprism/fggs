@@ -453,7 +453,7 @@ def hrg_to_tikz(g, factor_formats=None):
         res.append(r'\begin{page}')
         res.append(r'\begin{align*}')
         res.append(graph_to_tikz(lhs, factor_formats, r.lhs) +
-                   ' &\longrightarrow ' +
+                   ' &\\longrightarrow ' +
                    graph_to_tikz(r.rhs, factor_formats, r.lhs) + r'\\')
         res.append(r'\end{align*}')
         res.append(r'\end{page}')

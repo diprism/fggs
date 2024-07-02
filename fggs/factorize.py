@@ -181,7 +181,7 @@ def quickbb(graph):
     return best_ub, best_order
 
 def connected_components(g, s=frozenset()):
-    """Find the connected components of g \ s."""
+    """Find the connected components of g \\ s."""
 
     comps = []
     nodes = set(g) - s
