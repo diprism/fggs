@@ -7,6 +7,7 @@ from itertools import repeat
 from fggs.fggs import *
 from fggs.indices import PhysicalAxis, productAxis, SumAxis, PatternedTensor
 from fggs import domains, factors
+import re
 import torch
 from torch import Tensor
 from typing import cast
@@ -215,6 +216,35 @@ def json_to_axis(r, env):
 
 
 ### GraphViz and TikZ
+def escape_to_html(in_str):
+    table = {"&": "&amp;",
+             "<": "&lt;",
+             ">": "&gt;",
+             "\"": "&quot;",
+             "'": "&#39;"}
+    result = ""
+    for s in in_str:
+        if s in table:
+            result += table[s]
+        else:
+            result += s
+    return result
+
+
+def escape_to_latex(in_str):
+    table = {"\\": "\\textbackslash{}",
+             "_": "\\_",
+             "^": "\\textasciicircum{}",
+             "<": "\\textless{}",
+             ">": "\\textgreater{}"}
+    result = ""
+    for s in in_str:
+        if s in table:
+            result += table[s]
+        else:
+            result += s
+    return result
+
 
 def _get_format(factor_formats, x, i):
     if (x is None or
@@ -243,28 +273,33 @@ def graph_to_dot(g: Graph, factor_formats=None, lhs=None):
 
     dot = pydot.Dot(graph_type='graph', rankdir='LR')
     for v in g.nodes():
-        dot.add_node(pydot.Node(f'v{v.id}',
-                                #label=v.label.name,
-                                label='',
-                                shape='circle',
-                                height=0.24,
-                                margin=0,
-        ))
+        node = pydot.Node(f'v{v.id}',
+                          label='',
+                          shape='circle',
+                          height=0.24,
+                          margin=0,
+                          )
+        node.set_name(f'v{v.id}')
+        dot.add_node(node)
     for e in g.edges():
-        if e.label.is_terminal():
-            dot.add_node(pydot.Node(f'e{e.id}',
-                                    label='',
-                                    xlabel=e.label.name,
-                                    shape='square',
-                                    height=0.16,
-            ))
+        if e.label.is_terminal:
+            node = pydot.Node(f'e{e.id}',
+                              label='',
+                              # xlabel=escape_to_html(e.label.name),
+                              shape='square',
+                              height=0.16,
+                              )
+            node.set_name(f'e{e.id}')
+            dot.add_node(node)
         else:
-            dot.add_node(pydot.Node(f'e{e.id}',
-                                    label=e.label.name,
-                                    shape='square',
-                                    height=0.24,
-                                    margin=0.04,
-            ))
+            node = pydot.Node(f'e{e.id}',
+                              # label=escape_to_html(e.label.name),
+                              shape='square',
+                              height=0.24,
+                              margin=0.04,
+                              )
+            node.set_name(f'e{e.id}')
+            dot.add_node(node)
         nv = len(e.nodes)
         for i, v in enumerate(e.nodes):
             format = _get_format(factor_formats, e.label, i)
@@ -331,6 +366,7 @@ def graph_to_tikz(g: Graph, factor_formats=None, lhs=None):
     
     # Convert to DOT just to get layout information
     dot = graph_to_dot(g, factor_formats, lhs)
+    # print(dot.to_string())
     dot = pydot.graph_from_dot_data(dot.create_dot().decode('utf8'))[0]
 
     positions = {}
@@ -343,7 +379,8 @@ def graph_to_tikz(g: Graph, factor_formats=None, lhs=None):
             if pos.startswith('"') and pos.endswith('"'):
                 pos = pos[1:-1]
             x, y = pos.split(',', 1)
-            positions[v.get_name()] = (float(x), float(y))
+            name = re.sub(r'"(.*)"', r'\1', v.get_name())
+            positions[name] = (float(x), float(y))
         for s in d.get_subgraphs():
             visit(s)
     visit(dot)
@@ -356,22 +393,22 @@ def graph_to_tikz(g: Graph, factor_formats=None, lhs=None):
     res.append(rf'\begin{{tikzpicture}}[baseline={baseline}pt]')
 
     ext = {v.id:i for i,v in enumerate(g.ext)}
-    for v in g.nodes():
+    for i,v in enumerate(g.nodes()):
         if v.id in ext:
-            style = f'ext,label={_get_format(factor_formats, lhs, ext[v.id])[1]}'
+            style = f'ext,label={escape_to_latex(_get_format(factor_formats, lhs, ext[v.id])[1])}'
         else:
             style = 'var'
         x, y = positions[f'v{v.id}']
-        res.append(rf'  \node [{style}] (v{v.id}) at ({x}pt,{y}pt) {{}};')
+        res.append(rf'  \node [{style},label={{[right]{escape_to_latex(v.label.name)}}}] (v{v.id}) at ({x+20}pt,{y}pt) {{}};')
     for e in g.edges():
         x, y = positions[f'e{e.id}']
-        if e.label.is_terminal():
-            res.append(rf'  \node [fac,label={{{e.label.name}}}] (e{e.id}) at ({x}pt,{y}pt) {{}};')
+        if e.label.is_terminal:
+            res.append(rf'  \node [fac,label={{[right]{{T,{escape_to_latex(e.label.name)}}}}}] (e{e.id}) at ({x}pt,{y}pt) {{}};')
         else:
-            res.append(rf'  \node [fac] (e{e.id}) at ({x}pt,{y}pt) {{{e.label.name}}};')
+            res.append(rf'  \node [fac,label={{[right]{{N,{escape_to_latex(e.label.name)}}}}}] (e{e.id}) at ({x}pt,{y}pt) {{}};')
         for i, v in enumerate(e.nodes):
             label = _get_format(factor_formats, e.label, i)[1]
-            res.append(rf'    \draw (e{e.id}) edge node[tent,near start] {{{label}}} (v{v.id});')
+            res.append(rf'  \draw (e{e.id}) edge node[tent,very near start] {{{escape_to_latex(label)}}} (v{v.id});')
     res.append(r'\end{tikzpicture}')
     return '\n'.join(res)
 
@@ -391,14 +428,35 @@ def hrg_to_tikz(g, factor_formats=None):
         }
         """
     res = []
-    res.append(r'\begin{align*}')
+    res.append(r"""\documentclass[multi=page,preview]{standalone}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{calc}
+
+\tikzset{
+  var/.style={draw,circle,fill=white,inner sep=1.5pt,minimum size=8pt},
+  ext/.style={var,fill=black,text=white},
+  fac/.style={draw,rectangle},
+  tent/.style={font={\tiny},auto}
+}
+
+\begin{document}""")
     for r in g.all_rules():
         # Build a little factor graph for the lhs
         lhs = Graph()
-        lhs.add_edge(Edge(r.lhs(), [Node(x) for x in r.lhs.type]))
+        ext_nodes = [Node(x) for x in r.lhs.type]
+        lhs.add_edge(Edge(r.lhs, ext_nodes))
+        lhs.ext = ext_nodes
         
+        res.append(r'\begin{page}')
+        res.append(r'\begin{align*}')
         res.append(graph_to_tikz(lhs, factor_formats, r.lhs) +
                    ' &\longrightarrow ' +
                    graph_to_tikz(r.rhs, factor_formats, r.lhs) + r'\\')
-    res.append(r'\end{align*}')
+        res.append(r'\end{align*}')
+        res.append(r'\end{page}')
+    res.append(r'\end{document}')
+    print(f'{len(g.all_rules())} processed.')
     return '\n'.join(res)
