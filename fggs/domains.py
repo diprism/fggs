@@ -1,4 +1,4 @@
-__all__ = ['Domain', 'FiniteDomain']
+__all__ = ['Domain', 'FiniteDomain', 'CompactDomain']
 
 from abc import ABC, abstractmethod
 
@@ -52,6 +52,36 @@ class FiniteDomain(Domain):
         else:
             return type(self) == type(other) and \
                    self.values == other.values
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
+class CompactDomain(Domain):
+    """A compact domain for finite sets (like vocabularies).
+
+    Compact domain is like finite domain, but it doesn't hold
+    vocabularies. Instead it only holds the size of values.
+
+    """
+
+    def __init__(self, size):
+        super().__init__()
+        self._size = size
+
+    def size(self):
+        "Return the size of the domain."
+        return self._size
+
+    def contains(self, value):
+        pass
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        else:
+            return type(self) == type(other) and \
+                   self.size() == other.size()
 
     def __ne__(self, other):
         return not self.__eq__(other)
