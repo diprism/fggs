@@ -1,4 +1,4 @@
-__all__ = ['Domain', 'FiniteDomain', 'CompactDomain']
+__all__ = ['Domain', 'FiniteDomain', 'RangeDomain']
 
 from abc import ABC, abstractmethod
 
@@ -57,10 +57,10 @@ class FiniteDomain(Domain):
         return not self.__eq__(other)
 
 
-class CompactDomain(Domain):
-    """A compact domain for finite sets (like vocabularies).
+class RangeDomain(Domain):
+    """A range domain for finite sets.
 
-    Compact domain is like finite domain, but it doesn't hold
+    Range domain is like finite domain, but it doesn't hold
     vocabularies. Instead it only holds the size of values.
 
     """
@@ -74,7 +74,18 @@ class CompactDomain(Domain):
         return self._size
 
     def contains(self, value):
-        pass
+        return 0 <= value < self._size
+
+    def numberize(self, num):
+        """Convert a value into an integer.
+        Since a range domain only has a size, this is actually an identify
+        function.
+        """
+        return num
+
+    def denumberize(self, num):
+        """Convert a numberized value back to the original value."""
+        return str(num)
 
     def __eq__(self, other):
         if self is other:

@@ -26,7 +26,7 @@ def json_to_fgg(j):
         if d['class'] == 'finite':
             fgg.add_domain(nl, domains.FiniteDomain(d['values']))
         elif d['class'] == 'compact':
-            fgg.add_domain(nl, domains.CompactDomain(d['values']))
+            fgg.add_domain(nl, domains.RangeDomain(d['size']))
         else:
             raise ValueError(f'invalid domain class: {d["type"]}')
 

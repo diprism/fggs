@@ -55,10 +55,9 @@ class FiniteFactor(Factor):
           - or a torch.Tensor,
           - or a fggs.indices.PatternedTensor"""
         
-        if not all(isinstance(d, domains.FiniteDomain) or
-                   isinstance(d, domains.CompactDomain)
+        if not all(isinstance(d, (domains.FiniteDomain, domains.RangeDomain))
                    for d in doms):
-            raise TypeError('FiniteFactor can only be applied to FiniteDomains/CompactDomains')
+            raise TypeError('FiniteFactor can only be applied to FiniteDomains/RangeDomains')
         super().__init__(doms)
 
         self.weights = weights
