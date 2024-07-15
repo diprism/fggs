@@ -209,6 +209,7 @@ class TestPatternedTensor(unittest.TestCase):
             physical = nrand(*(k.numel() for k in paxes))
             pt = PatternedTensor(physical, paxes, vaxes)
             t = pt.to_dense()
+            self.assertEqual(pt.tolist(), t.tolist())
             for n in range(0, len(vaxes)+1):
                 for vis in product(*(range(e.numel()) for e in vaxes[:n])):
                     with self.subTest(vaxes=vaxes, n=n, vis=vis):
