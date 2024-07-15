@@ -99,7 +99,7 @@ class RangeDomain(Domain):
 
     def denumberize(self, num):
         """Convert a numberized value back to the original value."""
-        return str(num)
+        return num
 
     def __eq__(self, other):
         if self is other:
