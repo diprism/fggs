@@ -24,7 +24,7 @@ def tensor_to_dict_string(is_pretty, fgg, node, t):
     if is_pretty:
         return json.dumps(fggs.formats.weights_to_dict_json(fgg, node, t))
     else:
-        return json.dumps(fggs.formats.weights_to_json(t))
+        return json.dumps(t.tolist())
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='Compute the sum-product of an FGG.')

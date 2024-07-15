@@ -1,6 +1,6 @@
 __all__ = ['json_to_fgg', 'fgg_to_json',
            'json_to_hrg', 'hrg_to_json',
-           'json_to_weights', 'weights_to_json',
+           'json_to_weights',
            'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
 
 from itertools import repeat
@@ -33,9 +33,12 @@ def json_to_fgg(j):
 
     for name, d in ji['factors'].items():
         el = fgg.get_edge_label(name)
-        if d['function'] == 'finite':
+        doms = [fgg.domains[nl.name] for nl in el.type]
+        if d['function'] == 'constant':
+            fgg.add_factor(el, factors.ConstantFactor(doms, d['weight']))
+        elif d['function'] == 'finite':
             weights = json_to_weights(d['weights'])
-            fgg.add_factor(el, factors.FiniteFactor([fgg.domains[nl.name] for nl in el.type], weights))
+            fgg.add_factor(el, factors.FiniteFactor(doms, weights))
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
         
@@ -48,14 +51,7 @@ def fgg_to_json(fgg):
     ji = {}
 
     ji['domains'] = {nl: dom.to_json() for nl, dom in fgg.domains.items()}
-
-    ji['factors'] = {}
-    for el, fac in fgg.factors.items():
-        if isinstance(fac, factors.FiniteFactor):
-            ji['factors'][el] = {
-                'function': 'finite',
-                'weights': weights_to_json(fac.weights),
-            }
+    ji['factors'] = {el: fac.to_json() for el, fac in fgg.factors.items()}
             
     return {'grammar': jg, 'interpretation': ji}
 
@@ -167,36 +163,20 @@ def json_to_weights(j):
         physical = torch.tensor(j, dtype=torch.get_default_dtype())
         return PatternedTensor(physical)
 
-def weights_to_json(weights):
-    if isinstance(weights, float) or hasattr(weights, 'shape') and len(weights.shape) == 0:
-        return float(weights)
-    else:
-        return [weights_to_json(w) for w in weights]
-
-
 def weights_to_dict_json(fgg : FGG, edge_label : EdgeLabel, weights : Tensor):
-    def to_dict(edge_type, edge_type_sizes, indices, weights):
-        if len(edge_type_sizes) == 0:
-            return weights[indices].item()
+    def to_dict(edge_type, weights):
+        if len(edge_type) == 0:
+            return float(weights)
         else:
-            return {fgg.domains[edge_type[0].name].denumberize(i):
-                    to_dict(edge_type[1:], edge_type_sizes[1:],
-                            indices + (i,), weights)
-                    for i in range(edge_type_sizes[0])}
-
-    domains_dict = fgg.domains
-    edge_type = edge_label.type
-    if all(n.name in domains_dict and
-           isfinite(domains_dict[n.name].size())
-           for n in edge_type):
-        edge_type_sizes = [cast(domains.FiniteDomain, domains_dict[n.name]).size() for n in edge_type]
-        if torch.Size(edge_type_sizes) == weights.shape:
-            return to_dict(edge_type, edge_type_sizes, (), weights)
-        else:
-            return weights_to_json(weights)
-    else:
-        return weights_to_json(weights)
-
+            d = fgg.domains[edge_type[0].name]
+            if isinstance(d, domains.FiniteDomain) and d.size() == len(weights):
+                return {d.denumberize(i):
+                        to_dict(edge_type[1:], w)
+                        for i, w in enumerate(weights)}
+            else:
+                return [to_dict(edge_type[1:], w)
+                        for w in weights]
+    return to_dict(edge_label.type, weights)
 
 def json_to_axis(r, env):
     if isinstance(r, list):

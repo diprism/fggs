@@ -902,6 +902,14 @@ class PatternedTensor:
             assert(k == unitAxis)
             yield PatternedTensor(self.physical, self.paxes, vaxes, self.default)
 
+    def tolist(self) -> Any:
+        if len(self.vaxes) == 0:
+            return self.physical.item()
+        elif len(self.vaxes) == 1:
+            return self.to_dense().tolist()
+        else:
+            return [t.tolist() for t in self]
+
     def neg_(self) -> PatternedTensor:
         self.default = -self.default
         self.physical.neg_()
