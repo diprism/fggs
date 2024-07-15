@@ -70,11 +70,10 @@ class FiniteDomain(Domain):
 
 
 class RangeDomain(Domain):
-    """A range domain for finite sets.
+    """A domain for natural numbers up to a given size.
 
     Range domain is like finite domain, but it doesn't hold
     vocabularies. Instead it only holds the size of values.
-
     """
 
     def __init__(self, size):
@@ -93,7 +92,7 @@ class RangeDomain(Domain):
 
     def numberize(self, num):
         """Convert a value into an integer.
-        Since a range domain only has a size, this is actually an identify
+        Since a range domain only has a size, this is actually an identity
         function.
         """
         return num
