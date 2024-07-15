@@ -4,6 +4,7 @@ __all__ = ['json_to_fgg', 'fgg_to_json',
            'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
 
 from itertools import repeat
+from math import isfinite
 from fggs.fggs import *
 from fggs.indices import PhysicalAxis, productAxis, SumAxis, PatternedTensor
 from fggs import domains, factors
@@ -25,6 +26,8 @@ def json_to_fgg(j):
         nl = fgg.get_node_label(name)
         if d['class'] == 'finite':
             fgg.add_domain(nl, domains.FiniteDomain(d['values']))
+        elif d['class'] == 'range':
+            fgg.add_domain(nl, domains.RangeDomain(d['size']))
         else:
             raise ValueError(f'invalid domain class: {d["type"]}')
 
@@ -44,15 +47,7 @@ def fgg_to_json(fgg):
     
     ji = {}
 
-    ji['domains'] = {}
-    for nl, dom in fgg.domains.items():
-        if isinstance(dom, domains.FiniteDomain):
-            ji['domains'][nl] = {
-                'class' : 'finite',
-                'values' : list(dom.values),
-            }
-        else:
-            raise NotImplementedError(f'unsupported domain type {type(j.domain)}')
+    ji['domains'] = {nl: dom.to_json() for nl, dom in fgg.domains.items()}
 
     ji['factors'] = {}
     for el, fac in fgg.factors.items():
@@ -192,7 +187,7 @@ def weights_to_dict_json(fgg : FGG, edge_label : EdgeLabel, weights : Tensor):
     domains_dict = fgg.domains
     edge_type = edge_label.type
     if all(n.name in domains_dict and
-           isinstance(domains_dict[n.name], domains.FiniteDomain)
+           isfinite(domains_dict[n.name].size())
            for n in edge_type):
         edge_type_sizes = [cast(domains.FiniteDomain, domains_dict[n.name]).size() for n in edge_type]
         if torch.Size(edge_type_sizes) == weights.shape:
