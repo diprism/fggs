@@ -33,9 +33,12 @@ def json_to_fgg(j):
 
     for name, d in ji['factors'].items():
         el = fgg.get_edge_label(name)
-        if d['function'] == 'finite':
+        doms = [fgg.domains[nl.name] for nl in el.type]
+        if d['function'] == 'constant':
+            fgg.add_factor(el, factors.ConstantFactor(doms, d['weight']))
+        elif d['function'] == 'finite':
             weights = json_to_weights(d['weights'])
-            fgg.add_factor(el, factors.FiniteFactor([fgg.domains[nl.name] for nl in el.type], weights))
+            fgg.add_factor(el, factors.FiniteFactor(doms, weights))
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
         
@@ -48,14 +51,7 @@ def fgg_to_json(fgg):
     ji = {}
 
     ji['domains'] = {nl: dom.to_json() for nl, dom in fgg.domains.items()}
-
-    ji['factors'] = {}
-    for el, fac in fgg.factors.items():
-        if isinstance(fac, factors.FiniteFactor):
-            ji['factors'][el] = {
-                'function': 'finite',
-                'weights': weights_to_json(fac.weights),
-            }
+    ji['factors'] = {el: fac.to_json() for el, fac in fgg.factors.items()}
             
     return {'grammar': jg, 'interpretation': ji}
 

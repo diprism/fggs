@@ -12,6 +12,10 @@ class Factor(ABC):
     def __init__(self, doms):
         self.domains = tuple(doms)
 
+    @abstractmethod
+    def to_json(self):
+        pass
+
     @property
     def arity(self):
         return len(self.domains)
@@ -33,6 +37,9 @@ class ConstantFactor(Factor):
         super().__init__(doms)
         self.weight = weight
 
+    def to_json(self):
+        return {'function': 'constant', 'weight': self.weight}
+
     def apply(self, values):
         return self.weight
 
@@ -44,7 +51,12 @@ class ConstantFactor(Factor):
                    self.domains == other.domains and \
                    self.weight == other.weight
 
-        
+def weights_to_json(weights):
+    if isinstance(weights, float) or hasattr(weights, 'shape') and len(weights.shape) == 0:
+        return float(weights)
+    else:
+        return [weights_to_json(w) for w in weights]
+
 class FiniteFactor(Factor):
     def __init__(self, doms, weights):
         """A factor that can define an arbitrary function on finite domains.
@@ -61,6 +73,9 @@ class FiniteFactor(Factor):
         super().__init__(doms)
 
         self.weights = weights
+
+    def to_json(self):
+        return {'function': 'finite', 'weights': weights_to_json(self.weights)}
 
     @property
     def weights(self) -> PatternedTensor:
