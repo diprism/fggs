@@ -25,7 +25,7 @@ def json_to_fgg(j):
         nl = fgg.get_node_label(name)
         if d['class'] == 'finite':
             fgg.add_domain(nl, domains.FiniteDomain(d['values']))
-        elif d['class'] == 'compact':
+        elif d['class'] == 'range':
             fgg.add_domain(nl, domains.RangeDomain(d['size']))
         else:
             raise ValueError(f'invalid domain class: {d["type"]}')
@@ -46,15 +46,7 @@ def fgg_to_json(fgg):
     
     ji = {}
 
-    ji['domains'] = {}
-    for nl, dom in fgg.domains.items():
-        if isinstance(dom, domains.FiniteDomain):
-            ji['domains'][nl] = {
-                'class' : 'finite',
-                'values' : list(dom.values),
-            }
-        else:
-            raise NotImplementedError(f'unsupported domain type {type(j.domain)}')
+    ji['domains'] = {nl: dom.to_json() for nl, dom in fgg.domains.items()}
 
     ji['factors'] = {}
     for el, fac in fgg.factors.items():

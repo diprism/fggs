@@ -6,7 +6,11 @@ from abc import ABC, abstractmethod
 # TODO: need some way to either sum over or integrate over?
 class Domain(ABC):
     """Abstract base class for domains."""
-    
+
+    @abstractmethod
+    def to_json(self):
+        pass
+
     @abstractmethod
     def contains(self, value):
         pass
@@ -29,6 +33,9 @@ class FiniteDomain(Domain):
         super().__init__()
         self.values = list(values)
         self._value_index = {v:i for (i,v) in enumerate(values)}
+
+    def to_json(self):
+        return {'class': 'finite', 'values': list(self.values)}
 
     def contains(self, value):
         return value in self.values
@@ -72,6 +79,9 @@ class RangeDomain(Domain):
     def size(self):
         "Return the size of the domain."
         return self._size
+
+    def to_json(self):
+        return {'class': 'range', 'size': self._size}
 
     def contains(self, value):
         return 0 <= value < self._size
