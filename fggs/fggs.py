@@ -510,7 +510,7 @@ class InterpretationMixin(LabelingMixin):
             nls = x.type
         else:
             nls = x.label.type
-        return tuple(cast(FiniteDomain, self.domains[nl.name]).size() for nl in nls)
+        return tuple(self.domains[nl.name].size() for nl in nls)
     
     def new_finite_domain(self, name: str, values: Sequence):
         """Convenience function for creating and adding a FiniteDomain at the same time."""

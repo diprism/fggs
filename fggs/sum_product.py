@@ -2,7 +2,6 @@ from __future__ import annotations
 __all__ = ['sum_product', 'sum_products']
 
 from fggs.fggs import FGG, HRG, HRGRule, EdgeLabel, Edge, Node
-from fggs.domains import FiniteDomain
 from fggs.factors import FiniteFactor
 from fggs.semirings import *
 from fggs.multi import *
@@ -226,7 +225,7 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
             ext.append(ncopy)
             connected.update([n, ncopy])
             indexing.append([n, ncopy])
-            nsize = cast(FiniteDomain, fgg.domains[n.label.name]).size()
+            nsize = fgg.domains[n.label.name].size()
             tensors.append(PatternedTensor.eye(nsize,semiring))
             #duplicate = True # Uncomment this line for debugging messages
         else:
@@ -261,7 +260,7 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
     multiplier = 1
     for n in nodes:
         if n not in connected and n not in ext:
-            multiplier *= cast(FiniteDomain, fgg.domains[n.label.name]).size()
+            multiplier *= fgg.domains[n.label.name].size()
     if multiplier != 1:
         out = semiring.mul(out, PatternedTensor.from_int(multiplier, semiring))
     assert(out.physical.dtype == semiring.dtype)

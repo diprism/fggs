@@ -1,6 +1,7 @@
 __all__ = ['Factor', 'ConstantFactor', 'FiniteFactor']
 
 from abc import ABC, abstractmethod
+from math import isfinite
 from fggs import domains
 from fggs.indices import PatternedTensor
 import torch
@@ -49,15 +50,14 @@ class FiniteFactor(Factor):
         """A factor that can define an arbitrary function on finite domains.
 
         - doms: domains of arguments
-          - a list of FiniteDomain
+          - a list of domains whose size()s are finite
         - weights: weights
           - a list (of lists)* of floats,
           - or a torch.Tensor,
           - or a fggs.indices.PatternedTensor"""
         
-        if not all(isinstance(d, (domains.FiniteDomain, domains.RangeDomain))
-                   for d in doms):
-            raise TypeError('FiniteFactor can only be applied to FiniteDomains/RangeDomains')
+        if not all(isfinite(d.size()) for d in doms):
+            raise TypeError('FiniteFactor can only be applied to finite domains')
         super().__init__(doms)
 
         self.weights = weights

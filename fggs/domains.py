@@ -1,6 +1,7 @@
 __all__ = ['Domain', 'FiniteDomain', 'RangeDomain']
 
 from abc import ABC, abstractmethod
+from math import inf
 
 # this somehow needs to be able to express continuous and discrete infinite domains
 # TODO: need some way to either sum over or integrate over?
@@ -14,6 +15,10 @@ class Domain(ABC):
     @abstractmethod
     def contains(self, value):
         pass
+
+    @abstractmethod
+    def size(self):
+        return inf
 
     def __eq__(self, other):
         return self is other
@@ -76,15 +81,15 @@ class RangeDomain(Domain):
         super().__init__()
         self._size = size
 
-    def size(self):
-        "Return the size of the domain."
-        return self._size
-
     def to_json(self):
         return {'class': 'range', 'size': self._size}
 
     def contains(self, value):
         return 0 <= value < self._size
+
+    def size(self):
+        """Return the size of the domain."""
+        return self._size
 
     def numberize(self, num):
         """Convert a value into an integer.

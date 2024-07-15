@@ -4,6 +4,7 @@ __all__ = ['json_to_fgg', 'fgg_to_json',
            'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
 
 from itertools import repeat
+from math import isfinite
 from fggs.fggs import *
 from fggs.indices import PhysicalAxis, productAxis, SumAxis, PatternedTensor
 from fggs import domains, factors
@@ -186,7 +187,7 @@ def weights_to_dict_json(fgg : FGG, edge_label : EdgeLabel, weights : Tensor):
     domains_dict = fgg.domains
     edge_type = edge_label.type
     if all(n.name in domains_dict and
-           isinstance(domains_dict[n.name], domains.FiniteDomain)
+           isfinite(domains_dict[n.name].size())
            for n in edge_type):
         edge_type_sizes = [cast(domains.FiniteDomain, domains_dict[n.name]).size() for n in edge_type]
         if torch.Size(edge_type_sizes) == weights.shape:
