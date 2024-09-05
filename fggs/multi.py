@@ -184,7 +184,7 @@ def _order_nonterminals(a: MultiTensor) -> list:
         return []
     
     #set up graph
-    nonterminal_graph = {}  
+    nonterminal_graph: dict[MultiTensorKey, set] = {}  
     for x, y in a.keys():
         if x not in nonterminal_graph:
             nonterminal_graph[x] = set()
@@ -237,7 +237,7 @@ def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> Mult
     shapes = a.shapes[0]
     # assert a.shapes[0] == a.shapes[1] == b.shapes[0]
 
-    order = _order_nonterminals(a)
+    order = list(shapes.keys())
 
     flat_shapes = {x:Size((shapes[x].numel(),)) for x in shapes}
     a_flat = MultiTensor((flat_shapes, flat_shapes), semiring)
