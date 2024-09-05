@@ -237,7 +237,7 @@ def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> Mult
     shapes = a.shapes[0]
     # assert a.shapes[0] == a.shapes[1] == b.shapes[0]
 
-    order = list(shapes.keys())
+    order = _order_nonterminals(a)
 
     flat_shapes = {x:Size((shapes[x].numel(),)) for x in shapes}
     a_flat = MultiTensor((flat_shapes, flat_shapes), semiring)
