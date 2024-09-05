@@ -175,6 +175,53 @@ def multi_mv(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> MultiTe
                 c.add_single(x, axy.mv(by, semiring).reshape(ishapes[x]))
     return c
 
+def _order_nonterminals(a: MultiTensor) -> list:
+    """ Reorders the nonterminals in a Multitensor.
+        Uses the heuristic found in Nederhof and Satta (2008) to put the 
+        linking nonterminals first, speeding up Gaussian Elimination
+    """    
+    if not a.keys():
+        return []
+    
+    #set up graph
+    nonterminal_graph = {}  
+    for x, y in a.keys():
+        if x not in nonterminal_graph:
+            nonterminal_graph[x] = set()
+            
+        nonterminal_graph[x].add(y)
+    
+    #dfs on graph to get finish times
+    finish_times = {}
+    visited = set()
+
+    def dfs(node, iteration):
+        visited.add(node)
+        finish_times[node] = iteration
+        
+        for neighbor in nonterminal_graph.get(node, []):
+            if neighbor not in visited:
+                dfs(neighbor, iteration + 1)
+
+    start = list(a.keys())[-1][0]
+    dfs(start, 0)
+    
+    #sort into nonlinking and linking
+    nonlinking_nonterminals = set()
+    
+    for x in a.shapes[0].keys():
+        if x not in finish_times or x not in nonterminal_graph:
+            continue
+        
+        for y in nonterminal_graph[x]:
+            if finish_times[x] > finish_times[y]:
+                nonlinking_nonterminals.add(y)
+                break
+            
+    linking_nonterminals = [nt for nt in a.shapes[0].keys() if nt not in nonlinking_nonterminals]
+
+    return linking_nonterminals + list(nonlinking_nonterminals)
+    
 def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> MultiTensor:
     """Solve x = a @ x + b for x, where the elements of a are flattened into
     matrices and the elements of b are flattened into vectors.
@@ -189,7 +236,8 @@ def multi_solve(a: MultiTensor, b: MultiTensor, transpose: bool = False) -> Mult
     # Make copies of a and b flattened into matrices and vectors, respectively
     shapes = a.shapes[0]
     # assert a.shapes[0] == a.shapes[1] == b.shapes[0]
-    order = list(shapes.keys())
+
+    order = _order_nonterminals(a)
 
     flat_shapes = {x:Size((shapes[x].numel(),)) for x in shapes}
     a_flat = MultiTensor((flat_shapes, flat_shapes), semiring)
