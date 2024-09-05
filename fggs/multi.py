@@ -184,7 +184,7 @@ def _order_nonterminals(a: MultiTensor) -> list:
         return []
     
     #set up graph
-    nonterminal_graph: dict[MultiTensorKey, set] = {}  
+    nonterminal_graph: Dict[MultiTensorKey, set] = {}  
     for x, y in a.keys():
         if x not in nonterminal_graph:
             nonterminal_graph[x] = set()
