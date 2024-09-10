@@ -194,18 +194,20 @@ def _order_nonterminals(a: MultiTensor) -> list:
     #dfs on graph to get finish times
     finish_times = {}
     visited = set()
-
-    def dfs(node, iteration):
+    time = [0] #this must be a list so it is mutable and will persist over multiple calls to dfs
+    
+    def dfs(node):
         visited.add(node)
-        finish_times[node] = iteration
-        
         for neighbor in nonterminal_graph.get(node, []):
             if neighbor not in visited:
-                dfs(neighbor, iteration + 1)
+                dfs(neighbor)
+                
+        time[0] += 1
+        finish_times[node] = time[0]
 
     start = list(a.keys())[-1][0]
-    dfs(start, 0)
-    
+    dfs(start)
+
     #sort into nonlinking and linking
     nonlinking_nonterminals = set()
     
@@ -214,7 +216,7 @@ def _order_nonterminals(a: MultiTensor) -> list:
             continue
         
         for y in nonterminal_graph[x]:
-            if finish_times[x] > finish_times[y]:
+            if finish_times[x] < finish_times[y]:
                 nonlinking_nonterminals.add(y)
                 break
             
