@@ -1,4 +1,5 @@
 from fggs.multi import *
+from fggs.multi import _order_nonterminals
 from fggs.semirings import *
 from fggs.indices import PatternedTensor
 import unittest, torch, random
@@ -81,6 +82,13 @@ class TestMultiTensor(unittest.TestCase):
                 x_sparse = multi_solve(a_sparse, b_sparse, transpose=True)
                 x_dense = torch.linalg.solve(torch.eye(*a_dense.shape)-a_dense.T, b_dense)
                 self.assertTrue(self.compare_vectors(x_sparse, x_dense), (x_sparse, x_dense))
+    
+    ### WIP ###
+    def test_order_nonterminals(self):
+        a_sparse_endings = [2, 2, 2, 1, 2, 2, 2, 0, 1, 2]
+        
+        for i, (a_sparse, _) in enumerate(self.matrices): 
+            assert (a_sparse_endings[i] == _order_nonterminals(a_sparse)[-1])
 
             
 if __name__ == '__main__':
