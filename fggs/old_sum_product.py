@@ -129,54 +129,22 @@ def print_duplicate(loc: str, xs: Sequence[Node], ys: Sequence[Node]) -> bool:
 def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
       J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
     """The Jacobian of F."""
-
     Jx = MultiTensor(x.shapes+x.shapes, semiring)
     for n in x.shapes[0]:
         for rule in fgg.rules(n):
-            
-            edges = [  edge for edge in rule.rhs.edges() if not (edge.label not in Jx.shapes[1] and J_inputs is None) ]
-            
-            prefix_products = []
-            for edge in edges[:-1]:
+            for edge in rule.rhs.edges():
+                if edge.label not in Jx.shapes[1] and J_inputs is None: continue
                 duplicate = print_duplicate('J', rule.rhs.ext, edge.nodes)
                 ext = rule.rhs.ext + edge.nodes
-                tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), {edge}, ext, x, inputs, semiring=semiring)
-                
-                if len(prefix_products) == 0:
-                    prefix_products.append(tau_edge)
-                else:
-                    prefix_products.append(semiring.mul(prefix_products[-1], tau_edge))
-            
-            suffix_products = []
-            for edge in reversed(edges[1:]):
-                duplicate = print_duplicate('J', rule.rhs.ext, edge.nodes)
-                ext = rule.rhs.ext + edge.nodes
-                tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), {edge}, ext, x, inputs, semiring=semiring)
-                    
-                if len(suffix_products) == 0:
-                    suffix_products.append(tau_edge)
-                else:
-                    suffix_products.append(semiring.mul(suffix_products[-1], tau_edge))
-                    
-            suffix_products.reverse()
-            
-            for i, edge in enumerate(edges):
-                if i == 0:
-                    if not suffix_products: continue
-                    product = suffix_products[0]
-                elif i == len(edges) - 1:
-                    if not prefix_products: continue
-                    product = prefix_products[-1]
-                else:
-                    if i - 1 < 0 or i > len(suffix_products): continue
-                    product = semiring.mul(prefix_products[i - 1], suffix_products[i])
-                if product is not None:
+                edges = set(rule.rhs.edges()) - {edge}
+                tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), edges, ext, x, inputs, semiring=semiring)
+                if tau_edge is not None:
                     if duplicate:
-                        print('sum_product_edges produced', product.physical.size(), 'for', product.size(), file=stderr)
+                        print('sum_product_edges produced', tau_edge.physical.size(), 'for', tau_edge.size(), file=stderr)
                     if edge.label in Jx.shapes[1]:
-                        Jx.add_single((n, edge.label), product)
+                        Jx.add_single((n, edge.label), tau_edge)
                     elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
-                        J_inputs.add_single((n, edge.label), product)
+                        J_inputs.add_single((n, edge.label), tau_edge)
                     else:
                         assert False
     return Jx
