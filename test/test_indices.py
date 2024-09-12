@@ -407,7 +407,7 @@ class TestPatternedTensor(unittest.TestCase):
                     self.assertTEqual(t.transpose(dim0,dim1).to_dense(),
                                       t.to_dense().transpose(dim0,dim1))
             if t.ndim <= 2: self.assertTEqual(t.t().to_dense(), t.to_dense().t())
-            self.assertTEqual(t.T.to_dense(), t.to_dense().T)
+            self.assertTEqual(t.T.to_dense(), t.to_dense().permute(*torch.arange(t.ndim - 1, -1, -1)))
             self.assertTEqual(t.flatten().to_dense(), t.to_dense().flatten())
 
     def test_reshape(self):
