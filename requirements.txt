@@ -1,6 +1,7 @@
 torch>=1.9
+numpy<2
 pydot
-git+https://github.com/bdusell/semiring-einsum
+torch-semiring-einsum>=1.2
 tqdm
 mypy
 packaging
