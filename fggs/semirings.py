@@ -156,9 +156,10 @@ class RealSemiring(Semiring):
         b = make_b()
         try:
             a.neg_().diagonal().add_(1)
-            x = torch.linalg.solve(a, b)
-            if torch.all(torch.copysign(torch.tensor(1.), x) > 0.): # catches -0.0
-                return x
+            if not torch.any(torch.isinf(a)):
+                x = torch.linalg.solve(a, b)
+                if torch.all(x >= 0.):
+                    return x
         except RuntimeError as e:
             if '(Cannot allocate memory)' in str(e): raise
             pass
