@@ -155,8 +155,8 @@ class RealSemiring(Semiring):
         a = make_a()
         b = make_b()
         try:
-            a.neg_().diagonal().add_(1)
             if not torch.any(torch.isinf(a)):
+                a.neg_().diagonal().add_(1)
                 x = torch.linalg.solve(a, b)
                 if torch.all(x >= 0.):
                     return x
