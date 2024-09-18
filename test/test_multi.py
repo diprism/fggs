@@ -1,5 +1,5 @@
 from fggs.multi import *
-import fggs.multi as multi_module
+import fggs.multi as multi
 from fggs.semirings import *
 from fggs.indices import PatternedTensor
 from fggs.sum_product import sum_product
@@ -89,13 +89,13 @@ class TestMultiTensor(unittest.TestCase):
         a_sparse_endings = [2, 2, 2, 1, 2, 2, 2, 0, 1, 2]
         
         for i, (a_sparse, _) in enumerate(self.matrices): 
-            self.assertEqual(a_sparse_endings[i], multi_module._order_nonterminals(a_sparse)[-1])
+            self.assertEqual(a_sparse_endings[i], multi._order_nonterminals(a_sparse)[-1])
         
-        with open('test/advanced_cycle.json') as f:
+        with open('test/double_cycle.json') as f:
             fgg = json_to_fgg(json.load(f))
         
         #save original _order_nonterminals function
-        og_order_nonterminals = multi_module._order_nonterminals
+        og_order_nonterminals = multi._order_nonterminals
         
         order_nonterminals_result = None
         def wrapper_order_nonterminals(a: MultiTensor):
@@ -105,12 +105,12 @@ class TestMultiTensor(unittest.TestCase):
             return order_nonterminals_result
              
         #set _order_nonterminals to our new wrapper
-        multi_module._order_nonterminals = wrapper_order_nonterminals
+        multi._order_nonterminals = wrapper_order_nonterminals
         
         sum_product(fgg, method='newton')
         
         #restore the _order_nonterminals function
-        multi_module._order_nonterminals = og_order_nonterminals
+        multi._order_nonterminals = og_order_nonterminals
         
         #assert that _order_nonterminals moved 'X10' and 'X0' to the end
         self.assertIn(order_nonterminals_result[-1].name, ['X10', 'X0'])
