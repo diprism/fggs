@@ -1,6 +1,5 @@
 from __future__ import annotations
 __all__ = ['sum_product', 'sum_products']
-
 from fggs.fggs import FGG, HRG, HRGRule, EdgeLabel, Edge, Node
 from fggs.factors import FiniteFactor
 from fggs.semirings import *
@@ -126,32 +125,64 @@ def print_duplicate(loc: str, xs: Sequence[Node], ys: Sequence[Node]) -> bool:
         return False
 
 
-def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
+def _J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
       J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
     """The Jacobian of F."""
-
     Jx = MultiTensor(x.shapes+x.shapes, semiring)
     for n in x.shapes[0]:
         for rule in fgg.rules(n):
-            
-            edges = [  edge for edge in rule.rhs.edges() if not (edge.label not in Jx.shapes[1] and J_inputs is None) ]
-            
-            prefix_products = []
-            for edge in edges[:-1]:
+            for edge in rule.rhs.edges():
+                if edge.label not in Jx.shapes[1] and J_inputs is None: 
+                    continue
                 duplicate = print_duplicate('J', rule.rhs.ext, edge.nodes)
                 ext = rule.rhs.ext + edge.nodes
+                edges = set(rule.rhs.edges()) - {edge}
+                tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), edges, ext, x, inputs, semiring=semiring)
+                if tau_edge is not None:
+                    if duplicate:
+                        print('sum_product_edges produced', tau_edge.physical.size(), 'for', tau_edge.size(), file=stderr)
+                    if edge.label in Jx.shapes[1]:
+                        Jx.add_single((n, edge.label), tau_edge)
+                    elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
+                        J_inputs.add_single((n, edge.label), tau_edge)
+                    else:
+                        assert False
+                        
+    return Jx
+
+def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
+      J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
+    """The Jacobian of F."""
+    Jx = MultiTensor(x.shapes+x.shapes, semiring)
+    for n in x.shapes[0]:
+        for rule in fgg.rules(n):
+
+            edges = list(rule.rhs.edges())
+         
+            prefix_products = []
+            for i, edge in enumerate(edges[:-1]):
+                #duplicate = ##print_duplicate('J', rule.rhs.ext, edge.nodes)
+                ext = rule.rhs.ext + edge.nodes
                 tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), {edge}, ext, x, inputs, semiring=semiring)
+                
+                if tau_edge is None: 
+                    prefix_products.extend( [None] * (len(edges) - 1 - i))
+                    break
                 
                 if len(prefix_products) == 0:
                     prefix_products.append(tau_edge)
                 else:
                     prefix_products.append(semiring.mul(prefix_products[-1], tau_edge))
-            
+
             suffix_products = []
-            for edge in reversed(edges[1:]):
-                duplicate = print_duplicate('J', rule.rhs.ext, edge.nodes)
+            for i, edge in enumerate(reversed(edges[1:])):
+                #duplicate = #print_duplicate('J', rule.rhs.ext, edge.nodes)
                 ext = rule.rhs.ext + edge.nodes
                 tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), {edge}, ext, x, inputs, semiring=semiring)
+                
+                if tau_edge is None: 
+                    suffix_products.extend( [None] * (len(edges) - 1 - i))
+                    break
                     
                 if len(suffix_products) == 0:
                     suffix_products.append(tau_edge)
@@ -160,25 +191,36 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                     
             suffix_products.reverse()
             
+            if not suffix_products or not prefix_products:
+                continue
+            
+            if all([x is None for x in suffix_products]):
+                continue
+            
+            if all([x is None for x in prefix_products]):
+                continue
+            
             for i, edge in enumerate(edges):
                 if i == 0:
-                    if not suffix_products: continue
                     product = suffix_products[0]
                 elif i == len(edges) - 1:
-                    if not prefix_products: continue
                     product = prefix_products[-1]
                 else:
-                    if i - 1 < 0 or i > len(suffix_products): continue
+                    if prefix_products[i - 1] is None or suffix_products[i] is None: 
+                        continue
                     product = semiring.mul(prefix_products[i - 1], suffix_products[i])
                 if product is not None:
-                    if duplicate:
-                        print('sum_product_edges produced', product.physical.size(), 'for', product.size(), file=stderr)
+                    # if duplicate:
+                    #     #print('sum_product_edges produced', product.physical.size(), 'for', product.size(), file=stderr)
                     if edge.label in Jx.shapes[1]:
                         Jx.add_single((n, edge.label), product)
                     elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
                         J_inputs.add_single((n, edge.label), product)
                     else:
+                        continue
                         assert False
+                        
+            
     return Jx
 
 
@@ -277,16 +319,18 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
     # If an external node has no edges, einsum will complain, so remove it.
     outputs = [node for node in ext if node in connected]
 
+    
     assert(all(tensor.physical.dtype == semiring.dtype for tensor in tensors))
     out = einsum(tensors, indexing, outputs, semiring)
     if duplicate:
         print('einsum produced', out.physical.size(), 'for', out.size(), file=stderr)
-
+    
     # Restore any external nodes that were removed.
     if out.ndim < len(ext):
         eshape = fgg.shape(ext)
         vshape = [s if n in connected else 1 for n, s in zip(ext, eshape)]
         out = out.view(*vshape).expand(*eshape)
+
 
     # Multiply in any disconnected internal nodes.
     multiplier = 1
@@ -297,6 +341,7 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
         out = semiring.mul(out, PatternedTensor.from_int(multiplier, semiring))
     assert(out.physical.dtype == semiring.dtype)
     return out
+
 
 
 def linear(fgg: FGG, inputs: MultiTensor, out_labels: Sequence[EdgeLabel], semiring: Semiring) -> MultiTensor:
@@ -380,9 +425,9 @@ class SumProduct(torch.autograd.Function):
         ctx.in_labels = in_labels
         ctx.out_labels = out_labels
         ctx.save_for_backward(*in_values)
+        
 
         inputs: MultiTensor = {label: nonphysical.reincarnate(physical) for (label, nonphysical), physical in zip(in_labels, in_values)} # type: ignore
-
         if method == 'linear':
             out = linear(fgg, inputs, out_labels, semiring)
         else:
