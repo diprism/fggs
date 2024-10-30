@@ -139,6 +139,7 @@ def get_weight(fgg: FGG, inputses: MultiTensor, edge: Edge) -> Optional[Patterne
 def _J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
       J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
     """The Jacobian of F."""
+    log(f'+++++++++===========++++++++++ CALL TO OG J ++++++++++++++===========+++++++++\n')
     Jx = MultiTensor(x.shapes+x.shapes, semiring)
     for n in x.shapes[0]:
         for rule in fgg.rules(n):
@@ -148,31 +149,48 @@ def _J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                 duplicate = print_duplicate('J', rule.rhs.ext, edge.nodes)
                 ext = rule.rhs.ext + edge.nodes
                 edges = set(rule.rhs.edges()) - {edge}
+                #log(f'EDGES = {edges}')
+                log(f'||||||| working on {edge.label.name} ||||||||\n')
                 tau_edge = sum_product_edges(fgg, rule.rhs.nodes(), edges, ext, x, inputs, semiring=semiring, loud=True)
+                log(f'$$$$$$$$$$$$ {tau_edge} $$$$$$$$$$$$\n\n')
                 if tau_edge is not None:
+                    #log(f'For edge {edge}, adding {tau_edge} to {"JX" if edge.label in Jx.shapes[1] else "JINs"}\n')
+                    #log(f'\n\n*******PROCESSING: {tau_edge}*********\n\n')
                     if duplicate:
-                        print('sum_product_edges produced', tau_edge.physical.size(), 'for', tau_edge.size(), file=stderr)
+                        log('sum_product_edges produced', tau_edge.physical.size(), 'for', tau_edge.size(), file=stderr)
                     if edge.label in Jx.shapes[1]:
+                        log(f'{tau_edge} JX\n')
+                        #log('\n$$$$$$$$$$$$$$$$ADDED TO JX$$$$$$$$$$$$$$$$$$\n')
                         Jx.add_single((n, edge.label), tau_edge)
                     elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
+                        #log('\n%%%%%%%%ADDED TO JIN%%%%%%%%%%%%%%%%%\n\n')
+                        log(f'{tau_edge} JX\n')
                         J_inputs.add_single((n, edge.label), tau_edge)
                     else:
                         assert False
+                #log('-------END O EDGE----------')
+            #log('=ENDO EULE=\n\n')
             
     return Jx
+
+def log(*args):
+    loud = True
+    if loud:
+        print(*args)
         
 def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
       J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
     """The Jacobian of F."""
+    log('========================Call to new J==========================')
     Jx = MultiTensor(x.shapes+x.shapes, semiring)
     for n in x.shapes[0]:
         for rule in fgg.rules(n):
             edges = list(rule.rhs.edges())
             if len(edges) == 1:
+                log(f'USING SINGLE EDGE on {edges[0].label.name}')
                 suffix_products = [sum_product_edges(fgg, rule.rhs.nodes(), set(), rule.rhs.ext + edges[0].nodes, x, inputs, semiring=semiring)]
             else:
                 #precompute future nodes
-                
                 future_nodes_lookup = []
                 future_nodes = set()
                 for edge in reversed(edges[1:]):
@@ -182,6 +200,7 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                     
                 prefix_products = []
                 prefix_output_nodes = [] 
+                log("-----------------WORKING ON PREFIX--------")
                 for i, edge in enumerate(edges[:-1]):
                     
                     weight = get_weight(fgg, (inputs, x), edge)
@@ -204,6 +223,8 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                     prefix_products.append(out)
                     prefix_output_nodes.append(output_nodes)
                     
+                log(f'\n********PREFIX PRODUCTS\n{prefix_products}*********\n')
+                
                 #precompute past nodes    
                 past_nodes_lookup = []
                 past_nodes = set()
@@ -213,7 +234,8 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                     past_nodes = past_nodes.copy()
 
                 suffix_products = [] 
-                suffix_output_nodes = []         
+                suffix_output_nodes = []  
+                log("*******WORKING ON SUFFIX*******")         
                 for i, edge in enumerate(reversed(edges[1:])):
                     
                     weight = get_weight(fgg, (inputs, x), edge)
@@ -239,22 +261,48 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                 suffix_output_nodes.reverse()
                 suffix_products.reverse()
             
+            log(f'****************SUFFIX***********\n{suffix_products}\n\n')
             for i, edge in enumerate(edges):
+                log(f'\n*******PROCESSING: {i}, {edge.label}*******\n')
                 if i == 0:
                     product = suffix_products[0]
                 elif i == len(edges) - 1:
                     product = prefix_products[-1]
                 else:
                     if prefix_products[i - 1] is None or suffix_products[i] is None: 
+                        log('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^')
                         continue   
+                    log('MULTIPLYING')
                     product = einsum([prefix_products[i-1], suffix_products[i]], 
                                      [prefix_output_nodes[i-1], suffix_output_nodes[i]],
                                      rule.rhs.ext + edge.nodes, semiring)
                 if product is not None:
+                    
+                    
                     if edge.label in Jx.shapes[1]:
+                        log(f'\n\n$$$$$$$$$$$$$=PRODUCT===================\n{product}\n$$$$$$$$$$$$\n\n')
+                        #log('****************trying to add JX**************')
+                        #print(f'For edge {edge}, adding {product} to ', end='')
+                        #log(f'{product} JX\n')
                         Jx.add_single((n, edge.label), product)
                     elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
+                        log(f'\n\n$$$$$$$$$$$$$=PRODUCT===================\n{product}\n$$$$$$$$$$$$\n\n')
+                        #log('%%%%%%%%%%%%trying to add JIN%%%%%%%%%%%%%%%')
+                        # print(f'For edge {edge}, adding {product} to ', end='')
+                        # log('JINs\n')
+                        #log(f'{product} Jin')
+                        # if len(edges) > 1:
+                        #     log(f'edge= {edge.label.name} and outputs: {prefix_output_nodes[-1]}')
                         J_inputs.add_single((n, edge.label), product)
+                    else:
+                        pass
+                        log("!!!!!!!!!!!!!!!!PANIC!!!!!!!!!!!!!!!")
+                        log(f'paniced with {product}\n\n')
+                else:
+                    log('PRODUCT IS NONE')
+                    
+            #log('=====================')
+            #input()
 
     return Jx
 
@@ -262,10 +310,16 @@ def multiply_next_edge(fgg: FGG, previous_weight: PatternedTensor, previous_node
                        current_weight: PatternedTensor, current_nodes: Iterable[Node], 
                        ext: Iterable[Node], semiring: Semiring, nodes, loud: bool = False) -> Tuple[PatternedTensor,Iterable[Node]]:
     
+    
+    
+    # if previous_nodes == []:
+    #     previous_nodes = [current_nodes[0]]
     indexing: List[Sequence[Node]] = [previous_nodes, current_nodes]
     tensors: List[PatternedTensor] = [previous_weight, current_weight]
     connected: Set[Node] = set(list(previous_nodes) + list(current_nodes))
     
+    
+
     ext_orig = ext
     ext = []
     for n in ext_orig:
@@ -278,7 +332,8 @@ def multiply_next_edge(fgg: FGG, previous_weight: PatternedTensor, previous_node
             tensors.append(PatternedTensor.eye(nsize,semiring))
         else:
             ext.append(n)
-                  
+            
+            
     for n in ext:
         for ind in indexing:
             if n in ind: 
@@ -288,12 +343,28 @@ def multiply_next_edge(fgg: FGG, previous_weight: PatternedTensor, previous_node
             tensors.append(PatternedTensor.eye(nsize,semiring))
             indexing.append([n])
                      
-    #outputs = [node for node in ext if node in connected]
+    # If an external node has no edges, einsum will complain, so remove it.
+    # outputs = [node for node in ext if node in connected]
     #outputs = sorted(ext, key=lambda x: str(x.id), reverse=True)
     outputs = ext
+    log('================CALL TO EINSUM=============')
+    log(f'TENSOR ', tensors)
+    log('-------------')
+    log(f'INDEXING ', indexing)
+    log('------')
+    log('OUTPUTS ', outputs)
+    log('=======================================')
+    
+    t = []
+    for tensor in tensors:
+        t.append(tensor.to(semiring.dtype))
+    tensors = t
+        
     
     # this assert has something to do with linear, cycle and simple gradients being off
     assert(all(tensor.physical.dtype == semiring.dtype for tensor in tensors))
+    #
+    #print(f'EINSUM CALL: \ntensors: {tensors}\n\nindexing: {indexing}\n\noutputs: {outputs}\n\n')
     
     out = einsum(tensors, indexing, outputs, semiring)
     # if duplicate:
@@ -413,14 +484,13 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
 
     # If an external node has no edges, einsum will complain, so remove it.
     outputs = [node for node in ext if node in connected]
-    if loud:
-        print('================CALL TO EINSUM=============')
-        print(f'TENSORS', tensors)
-        print('-------------')
-        print(f'INDEXING', indexing)
-        print('------')
-        print('OUTPUTS', outputs)
-        print('=======================================')
+    log('================CALL TO EINSUM=============')
+    log(f'TENSORS', tensors)
+    log('-------------')
+    log(f'INDEXING', indexing)
+    log('------')
+    log('OUTPUTS', outputs)
+    log('=======================================')
     assert(all(tensor.physical.dtype == semiring.dtype for tensor in tensors))
     #print(f'EINSUM CALL: \ntensors: {tensors}\n\nindexing: {indexing}\n\noutputs: {outputs}\n\n')
     out = einsum(tensors, indexing, outputs, semiring)
