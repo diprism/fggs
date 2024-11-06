@@ -159,8 +159,8 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
             if len(edges) == 1:
                 suffix_products = [sum_product_edges(fgg, rule.rhs.nodes(), set(), rule.rhs.ext + edges[0].nodes, x, inputs, semiring=semiring)]
             else:
-                prefix_products, prefix_output_nodes = compute_products(fgg, (x, inputs), edges, list(rule.rhs.ext), semiring, "forward")
-                suffix_products, suffix_output_nodes = compute_products(fgg, (x, inputs), edges, list(rule.rhs.ext), semiring, "backward")
+                prefix_products, prefix_output_nodes = compute_products(fgg, (x, inputs), edges, rule, semiring, "forward")
+                suffix_products, suffix_output_nodes = compute_products(fgg, (x, inputs), edges, rule, semiring, "backward")
                 
             for i, edge in enumerate(edges):
                 if i == 0:
@@ -184,7 +184,7 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                         J_inputs.add_single((n, edge.label), product)
     return Jx
 
-def compute_products(fgg: FGG, inputses: Iterable[MultiTensor], edges: List[Edge], rule_ext: List[Node], semiring: Semiring, direction: str) -> Tuple[List[Optional[PatternedTensor]], List[Optional[List[Node]]]]:
+def compute_products(fgg: FGG, inputses: Iterable[MultiTensor], edges: List[Edge], rule: HRGRule, semiring: Semiring, direction: str) -> Tuple[List[Optional[PatternedTensor]], List[Optional[List[Node]]]]:
     if direction == 'forward':
         future_nodes_slice: Iterable[Edge] = reversed(edges[1:])
         edge_loop_slice: Iterable[Edge] = edges[:-1]
@@ -221,7 +221,7 @@ def compute_products(fgg: FGG, inputses: Iterable[MultiTensor], edges: List[Edge
             break
                           
         out, out_nodes = multiply_next_edge(fgg, previous_weight, previous_output_nodes, weight,
-                                list(edge.nodes), rule_ext + future_nodes_lookup[i], semiring)
+                                list(edge.nodes), list(rule.rhs.ext) + future_nodes_lookup[i], list(rule.rhs.nodes()), semiring)
             
         products.append(out)
         output_nodes.append(out_nodes)
@@ -235,7 +235,7 @@ def compute_products(fgg: FGG, inputses: Iterable[MultiTensor], edges: List[Edge
 
 def multiply_next_edge(fgg: FGG, previous_weight: PatternedTensor, previous_nodes: List[Node], 
                        current_weight: PatternedTensor, current_nodes: List[Node], 
-                       ext: Iterable[Node], semiring: Semiring) -> Tuple[PatternedTensor, List[Node]]:
+                       ext: Iterable[Node], rule_rhs_nodes: List[Node], semiring: Semiring) -> Tuple[PatternedTensor, List[Node]]:
     
     indexing: List[Sequence[Node]] = [previous_nodes, current_nodes]
     tensors: List[PatternedTensor] = [previous_weight, current_weight]
@@ -258,7 +258,20 @@ def multiply_next_edge(fgg: FGG, previous_weight: PatternedTensor, previous_node
         
     assert(all(tensor.physical.dtype == semiring.dtype for tensor in tensors))
     out = einsum(tensors, indexing, output_nodes, semiring)
+    # if out.ndim < len(ext):
+    #     eshape = fgg.shape(ext)
+    #     vshape = [s if n in connected else 1 for n, s in zip(ext, eshape)]
+    #     out = out.view(*vshape).expand(*eshape)
+
+    # Multiply in any disconnected internal nodes.
+    multiplier = 1
+    for n in rule_rhs_nodes:
+        if n not in connected and n not in ext:
+            multiplier *= fgg.domains[n.label.name].size()
+    if multiplier != 1:
+        out = semiring.mul(out, PatternedTensor.from_int(multiplier, semiring))
     assert(out.physical.dtype == semiring.dtype)
+    
     return out, output_nodes
 
 def log_softmax(a: TensorLikeT, dim: int) -> TensorLikeT:
