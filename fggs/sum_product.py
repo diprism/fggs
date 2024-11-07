@@ -258,10 +258,10 @@ def multiply_next_edge(fgg: FGG, previous_weight: PatternedTensor, previous_node
         
     assert(all(tensor.physical.dtype == semiring.dtype for tensor in tensors))
     out = einsum(tensors, indexing, output_nodes, semiring)
-    # if out.ndim < len(ext):
-    #     eshape = fgg.shape(ext)
-    #     vshape = [s if n in connected else 1 for n, s in zip(ext, eshape)]
-    #     out = out.view(*vshape).expand(*eshape)
+    if out.ndim < len(output_nodes):
+        eshape = fgg.shape(output_nodes)
+        vshape = [s if n in connected else 1 for n, s in zip(output_nodes, eshape)]
+        out = out.view(*vshape).expand(*eshape)
 
     # Multiply in any disconnected internal nodes.
     multiplier = 1
