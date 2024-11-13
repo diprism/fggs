@@ -161,7 +161,7 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
             else:
                 prefix_products, prefix_output_nodes = compute_products(fgg, (x, inputs), edges, rule, semiring, "forward")
                 suffix_products, suffix_output_nodes = compute_products(fgg, (x, inputs), edges, rule, semiring, "backward")
-                
+            
             for i, edge in enumerate(edges):
                 if i == 0:
                     product = suffix_products[0]
@@ -174,12 +174,23 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                     suffix_product: PatternedTensor = cast(PatternedTensor, suffix_products[i])
                     prefix_output_node: List[Node] = cast(List[Node], prefix_output_nodes[i - 1])
                     suffix_output_node: List[Node] = cast(List[Node], suffix_output_nodes[i])
+                    #product, _ = multiply_next_edge(fgg, prefix_product, prefix_output_node, suffix_product, suffix_output_node, list(rule.rhs.ext) + list(edge.nodes), list(rule.rhs.nodes()), semiring)
                     product = einsum([prefix_product, suffix_product], 
-                                    [prefix_output_node, suffix_output_node],
-                                    rule.rhs.ext + edge.nodes, semiring)
+                                [prefix_output_node, suffix_output_node],
+                                [n for n in rule.rhs.ext + edge.nodes if n in prefix_output_node or n in suffix_output_node], semiring)
                 if product is not None:
+                    ext = list(rule.rhs.ext) + list(edge.nodes)
+                    if product.ndim < len(ext):
+                        connected = set()
+                        for e in edges:
+                            if i != 0 and i != len(edges) -1 and e is edge: continue
+                            connected.update(e.nodes)
+                        eshape = fgg.shape(ext)
+                        vshape = [s if n in connected else 1 for n, s in zip(ext, eshape)]
+                        product = product.view(*vshape).expand(*eshape)
+
                     if edge.label in Jx.shapes[1]:
-                        Jx.add_single((n, edge.label), product)
+                        Jx.add_single((n, edge.label), product)    
                     elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
                         J_inputs.add_single((n, edge.label), product)
     return Jx
@@ -220,8 +231,8 @@ def compute_products(fgg: FGG, inputses: Iterable[MultiTensor], edges: List[Edge
             output_nodes.extend( [None] * (len(edges) - 1 - i))
             break
                           
-        out, out_nodes = multiply_next_edge(fgg, previous_weight, previous_output_nodes, weight,
-                                list(edge.nodes), list(rule.rhs.ext) + future_nodes_lookup[i], list(rule.rhs.nodes()), semiring)
+        out, out_nodes = multiply_next_edge(fgg, previous_weight, previous_output_nodes, weight, list(edge.nodes), 
+                                            list(rule.rhs.ext) + future_nodes_lookup[i], list(rule.rhs.nodes()), semiring)
             
         products.append(out)
         output_nodes.append(out_nodes)
@@ -255,15 +266,10 @@ def multiply_next_edge(fgg: FGG, previous_weight: PatternedTensor, previous_node
             ext.append(n)
             
     output_nodes = [n for n in ext if n in connected]
-        
+    
     assert(all(tensor.physical.dtype == semiring.dtype for tensor in tensors))
     out = einsum(tensors, indexing, output_nodes, semiring)
-    if out.ndim < len(output_nodes):
-        eshape = fgg.shape(output_nodes)
-        vshape = [s if n in connected else 1 for n, s in zip(output_nodes, eshape)]
-        out = out.view(*vshape).expand(*eshape)
-
-    # Multiply in any disconnected internal nodes.
+    
     multiplier = 1
     for n in rule_rhs_nodes:
         if n not in connected and n not in ext:
@@ -271,7 +277,7 @@ def multiply_next_edge(fgg: FGG, previous_weight: PatternedTensor, previous_node
     if multiplier != 1:
         out = semiring.mul(out, PatternedTensor.from_int(multiplier, semiring))
     assert(out.physical.dtype == semiring.dtype)
-    
+
     return out, output_nodes
 
 def log_softmax(a: TensorLikeT, dim: int) -> TensorLikeT:
