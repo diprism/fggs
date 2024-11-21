@@ -125,7 +125,7 @@ def print_duplicate(loc: str, xs: Sequence[Node], ys: Sequence[Node]) -> bool:
         return False
 
 
-def _J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
+def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
       J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
     """The Jacobian of F."""
     Jx = MultiTensor(x.shapes+x.shapes, semiring)
@@ -148,8 +148,7 @@ def _J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                         assert False
     return Jx
 
-
-def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
+def J_precompute_products(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
       J_inputs: Optional[MultiTensor] = None) -> MultiTensor:
     """The Jacobian of F. New version that takes out the double loop over edges"""
     Jx = MultiTensor(x.shapes+x.shapes, semiring)
@@ -161,7 +160,6 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
             else:
                 prefix_products, prefix_output_nodes = compute_products(fgg, (x, inputs), edges, rule, semiring, "forward")
                 suffix_products, suffix_output_nodes = compute_products(fgg, (x, inputs), edges, rule, semiring, "backward")
-            
             for i, edge in enumerate(edges):
                 if i == 0:
                     product = suffix_products[0]
@@ -169,16 +167,17 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                     product = prefix_products[-1]
                 else:
                     if prefix_products[i - 1] is None or suffix_products[i] is None: continue
-                    #casts to from optional to satisfy mypy
+                    #casts from optional to satisfy mypy
                     prefix_product: PatternedTensor = cast(PatternedTensor, prefix_products[i - 1])
                     suffix_product: PatternedTensor = cast(PatternedTensor, suffix_products[i])
-                    prefix_output_node: List[Node] = cast(List[Node], prefix_output_nodes[i - 1])
-                    suffix_output_node: List[Node] = cast(List[Node], suffix_output_nodes[i])
-                    #product, _ = multiply_next_edge(fgg, prefix_product, prefix_output_node, suffix_product, suffix_output_node, list(rule.rhs.ext) + list(edge.nodes), list(rule.rhs.nodes()), semiring)
-                    product = einsum([prefix_product, suffix_product], 
-                                [prefix_output_node, suffix_output_node],
-                                [n for n in rule.rhs.ext + edge.nodes if n in prefix_output_node or n in suffix_output_node], semiring)
+                    prefix_output_node: List[Node]  = cast(List[Node], prefix_output_nodes[i - 1])
+                    suffix_output_node: List[Node]  = cast(List[Node], suffix_output_nodes[i])
+                    product = einsum([prefix_product, suffix_product],
+                                     [prefix_output_node, suffix_output_node],
+                                     [n for n in rule.rhs.ext + edge.nodes if n in prefix_output_node or n in suffix_output_node], 
+                                     semiring)
                 if product is not None:
+                    # add back removed disconnected external nodes
                     ext = list(rule.rhs.ext) + list(edge.nodes)
                     if product.ndim < len(ext):
                         connected = set()
@@ -188,7 +187,6 @@ def J(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
                         eshape = fgg.shape(ext)
                         vshape = [s if n in connected else 1 for n, s in zip(ext, eshape)]
                         product = product.view(*vshape).expand(*eshape)
-
                     if edge.label in Jx.shapes[1]:
                         Jx.add_single((n, edge.label), product)    
                     elif J_inputs is not None and edge.label in J_inputs.shapes[1]:
@@ -204,7 +202,7 @@ def compute_products(fgg: FGG, inputses: Iterable[MultiTensor], edges: List[Edge
         edge_loop_slice = reversed(edges[1:])
     else:
         raise ValueError("Direction must be 'forward' or 'backward'.")
-        
+
     future_nodes_lookup = []
     future_nodes = []
     seen_nodes = set()
@@ -222,26 +220,20 @@ def compute_products(fgg: FGG, inputses: Iterable[MultiTensor], edges: List[Edge
     previous_weight: PatternedTensor = PatternedTensor.eye(1, semiring=semiring)
     previous_output_nodes: List[Node] = []
     for i, edge in enumerate(edge_loop_slice):
-        for inputs in inputses:
-            if edge.label in inputs:
-                weight = inputs[edge.label]
-                break
-        else:
+        weight = get_weight(edge, inputses)
+        if weight is None:
             products.extend( [None] * (len(edges) - 1 - i))
             output_nodes.extend( [None] * (len(edges) - 1 - i))
             break
-                          
         out, out_nodes = multiply_next_edge(fgg, previous_weight, previous_output_nodes, weight, list(edge.nodes), 
                                             list(rule.rhs.ext) + future_nodes_lookup[i], list(rule.rhs.nodes()), semiring)
-            
         products.append(out)
         output_nodes.append(out_nodes)
         previous_weight, previous_output_nodes = out, out_nodes
-    
+
     if direction == 'backward':
         output_nodes.reverse()
         products.reverse()
-        
     return products, output_nodes
 
 def multiply_next_edge(fgg: FGG, previous_weight: PatternedTensor, previous_nodes: List[Node], 
@@ -252,32 +244,15 @@ def multiply_next_edge(fgg: FGG, previous_weight: PatternedTensor, previous_node
     tensors: List[PatternedTensor] = [previous_weight, current_weight]
     connected: Set[Node] = set(previous_nodes + current_nodes)
 
-    ext_orig = ext
-    ext = []
-    for n in ext_orig:
-        if n in ext:
-            ncopy = Node(n.label)
-            ext.append(ncopy)
-            connected.update([n, ncopy])
-            indexing.append([n, ncopy])
-            nsize = fgg.domains[n.label.name].size()
-            tensors.append(PatternedTensor.eye(nsize,semiring))
-        else:
-            ext.append(n)
-            
+    ext, duplicate = rename_duplicate_nodes(fgg, ext, tensors, indexing, connected, semiring)
     output_nodes = [n for n in ext if n in connected]
     
     assert(all(tensor.physical.dtype == semiring.dtype for tensor in tensors))
     out = einsum(tensors, indexing, output_nodes, semiring)
-    
-    multiplier = 1
-    for n in rule_rhs_nodes:
-        if n not in connected and n not in ext:
-            multiplier *= fgg.domains[n.label.name].size()
-    if multiplier != 1:
-        out = semiring.mul(out, PatternedTensor.from_int(multiplier, semiring))
-    assert(out.physical.dtype == semiring.dtype)
+    if duplicate:
+        print('einsum produced', out.physical.size(), 'for', out.size(), file=stderr)
 
+    out = multiply_in_disconnected_internals(out, rule_rhs_nodes, connected, ext, semiring, fgg)
     return out, output_nodes
 
 def log_softmax(a: TensorLikeT, dim: int) -> TensorLikeT:
@@ -325,6 +300,42 @@ def J_log(fgg: FGG, x: MultiTensor, inputs: MultiTensor, semiring: Semiring,
     return Jx
 
 
+def multiply_in_disconnected_internals(out: PatternedTensor, nodes: Iterable[Node], connected: Set[Node], ext: Iterable[Node], semiring: Semiring, fgg: FGG) -> PatternedTensor:
+    """Multiply in any disconnected internal nodes"""
+    multiplier = 1
+    for n in nodes:
+        if n not in connected and n not in ext:
+            multiplier *= fgg.domains[n.label.name].size()
+    if multiplier != 1:
+        return semiring.mul(out, PatternedTensor.from_int(multiplier, semiring))
+    return out
+
+def rename_duplicate_nodes(fgg: FGG, ext: Iterable[Node], tensors: List[PatternedTensor], indexing: List[Sequence[Node]], connected: Set[Node], semiring: Semiring):
+    """ Derivatives can sometimes produce duplicate external nodes.
+        Rename them apart and add identity factors between them."""
+    ext_orig = ext
+    ext = []
+    debug_duplicate = False
+    for n in ext_orig:
+        if n in ext:
+            ncopy = Node(n.label)
+            ext.append(ncopy)
+            connected.update([n, ncopy])
+            indexing.append([n, ncopy])
+            nsize = fgg.domains[n.label.name].size()
+            tensors.append(PatternedTensor.eye(nsize,semiring))
+            #debug_duplicate = True # Uncomment this line for debugging messages
+        else:
+            ext.append(n)
+
+    return ext, debug_duplicate
+
+def get_weight(edge, inputses):
+    for inputs in inputses:
+        if edge.label in inputs:
+            return inputs[edge.label]
+    return None
+
 def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ext: Sequence[Node], *inputses: MultiTensor, semiring: Semiring) -> Optional[PatternedTensor]:
     """Compute the sum-product of a set of edges.
 
@@ -342,34 +353,16 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
     connected: Set[Node] = set()
     indexing: List[Sequence[Node]] = []
     tensors: List[PatternedTensor] = []
-
-    # Derivatives can sometimes produce duplicate external nodes.
-    # Rename them apart and add identity factors between them.
-    ext_orig = ext
-    ext = []
-    duplicate = False
-    for n in ext_orig:
-        if n in ext:
-            ncopy = Node(n.label)
-            ext.append(ncopy)
-            connected.update([n, ncopy])
-            indexing.append([n, ncopy])
-            nsize = fgg.domains[n.label.name].size()
-            tensors.append(PatternedTensor.eye(nsize,semiring))
-            #duplicate = True # Uncomment this line for debugging messages
-        else:
-            ext.append(n)
+    ext, duplicate = rename_duplicate_nodes(fgg, ext, tensors, indexing, connected, semiring)
 
     for edge in edges:
         connected.update(edge.nodes)
         indexing.append(edge.nodes)
-        for inputs in reversed(inputses):
-            if edge.label in inputs:
-                tensors.append(inputs[edge.label])
-                break
+        weight = get_weight(edge, inputses)
+        if weight is not None:
+            tensors.append(weight)
         else:
-            # One argument to einsum will be the zero tensor, so just return zero
-            return None
+            return None  #One argument to einsum will be the zero tensor, so just return zero
 
     # If an external node has no edges, einsum will complain, so remove it.
     outputs = [node for node in ext if node in connected]
@@ -385,13 +378,8 @@ def sum_product_edges(fgg: FGG, nodes: Iterable[Node], edges: Iterable[Edge], ex
         vshape = [s if n in connected else 1 for n, s in zip(ext, eshape)]
         out = out.view(*vshape).expand(*eshape)
 
-    # Multiply in any disconnected internal nodes.
-    multiplier = 1
-    for n in nodes:
-        if n not in connected and n not in ext:
-            multiplier *= fgg.domains[n.label.name].size()
-    if multiplier != 1:
-        out = semiring.mul(out, PatternedTensor.from_int(multiplier, semiring))
+    out = multiply_in_disconnected_internals(out, nodes, connected, ext, semiring, fgg)
+
     assert(out.physical.dtype == semiring.dtype)
     return out
 
@@ -472,7 +460,7 @@ class SumProduct(torch.autograd.Function):
             Optional[Tensor]                   # rest tuple components (same length as out_labels)
         ], ...]:
         ctx.fgg = fgg
-        method, semiring = opts['method'], opts['semiring']
+        method, semiring, j_precompute = opts['method'], opts['semiring'], opts.get('j_precompute', False)
         ctx.opts = opts
         ctx.in_labels = in_labels
         ctx.out_labels = out_labels
@@ -489,7 +477,8 @@ class SumProduct(torch.autograd.Function):
                             x0, tol=opts['tol'], kmax=opts['kmax'])
             elif method == 'newton':
                 newton(lambda x: F(fgg, x, inputs, semiring),
-                       lambda x: J(fgg, x, inputs, semiring),
+                       lambda x: J_precompute_products(fgg, x, inputs, semiring)
+                       if j_precompute else J(fgg, x, inputs, semiring),
                        x0, tol=opts['tol'], kmax=opts['kmax'])
             elif method == 'one-step':
                 x0.copy_(F(fgg, x0, inputs, semiring))
@@ -519,7 +508,10 @@ class SumProduct(torch.autograd.Function):
                                  FGGMultiShape(ctx.fgg, (el for el, _ in ctx.in_labels))),
                                 real_semiring)
         if isinstance(semiring, RealSemiring):
-            jf = J(ctx.fgg, ctx.out_values, inputs, semiring, jf_inputs)
+            if ctx.opts.get('j_precompute', False):
+                jf = J_precompute_products(ctx.fgg, ctx.out_values, inputs, semiring, jf_inputs)
+            else:
+                jf = J(ctx.fgg, ctx.out_values, inputs, semiring, jf_inputs)
         elif isinstance(semiring, LogSemiring):
             jf = J_log(ctx.fgg, ctx.out_values, inputs, semiring, jf_inputs)
         else:
@@ -551,6 +543,7 @@ def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
     opts.setdefault('semiring', RealSemiring())
     opts.setdefault('tol',      1e-5) # with float32, 1e-6 can fail
     opts.setdefault('kmax',     1000) # for fixed-point, 100 is too low
+
     if isinstance(opts['semiring'], BoolSemiring):
         opts['tol'] = 0
 

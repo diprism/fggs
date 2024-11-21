@@ -16,34 +16,37 @@ find_file_ans() {
 test_cases_good=$(find_file_ans "tests/good")
 all_test_cases="${test_cases_good}"
 all_test_cases=(${all_test_cases// / })
-case_number=${#all_test_cases[@]}
+case_number=0
 error_number=0
 
-for case in "${all_test_cases[@]}"; do
-    file_and_ans=(${case//@/ })
-    file=${file_and_ans[0]}
-    ans=${file_and_ans[1]}
-    printf '%-40s' "Testing ${file}... "
-    result=$(./perplc $file | ${PYTHON:-python} bin/sum_product.py -G -d /dev/stdin)
-    if [ $? = 0 ]; then
-        correct=$(echo ${ans} | round)
-        out=$(echo ${result} | sed -E 's|([^grad]*)grad.*|\1|g' | round)
-        nl=$'\n'
-        grad=$(echo ${result} | sed -E 's|([^grad]*)(grad.*)|\2|g' | sed -E 's/grad/'"\\${nl}"'/g')
-        if [ -n "$correct" ]; then
-            if [ "$correct" = "$out" ]; then
-                echo "Success, gradients: ${grad}"
-            else
-                echo "Failure"
-                echo "Incorrect result in ${file}: ${correct} != ${out}"
-                error_number=$((error_number+1))
+for options in "-G -d" "-j -G -d"; do
+    for case in "${all_test_cases[@]}"; do
+        case_number=$((case_number+1))
+        file_and_ans=(${case//@/ })
+        file=${file_and_ans[0]}
+        ans=${file_and_ans[1]}
+        printf '%-40s' "Testing ${file} with options ${options}... "
+        result=$(./perplc $file | ${PYTHON:-python} bin/sum_product.py ${options} /dev/stdin)
+        if [ $? = 0 ]; then
+            correct=$(echo ${ans} | round)
+            out=$(echo ${result} | sed -E 's|([^grad]*)grad.*|\1|g' | round)
+            nl=$'\n'
+            grad=$(echo ${result} | sed -E 's|([^grad]*)(grad.*)|\2|g' | sed -E 's/grad/'"\\${nl}"'/g')
+            if [ -n "$correct" ]; then
+                if [ "$correct" = "$out" ]; then
+                    echo "Success, gradients: ${grad}"
+                else
+                    echo "Failure"
+                    echo "Incorrect result in ${file}: ${correct} != ${out}"
+                    error_number=$((error_number+1))
+                fi
             fi
+        else
+            echo "Failure"
+            echo "Error in ${file}: the program returned a non-zero code"
+            error_number=$((error_number+1))
         fi
-    else
-        echo "Failure"
-        echo "Error in ${file}: the program returned a non-zero code"
-        error_number=$((error_number+1))
-    fi
+    done
 done
 
 if [ "${error_number}" -eq "0" ]; then
