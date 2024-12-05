@@ -41,6 +41,7 @@ if __name__ == '__main__':
     ap.add_argument('-t', dest='trace', action='store_true', help='print out all intermediate sum-products')
     ap.add_argument('-d', dest='double', action='store_true', help='use double-precision floating-point')
     ap.add_argument('-p', dest='pretty', action='store_true', help='pretty print weights together with the value names')
+    ap.add_argument('-j', dest='j_precompute', action='store_true', help='precompute products while solving the Jacobian (faster for rules with many edges)')
     ap.add_argument('--tikz', metavar='<file>', dest='tikz', default=None, help='convert the input JSON to tikz and write the output to the given file')
 
     args = ap.parse_args()
@@ -109,7 +110,7 @@ if __name__ == '__main__':
         for w in fgg.factors.values():
             w.weights.requires_grad_()
 
-    zs = fggs.sum_products(fgg, method=args.method, tol=args.tol, kmax=args.kmax)
+    zs = fggs.sum_products(fgg, method=args.method, tol=args.tol, kmax=args.kmax, j_precompute=args.j_precompute)
     z = zs[fgg.start]
 
     if args.trace:

@@ -540,8 +540,8 @@ def reshape_or_view(f: Callable[[Tensor, List[int]], Tensor],
     assert(all(goal >= 0 for goal in s))
     assert(numel == reduce(mul, s, 1))
     subst : Subst = {}
-    vaxes = tuple(unitAxis if goal == 1 else PhysicalAxis(goal)
-                  for goal in s)
+    vaxes: Tuple[Axis, ...] = tuple(unitAxis if goal == 1 else PhysicalAxis(goal) 
+                                    for goal in s)
     if not productAxis(vaxes).unify(productAxis(self.vaxes), subst):
         raise RuntimeError(f'Cannot reshape_or_view {self} to {s}')
     paxes = tuple(cast(PhysicalAxis, k) for e in self.paxes
