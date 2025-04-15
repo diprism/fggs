@@ -529,7 +529,7 @@ class SumProduct(torch.autograd.Function):
                      else nonphysical.reincarnate(physical)
                      for nt, nonphysical, physical in zip(out_labels, nonphysicals, physicals))
 
-def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
+def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, PatternedTensor]:
     opts.setdefault('method',   'fixed-point')
     opts.setdefault('semiring', RealSemiring())
     opts.setdefault('tol',      1e-5) # with float32, 1e-6 can fail
@@ -566,7 +566,7 @@ def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
         all.update(zip(comp_labels, comp_values))
     return all
         
-def sum_product(fgg: FGG, **opts) -> Tensor:
+def sum_product(fgg: FGG, **opts) -> PatternedTensor:
     """Compute the sum-product of an FGG.
     
     - fgg: The FGG to compute the sum-product of.

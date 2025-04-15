@@ -93,7 +93,6 @@ from torch import Tensor, Size
 import torch_semiring_einsum
 from torch_semiring_einsum import Equation
 from fggs.semirings import Semiring
-from memory_profiler import profile
 
 __all__ = ['Axis', 'PhysicalAxis', 'ProductAxis', 'productAxis', 'unitAxis', 'SumAxis',
            'Nonphysical', 'PatternedTensor', 'stack', 'einsum', 'log_viterbi_einsum_forward',
@@ -1504,7 +1503,7 @@ def depict_einsum(fun: str,
                      [f"    -> {' '.join(map(letterer, output))})"])
 
 
-def unexpanded_shape(t : Tensor) -> Sequence[int]:
+def unexpanded_shape(t : Tensor) -> List[int]:
     original_shape = []
     for (strd, shap) in zip(t.stride(), t.shape):
         if strd != 0:
@@ -1522,10 +1521,10 @@ def unexpanded_shape(t : Tensor) -> Sequence[int]:
 
 
 def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
-                    tensors: Sequence[Tensor]) -> Tuple[Sequence[Tensor],
-                                                        Equation,
-                                                        Sequence[int],
-                                                        Sequence[int]]:
+                    tensors: List[Tensor]) -> Tuple[List[Tensor],
+                                                    Equation,
+                                                    List[int],
+                                                    List[int]]:
     # step 1: get the output shape, this will be used as the final expand
     output_shape = compiled_equation.get_sizes(
         tensors, compiled_equation.output_variables)
@@ -1544,13 +1543,13 @@ def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
         return (tensors, compiled_equation, [], output_shape)
 
     # step 4: get the shrinked tensor for all input tensors
-    shrinked_strides = []
+    shrinked_strides : List[List[int]] = []
     for shapes in shrinked_shapes:
         if len(shapes) == 0:
             shrinked_strides.append([])
         else:
             shrinked_strides.append(reduce(lambda r, x: [x*r[0]] + r, shapes[-1:0:-1], [1]))
-    shrinked_tensors = [torch.as_strided(t, s, d)
+    shrinked_tensors = [torch.as_strided(t, tuple(s), tuple(d))
                         for t, s, d in zip(tensors, shrinked_shapes, shrinked_strides)]
 
     # step 5: reduce each input's equation
@@ -1611,11 +1610,11 @@ def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
 
 
 def post_einsum(result: Tensor,
-                unsqueeze_index: Sequence[int],
-                output_shape: Sequence[int]) -> Tensor:
+                unsqueeze_index: List[int],
+                output_shape: List[int]) -> Tensor:
     for v in unsqueeze_index:
         result = result.unsqueeze(v)
-    result = result.expand(output_shape)
+    result = result.expand(torch.Size(output_shape))
     return result
 
 
