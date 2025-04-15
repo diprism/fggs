@@ -533,6 +533,215 @@ class TestPatternedTensor(unittest.TestCase):
             self.assertTEqual(at_most_matrix(a.solve(b, semiring).to_dense()),
                               semiring.solve(a.to_dense(), at_most_matrix(b.to_dense())))
 
+    def test_reduce_equation(self):
+        eq = 'ij,ji->ij'
+        compiled_eq = torch_semiring_einsum.compile_equation(eq)
+
+        si = 2
+        sj = 3
+        shapes_a = [[], [1], [sj], [1, 1], [si, 1], [1, sj], [si, sj]]
+        shapes_b = [[], [1], [si], [1, 1], [sj, 1], [1, si], [sj, si]]
+
+        ten_a = [
+            torch.tensor(0.1),
+            torch.tensor([0.1]),
+            torch.tensor([0.1, 0.2, 0.3]),
+            torch.tensor([[0.1]]),
+            torch.tensor([[0.1], [0.2]]),
+            torch.tensor([[0.1, 0.2, 0.3]]),
+            torch.tensor([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
+        ]
+
+        ten_b = [
+            torch.tensor(1),
+            torch.tensor([1]),
+            torch.tensor([1, 10]),
+            torch.tensor([[1]]),
+            torch.tensor([[1], [10], [100]]),
+            torch.tensor([[1, 10]]),
+            torch.tensor([[1, 10], [2, 20], [3, 30]])
+        ]
+
+        expected_equations = [
+            # []
+            [
+                ",->",
+                ",->",
+                ",a->a",
+                ",->",
+                ",ab->ba",
+                ",a->a",
+                ",ab->ba",
+            ],
+            # [1]
+            [
+                ",->",
+                ",->",
+                ",a->a",
+                ",->",
+                ",ab->ba",
+                ",a->a",
+                ",ab->ba",
+            ],
+            # [sj]
+            [
+                "a,->a",
+                "a,->a",
+                "a,b->ba",
+                "a,->a",
+                "a,ab->ba",
+                "a,b->ba",
+                "a,ab->ba",
+            ],
+            # [1,1]
+            [
+                ",->",
+                ",->",
+                ",a->a",
+                ",->",
+                ",ab->ba",
+                ",a->a",
+                ",ab->ba",
+            ],
+            # [si,1]
+            [
+                "ab,->ab",
+                "ab,->ab",
+                "ab,a->ab",
+                "ab,->ab",
+                "ab,ba->ab",  # None,
+                "ab,a->ab",
+                "ab,ba->ab",  # None,
+            ],
+            # [1,sj]
+            [
+                "a,->a",
+                "a,->a",
+                "a,b->ba",
+                "a,->a",
+                "a,ab->ba",
+                "a,b->ba",
+                "a,ab->ba",
+            ],
+            # [si,sj]
+            [
+                "ab,->ab",
+                "ab,->ab",
+                "ab,a->ab",
+                "ab,->ab",
+                "ab,ba->ab",  # None,
+                "ab,a->ab",
+                "ab,ba->ab",  # None,
+            ]
+        ]
+
+        expected_output_shape = [2, 3]
+
+        expected_unsqueeze = [
+            # []
+            [
+                [0, 1],
+                [0, 1],
+                [1],
+                [0, 1],
+                [],
+                [1],
+                [],
+            ],
+            # [1]
+            [
+                [0, 1],
+                [0, 1],
+                [1],
+                [0, 1],
+                [],
+                [1],
+                [],
+            ],
+            # [sj]
+            [
+                [0],
+                [0],
+                [],
+                [0],
+                [],
+                [],
+                [],
+            ],
+            # [1,1]
+            [
+                [0, 1],
+                [0, 1],
+                [1],
+                [0, 1],
+                [],
+                [1],
+                [],
+            ],
+            # [si,1]
+            [
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+            ],
+            # [1,sj]
+            [
+                [0],
+                [0],
+                [],
+                [0],
+                [],
+                [],
+                [],
+            ],
+            # [si,sj]
+            [
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+            ]
+        ]
+
+        for i, a in enumerate(ten_a):
+            a = a.clone()
+            for j, b in enumerate(ten_b):
+                b = b.clone()
+                ea = a.expand(si, sj)
+                eb = b.expand(sj, si)
+                eeq = expected_equations[i][j]
+                eun = expected_unsqueeze[i][j]
+                ref_ceq = torch_semiring_einsum.compile_equation(eeq)
+                (shrinked_tensors, reduced_eq, unsqueeze_index,
+                 output_shape) = reduce_equation(compiled_eq, (ea, eb))
+
+                self.assertEqual(reduced_eq.input_variables, ref_ceq.input_variables, (a, b))
+                self.assertEqual(reduced_eq.output_variables, ref_ceq.output_variables)
+                self.assertEqual(output_shape, expected_output_shape)
+                for st, dims in zip(shrinked_tensors, reduced_eq.input_variables):
+                    self.assertEqual(st.dim(), len(dims))
+                self.assertEqual(unsqueeze_index, eun)
+
+                expected_out = torch_semiring_einsum.einsum(
+                    compiled_eq,
+                    ea,
+                    eb,
+                    block_size=torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE)
+                actual_out = torch_semiring_einsum.einsum(
+                    reduced_eq,
+                    *shrinked_tensors,
+                    block_size=torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE)
+                actual_out = post_einsum(actual_out, unsqueeze_index, output_shape)
+                self.assertTEqual(actual_out, expected_out)
+
+
 def at_most_matrix(t: torch.Tensor) -> torch.Tensor:
     return t.flatten(start_dim=1) if t.ndim >= 2 else t
 

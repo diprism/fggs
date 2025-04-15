@@ -465,16 +465,17 @@ class SumProduct(torch.autograd.Function):
             if method == 'fixed-point':
                 fixed_point(lambda x: F(fgg, x, inputs, semiring),
                             x0, tol=opts['tol'], kmax=opts['kmax'])
+                out = x0
             elif method == 'newton':
                 newton(lambda x: F(fgg, x, inputs, semiring),
                        lambda x: J_precompute_products(fgg, x, inputs, semiring)
                        if j_precompute else J(fgg, x, inputs, semiring),
                        x0, tol=opts['tol'], kmax=opts['kmax'])
+                out = x0
             elif method == 'one-step':
-                x0.copy_(F(fgg, x0, inputs, semiring))
+                out = F(fgg, x0, inputs, semiring)
             else:
                 raise ValueError('unsupported method for computing sum-product')
-            out = x0
 
         ctx.out_values = out
         return tuple(chain((tuple(out[nt].nonphysical() if nt in out else None
@@ -563,7 +564,7 @@ def sum_products(fgg: FGG, **opts) -> Dict[EdgeLabel, Tensor]:
         comp_labels = list(comp)
         comp_values = SumProduct.apply_to_patterned_tensors(fgg, comp_opts, inputs.keys(), comp_labels, *inputs.values())
         all.update(zip(comp_labels, comp_values))
-    return {label: t.to_dense() for label, t in all.items()}
+    return all
         
 def sum_product(fgg: FGG, **opts) -> Tensor:
     """Compute the sum-product of an FGG.

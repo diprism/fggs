@@ -91,10 +91,13 @@ from sys import float_info#, stderr
 import torch
 from torch import Tensor, Size
 import torch_semiring_einsum
+from torch_semiring_einsum import Equation
 from fggs.semirings import Semiring
+from memory_profiler import profile
 
 __all__ = ['Axis', 'PhysicalAxis', 'ProductAxis', 'productAxis', 'unitAxis', 'SumAxis',
-           'Nonphysical', 'PatternedTensor', 'stack', 'einsum', 'log_viterbi_einsum_forward']
+           'Nonphysical', 'PatternedTensor', 'stack', 'einsum', 'log_viterbi_einsum_forward',
+           'reduce_equation', 'post_einsum']
 
 Rename = Dict["PhysicalAxis", "PhysicalAxis"]
 # populated by Axis.freshen
@@ -1175,6 +1178,7 @@ class PatternedTensor:
             return self.commutative(other, 0, self.default + other.default,
                                     lambda x, y: x.add_(y))
         else:
+            # TODO: make this better if self.physical is an expanded tensor
             return PatternedTensor(self.physical + other, self.paxes, self.vaxes, self.default + other)
 
     def mul(self, other: Union[NumberType, PatternedTensor]) -> PatternedTensor:
@@ -1184,6 +1188,7 @@ class PatternedTensor:
             return self.commutative(other, 1, self.default * other.default,
                                     lambda x, y: x.mul_(y))
         else:
+            # TODO: make this better if self.physical is an expanded tensor
             return PatternedTensor(self.physical * other, self.paxes, self.vaxes, self.default * other)
 
     def logaddexp(t, u: PatternedTensor) -> PatternedTensor:
@@ -1498,6 +1503,122 @@ def depict_einsum(fun: str,
                       for tensor, input in zip(tensors, inputs)] +
                      [f"    -> {' '.join(map(letterer, output))})"])
 
+
+def unexpanded_shape(t : Tensor) -> Sequence[int]:
+    original_shape = []
+    for (strd, shap) in zip(t.stride(), t.shape):
+        if strd != 0:
+            original_shape.append(shap)
+        else:
+            original_shape.append(1)
+    # remove the leading 1s
+    i = 0
+    while i < len(original_shape):
+        if original_shape[i] == 1:
+            i += 1
+        else:
+            break
+    return original_shape[i:]
+
+
+def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
+                    tensors: Sequence[Tensor]) -> Tuple[Sequence[Tensor],
+                                                        Equation,
+                                                        Sequence[int],
+                                                        Sequence[int]]:
+    # step 1: get the output shape, this will be used as the final expand
+    output_shape = compiled_equation.get_sizes(
+        tensors, compiled_equation.output_variables)
+
+    # step 2: make sure there is no sum
+    # NOTE: we assume that output variable has no duplicates!
+    # TODO: how to reduce equations with sum?
+    if (len(compiled_equation.output_variables) != compiled_equation.num_variables):
+        return (tensors, compiled_equation, [], output_shape)
+
+    # step 3: get the unexpanded shape of all input tensors
+    shrinked_shapes = [unexpanded_shape(t) for t in tensors]
+    original_shapes = [list(t.shape) for t in tensors]
+    # return if no input tensor is an expanded tensor
+    if shrinked_shapes == original_shapes:
+        return (tensors, compiled_equation, [], output_shape)
+
+    # step 4: get the shrinked tensor for all input tensors
+    shrinked_strides = []
+    for shapes in shrinked_shapes:
+        if len(shapes) == 0:
+            shrinked_strides.append([])
+        else:
+            shrinked_strides.append(reduce(lambda r, x: [x*r[0]] + r, shapes[-1:0:-1], [1]))
+    shrinked_tensors = [torch.as_strided(t, s, d)
+                        for t, s, d in zip(tensors, shrinked_shapes, shrinked_strides)]
+
+    # step 5: reduce each input's equation
+    #
+    # NOTE: here we assume that no variable can occur twice in one
+    # input's index, for example, the following equation works for
+    # torch.einsum:
+    #
+    #   'ii->i'
+    #
+    # which takes a diagonal vector of a square matrix, but in
+    # torch_semiring_einsum, it is not allowed.
+    input_vars = compiled_equation.input_variables
+    shrinked_input_vars = [vars[len(vars)-len(shapes):]
+                           for vars, shapes in
+                           zip(input_vars, shrinked_shapes)]
+
+    # step 6: collect removed input variables
+    #
+    # These variables will be removed from the output, so we need to
+    # restore them by invoking torch.unsqueeze with the corresponding
+    # dim in order
+    shrinked_vars = set(chain(*shrinked_input_vars))
+    removed_vars = set(chain(*input_vars)) - shrinked_vars
+    unsqueeze_index = sorted([compiled_equation.output_variables.index(v)
+                              for v in removed_vars])
+    shrinked_out_vars = [v for v in compiled_equation.output_variables
+                         if v not in removed_vars]
+
+    # step 7: make sure after some dimensions are shrinked to 1, there
+    # is no incompatible dimension. Two dimensions are incompatible if
+    # they are not equal.
+    for v in shrinked_vars:
+        shp = -1
+        for iidx, ivars in enumerate(shrinked_input_vars):
+            shapes = shrinked_shapes[iidx]
+            if v in ivars:
+                d = ivars.index(v)
+                if shp != -1 and shp != shapes[d]:
+                    return (tensors, compiled_equation, [], output_shape)
+                    # return None
+                else:
+                    shp = shapes[d]
+
+    # step 8: reduce to a new equation
+    paxis_to_char = {}
+    for k, c in zip(chain(shrinked_vars), map(chr, count(ord('a')))):
+        paxis_to_char[k] = c
+
+    reduced_eq_in = ','.join(''.join(paxis_to_char[dim] for dim in dims)
+                             for dims in shrinked_input_vars)
+    reduced_eq_out = ''.join(paxis_to_char[dim] for dim in shrinked_out_vars)
+    reduced_eq = torch_semiring_einsum.compile_equation(
+        f'{reduced_eq_in}->{reduced_eq_out}')
+
+    # step 9: return all information in a tuple
+    return (shrinked_tensors, reduced_eq, unsqueeze_index, output_shape)
+
+
+def post_einsum(result: Tensor,
+                unsqueeze_index: Sequence[int],
+                output_shape: Sequence[int]) -> Tensor:
+    for v in unsqueeze_index:
+        result = result.unsqueeze(v)
+    result = result.expand(output_shape)
+    return result
+
+
 def einsum(tensors: Sequence[PatternedTensor],
            inputs: Sequence[Sequence[Any]],
            output: Sequence[Any],
@@ -1560,7 +1681,14 @@ def einsum(tensors: Sequence[PatternedTensor],
              + '->' + ''.join(paxis_to_char[k] for k in output_paxes)
     #print(equation, file=stderr)
     compiled = torch_semiring_einsum.compile_equation(equation)
-    out = semiring.einsum(compiled, *(view for view, paxes in projected_tensors))
+    viewed_tensors = [view for view, paxes in projected_tensors]
+    # Optimize the case when we don't need gradient.
+    if all([not vt.requires_grad for vt in viewed_tensors]):
+        (reduced_views, reduced_eq, unsqueeze_index, output_shape) = reduce_equation(compiled, viewed_tensors)
+        out = semiring.einsum(reduced_eq, *reduced_views)
+        out = post_einsum(out, unsqueeze_index, output_shape)
+    else:
+        out = semiring.einsum(compiled, *viewed_tensors)
     assert(out.dtype == semiring.dtype)
     return PatternedTensor(out, output_paxes, output_vaxes, default=zero.item())
 
