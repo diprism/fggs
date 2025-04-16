@@ -1544,9 +1544,12 @@ def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
 
     # step 4: get the shrinked tensor for all input tensors
     shrinked_strides : List[List[int]] = []
-    for shapes in shrinked_shapes:
+    for idx, shapes in enumerate(shrinked_shapes):
         if len(shapes) == 0:
             shrinked_strides.append([])
+        # if a tensor's shape is not reduced, there is no need to recompute the shape
+        elif shapes == original_shapes[idx]:
+            shrinked_strides.append(tensors[idx].stride())
         else:
             shrinked_strides.append(reduce(lambda r, x: [x*r[0]] + r, shapes[-1:0:-1], [1]))
     shrinked_tensors = [torch.as_strided(t, tuple(s), tuple(d))
