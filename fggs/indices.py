@@ -1503,7 +1503,7 @@ def depict_einsum(fun: str,
                      [f"    -> {' '.join(map(letterer, output))})"])
 
 
-def unexpanded_shape(t : Tensor) -> List[int]:
+def unexpanded_shape(t : Tensor) -> Tuple[List[int], List[int]]:
     original_shape = []
     for (strd, shap) in zip(t.stride(), t.shape):
         if strd != 0:
@@ -1517,7 +1517,7 @@ def unexpanded_shape(t : Tensor) -> List[int]:
             i += 1
         else:
             break
-    return original_shape[i:]
+    return (original_shape[i:], list(t.stride())[i:])
 
 
 def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
@@ -1536,22 +1536,13 @@ def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
         return (tensors, compiled_equation, [], output_shape)
 
     # step 3: get the unexpanded shape of all input tensors
-    shrinked_shapes = [unexpanded_shape(t) for t in tensors]
+    shrinked_shapes, shrinked_strides = zip(*[unexpanded_shape(t) for t in tensors])
     original_shapes = [list(t.shape) for t in tensors]
     # return if no input tensor is an expanded tensor
     if shrinked_shapes == original_shapes:
         return (tensors, compiled_equation, [], output_shape)
 
     # step 4: get the shrinked tensor for all input tensors
-    shrinked_strides : List[List[int]] = []
-    for idx, shapes in enumerate(shrinked_shapes):
-        if len(shapes) == 0:
-            shrinked_strides.append([])
-        # if a tensor's shape is not reduced, there is no need to recompute the shape
-        elif shapes == original_shapes[idx]:
-            shrinked_strides.append(list(tensors[idx].stride()))
-        else:
-            shrinked_strides.append(reduce(lambda r, x: [x*r[0]] + r, shapes[-1:0:-1], [1]))
     shrinked_tensors = [torch.as_strided(t, tuple(s), tuple(d))
                         for t, s, d in zip(tensors, shrinked_shapes, shrinked_strides)]
 
