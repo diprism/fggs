@@ -1584,7 +1584,6 @@ def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
                 d = ivars.index(v)
                 if shp != -1 and shp != shapes[d]:
                     return (tensors, compiled_equation, [], output_shape)
-                    # return None
                 else:
                     shp = shapes[d]
 
