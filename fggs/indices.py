@@ -1503,21 +1503,16 @@ def depict_einsum(fun: str,
                      [f"    -> {' '.join(map(letterer, output))})"])
 
 
-def unexpanded_shape(t : Tensor) -> Tuple[List[int], List[int]]:
+def unexpanded_shape(t : Tensor) -> Tuple[List[int], List[int], List[int]]:
     original_shape = []
-    for (strd, shap) in zip(t.stride(), t.shape):
-        if strd != 0:
+    original_stride = []
+    index_of_reserved_dim = []
+    for idx, (strd, shap) in enumerate(zip(t.stride(), t.shape)):
+        if not (strd == 0 or shap == 1):
             original_shape.append(shap)
-        else:
-            original_shape.append(1)
-    # remove the leading 1s
-    i = 0
-    while i < len(original_shape):
-        if original_shape[i] == 1:
-            i += 1
-        else:
-            break
-    return (original_shape[i:], list(t.stride())[i:])
+            original_stride.append(strd)
+            index_of_reserved_dim.append(idx)
+    return (original_shape, original_stride, index_of_reserved_dim)
 
 
 def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
@@ -1536,7 +1531,7 @@ def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
         return (tensors, compiled_equation, [], output_shape)
 
     # step 3: get the unexpanded shape of all input tensors
-    shrinked_shapes, shrinked_strides = zip(*[unexpanded_shape(t) for t in tensors])
+    shrinked_shapes, shrinked_strides, reserved_indices = zip(*[unexpanded_shape(t) for t in tensors])
     original_shapes = [list(t.shape) for t in tensors]
     # return if no input tensor is an expanded tensor
     if shrinked_shapes == original_shapes:
@@ -1557,9 +1552,9 @@ def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
     # which takes a diagonal vector of a square matrix, but in
     # torch_semiring_einsum, it is not allowed.
     input_vars = compiled_equation.input_variables
-    shrinked_input_vars = [vars[len(vars)-len(shapes):]
-                           for vars, shapes in
-                           zip(input_vars, shrinked_shapes)]
+    shrinked_input_vars = [[vars[idx] for idx in reserved_index]
+                           for vars, reserved_index in
+                           zip(input_vars, reserved_indices)]
 
     # step 6: collect removed input variables
     #
@@ -1573,21 +1568,7 @@ def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
     shrinked_out_vars = [v for v in compiled_equation.output_variables
                          if v not in removed_vars]
 
-    # step 7: make sure after some dimensions are shrinked to 1, there
-    # is no incompatible dimension. Two dimensions are incompatible if
-    # they are not equal.
-    for v in shrinked_vars:
-        shp = -1
-        for iidx, ivars in enumerate(shrinked_input_vars):
-            shapes = shrinked_shapes[iidx]
-            if v in ivars:
-                d = ivars.index(v)
-                if shp != -1 and shp != shapes[d]:
-                    return (tensors, compiled_equation, [], output_shape)
-                else:
-                    shp = shapes[d]
-
-    # step 8: reduce to a new equation
+    # step 7: reduce to a new equation
     paxis_to_char = {}
     for k, c in zip(chain(shrinked_vars), map(chr, count(ord('a')))):
         paxis_to_char[k] = c
@@ -1598,7 +1579,7 @@ def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
     reduced_eq = torch_semiring_einsum.compile_equation(
         f'{reduced_eq_in}->{reduced_eq_out}')
 
-    # step 9: return all information in a tuple
+    # step 8: return all information in a tuple
     return (shrinked_tensors, reduced_eq, unsqueeze_index, output_shape)
 
 
