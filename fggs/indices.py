@@ -89,7 +89,7 @@ from math import inf, nan, log, log1p, exp, expm1, isnan, isinf
 from string import ascii_uppercase
 from sys import float_info#, stderr
 import torch
-from torch import Tensor, Size
+from torch import Tensor, Size, LongTensor
 import torch_semiring_einsum
 from torch_semiring_einsum import Equation
 from fggs.semirings import Semiring
@@ -1583,9 +1583,9 @@ def reduce_equation(compiled_equation: torch_semiring_einsum.Equation,
     return (shrinked_tensors, reduced_eq, unsqueeze_index, output_shape)
 
 
-def post_einsum(result: Tensor,
+def post_einsum(result: Union[Tensor, LongTensor],
                 unsqueeze_index: List[int],
-                output_shape: List[int]) -> Tensor:
+                output_shape: List[int]):
     for v in unsqueeze_index:
         result = result.unsqueeze(v)
     result = result.expand(torch.Size(output_shape))
