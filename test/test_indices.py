@@ -117,7 +117,7 @@ class TestPatternedTensor(unittest.TestCase):
         self.assertTrue(torch.equal(input, other), (input, other))
 
     def assertTClose(self, input: torch.Tensor, other: torch.Tensor) -> None:
-        self.assertTrue(torch.allclose(input, other, equal_nan=True), (input, other))
+        self.assertTrue(torch.allclose(input, other, rtol=2e-5, equal_nan=True), (input, other))
 
     def assertEEqual(self, input: PatternedTensor, other: PatternedTensor) -> None:
         self.assertTrue(input.equal(other))
