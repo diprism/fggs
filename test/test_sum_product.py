@@ -142,7 +142,7 @@ class TestSumProduct(unittest.TestCase):
         facb.weights = torch.tensor(1., requires_grad=True)
         facc = fgg.factors['c']
         facc.weights = torch.tensor(1., requires_grad=True)
-        z = sum_product(fgg, method='linear')
+        z = sum_product(fgg, method='linear').to_dense()
         self.assertEqual(z.item(), math.inf)
         z.backward()
         self.assertEqual(faca.weights.grad.item(), math.inf)
@@ -155,7 +155,7 @@ class TestSumProduct(unittest.TestCase):
                 # make sum-product infinite
                 fgg.new_finite_factor('fac1', torch.tensor(1., requires_grad=True))
                 fgg.new_finite_factor('fac2', torch.tensor(1., requires_grad=True))
-                z = sum_product(fgg, method='newton', j_precompute=j_precompute)
+                z = sum_product(fgg, method='newton', j_precompute=j_precompute).to_dense()
                 self.assertEqual(z.item(), math.inf)
                 z.backward()
                 self.assertEqual(fgg.factors['fac1'].weights.grad.item(), math.inf)
@@ -171,7 +171,7 @@ class TestSumProduct(unittest.TestCase):
                         with self.subTest(example=str(example)):
                             z_exact = example.exact()
                             with self.subTest(semiring='RealSemiring'):
-                                z = sum_product(example.fgg, method=method, semiring=RealSemiring(), j_precompute=j_precompute)
+                                z = sum_product(example.fgg, method=method, semiring=RealSemiring(), j_precompute=j_precompute).to_dense()
                                 self.assertAlmostEqual(z, z_exact)
 
                             with self.subTest(semiring='LogSemiring'):
@@ -179,24 +179,24 @@ class TestSumProduct(unittest.TestCase):
                                 fgg = example.fgg.copy()
                                 for fac in fgg.factors.values():
                                     fac.weights = fac.weights.log()
-                                z = torch.exp(sum_product(fgg, method=method, semiring=LogSemiring(), j_precompute=j_precompute))
+                                z = torch.exp(sum_product(fgg, method=method, semiring=LogSemiring(), j_precompute=j_precompute).to_dense())
                                 self.assertAlmostEqual(z, z_exact)
                                 
                             with self.subTest(semiring='ViterbiSemiring'):
                                 # Reuse weights from LogSemiring
-                                z = torch.exp(sum_product(fgg, method=method, semiring=ViterbiSemiring(), j_precompute=j_precompute))
+                                z = torch.exp(sum_product(fgg, method=method, semiring=ViterbiSemiring(), j_precompute=j_precompute).to_dense())
                                 # Rerun at a very low temperature to estimate the correct value
                                 temp = 1/1000
                                 for fac in fgg.factors.values():
                                     fac.weights /= temp
-                                z_expected = torch.exp(temp * sum_product(fgg, method=method, semiring=LogSemiring(), j_precompute=j_precompute))
+                                z_expected = torch.exp(temp * sum_product(fgg, method=method, semiring=LogSemiring(), j_precompute=j_precompute).to_dense())
                                 self.assertAlmostEqual(z, z_expected)
 
                             with self.subTest(semiring='BoolSemiring'):
                                 fgg = example.fgg.copy()
                                 for fac in fgg.factors.values():
                                     fac.weights = fac.weights.gt(0.)
-                                z = sum_product(fgg, method=method, semiring=BoolSemiring(), j_precompute=j_precompute)
+                                z = sum_product(fgg, method=method, semiring=BoolSemiring(), j_precompute=j_precompute).to_dense()
                                 z_exact = example.exact() > 0.
                                 self.assertAlmostEqual(z, z_exact)
 
