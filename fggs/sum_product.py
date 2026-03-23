@@ -505,6 +505,8 @@ class SumProduct(torch.autograd.Function):
                 jf = J(ctx.fgg, ctx.out_values, inputs, semiring, jf_inputs)
         elif isinstance(semiring, LogSemiring):
             jf = J_log(ctx.fgg, ctx.out_values, inputs, semiring, jf_inputs)
+        elif isinstance(semiring, ComplexSemiring):
+            raise ValueError(f'Support for complex semiring is in progress: {semiring}')
         else:
             raise ValueError(f'invalid semiring: {semiring}')
 

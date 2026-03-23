@@ -174,6 +174,96 @@ class RealSemiring(Semiring):
         return Semiring.solve_thunks(self, make_a, make_b)
 
 
+class ComplexSemiring(Semiring):
+    def __init__(self, dtype=None, device='cpu'):
+        super().__init__(dtype, device)
+        if dtype is None:
+            if torch.get_default_dtype() == torch.float64:
+                self.dtype = torch.cdouble
+            else:
+                self.dtype = torch.cfloat
+        elif dtype == torch.float32: self.dtype = torch.cfloat
+        elif dtype == torch.float64: self.dtype = torch.cdouble
+
+    def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
+        return torch.as_tensor(n, dtype=self.dtype, device=self.device)
+
+    sum = staticmethod(torch.sum) # type: ignore
+
+    @staticmethod
+    def add(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        return x.add(y)
+
+    @staticmethod
+    def add_(x: torch.Tensor, y: torch.Tensor) -> None:
+        x.add_(y)
+
+    @staticmethod
+    def sub(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        return x.sub(y).relu_().nan_to_num_(nan=0., posinf=inf)
+
+    @staticmethod
+    def mul(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
+        return x.mul(y).nan_to_num_(nan=0., posinf=inf)
+
+    @staticmethod
+    def star(x: torch.Tensor) -> torch.Tensor:
+        y = 1/(1-x)
+        y.masked_fill_(x >= 1, inf)
+        return y
+
+    @staticmethod
+    def nan_to_num(x, nan=0.0, posinf=None, neginf=None, *, out=None):
+        if x.dtype in (torch.complex64, torch.complex128):
+            if out.dtype in (torch.complex64, torch.complex128):
+                out_real = out.real
+                out_imag = out.imag
+            else:
+                out_real = out
+                out_imag = 0
+            real_fixed = torch.nan_to_num(x.real, nan=nan, posinf=posinf, neginf=neginf, out=out_real)
+            imag_fixed = torch.nan_to_num(x.imag, nan=nan, posinf=posinf, neginf=neginf, out=out_imag)
+            return torch.complex(real_fixed, imag_fixed)
+        else:
+            return torch.nan_to_num(x)
+
+    @staticmethod
+    def einsum(equation, *args):
+        # Make inf * 0 = 0
+        def multiply_in_place(a, b):
+            a.mul_(b)
+            ComplexSemiring.nan_to_num(a, nan=0., posinf=inf, out=a)
+        def callback(compute_sum):
+            return compute_sum(torch_semiring_einsum.utils.add_in_place,
+                               torch_semiring_einsum.utils.sum_block,
+                               multiply_in_place)
+        # TODO: Why blocksize=1?
+        return torch_semiring_einsum.semiring_einsum_forward(equation, args, torch_semiring_einsum.AUTOMATIC_BLOCK_SIZE, callback)
+
+    def solve_thunks(self,
+                     make_a: Callable[[], torch.Tensor],
+                     make_b: Callable[[], torch.Tensor]) -> torch.Tensor:
+        # We want the least nonnegative solution of (I-a)x = b, and
+        # want to use torch.linalg.solve if we can, but there are a
+        # number of things that can go wrong:
+        # - If a has an eigenvalue = 1, torch.linalg.solve raises RuntimeError.
+        # - If a has an eigenvalue > 1, the solution will have negative components.
+        # - If a has an eigenvalue = inf, the solution will have -0.0 components.
+        # In these cases, we have to fall back to Semiring.solve.
+        a = make_a()
+        b = make_b()
+        try:
+            if not torch.any(torch.isinf(a)):
+                a.neg_().diagonal().add_(1)
+                x = torch.linalg.solve(a, b)
+                if torch.all(x >= 0.):
+                    return x
+        except RuntimeError as e:
+            if '(Cannot allocate memory)' in str(e): raise
+            pass
+        return Semiring.solve_thunks(self, make_a, make_b)
+
+
 class LogSemiring(Semiring):
     
     def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:

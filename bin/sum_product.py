@@ -49,7 +49,15 @@ if __name__ == '__main__':
     if (args.grad or args.expect) and not args.weights:
         error('the -g and -e options require the -w option')
 
-    fgg = fggs.json_to_fgg(json.load(open(args.fgg)))
+    j = json.load(open(args.fgg))
+    ring_type = fggs.json_weights_type(j)
+    fgg = fggs.json_to_fgg(j)
+    if ring_type == torch.float32 or ring_type == torch.float64:
+        ring = fggs.RealSemiring(dtype=ring_type)
+    elif ring_type == torch.cfloat or ring_type == torch.cdouble:
+        ring = fggs.ComplexSemiring(dtype=ring_type)
+    else:
+        error(f'Unsupported semiring type: {ring_type}')
 
     extern_weights = {}
     for name, weights in args.weights:
@@ -110,7 +118,7 @@ if __name__ == '__main__':
         for w in fgg.factors.values():
             w.weights.requires_grad_()
 
-    zs = fggs.sum_products(fgg, method=args.method, tol=args.tol, kmax=args.kmax, j_precompute=args.j_precompute)
+    zs = fggs.sum_products(fgg, method=args.method, tol=args.tol, kmax=args.kmax, j_precompute=args.j_precompute, semiring=ring)
     z = zs[fgg.start]
 
     if args.trace:

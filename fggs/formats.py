@@ -1,9 +1,11 @@
 __all__ = ['json_to_fgg', 'fgg_to_json',
            'json_to_hrg', 'hrg_to_json',
            'json_to_weights',
+           'json_weights_type',
            'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
 
 from itertools import repeat
+from functools import reduce
 from math import isfinite
 from fggs.fggs import *
 from fggs.indices import PhysicalAxis, productAxis, SumAxis, PatternedTensor
@@ -12,11 +14,80 @@ import re
 import torch
 from torch import Tensor
 from typing import cast
+from enum import Enum
+
+class WeightType(Enum):
+    REAL = 1
+    COMPLEX = 2
 
 ### JSON
 
+def weight_type_fold(w1, w2):
+    if w1 == WeightType.REAL:
+        return w2
+    else:
+        return w1
+
+def json_weights_type(j):
+    weight_type = WeightType.REAL
+
+    ji = j['interpretation']
+    for name, d in ji['factors'].items():
+        if d['function'] == 'constant':
+            weight_type = json_scalar_type(d['weight'])
+        elif d['function'] == 'finite':
+            weight_type = json_scalar_type(d['weights'])
+        else:
+            raise ValueError(f'invalid factor function: {d["function"]}')
+
+    dtype = torch.get_default_dtype()
+    if weight_type == WeightType.REAL:
+        if torch.get_default_dtype() == torch.float32:
+            dtype = torch.float32
+        elif torch.get_default_dtype() == torch.float64:
+            dtype = torch.float64
+        else:
+            raise ValueError(f'The given default datatype of torch is not supported: {torch.get_default_dtype()}')
+    else:
+        if torch.get_default_dtype() == torch.float32:
+            dtype = torch.cfloat
+        elif torch.get_default_dtype() == torch.float64:
+            dtype = torch.cdouble
+        else:
+            raise ValueError(f'The given default datatype of torch is not supported: {torch.get_default_dtype()}')
+
+    return dtype
+
+
+def json_is_number(j):
+    return (isinstance(j, float) or isinstance(j, int))
+
+
+def json_is_complex(j):
+    return (isinstance(j, dict) and
+            sorted(j.keys()) == ['im', 're'] and
+            json_is_number(j['im']) and
+            json_is_number(j['re']))
+
+
+def json_scalar_type(j):
+    if isinstance(j, dict):
+        physical = j["physical"]
+    else:
+        physical = j
+    if json_is_number(physical):
+        return WeightType.REAL
+    elif json_is_complex(j):
+        return WeightType.COMPLEX
+    elif isinstance(physical, list):
+        return reduce(weight_type_fold, [json_scalar_type(i) for i in physical], WeightType.REAL)
+    else:
+        raise ValueError(f'not a valid scalar value type: {j}')
+
 def json_to_fgg(j):
     """Convert an object loaded by json.load to an FGG."""
+    dtype = json_weights_type(j)
+
     fgg = FGG.from_hrg(json_to_hrg(j['grammar']))
 
     ji = j['interpretation']
@@ -35,9 +106,10 @@ def json_to_fgg(j):
         el = fgg.get_edge_label(name)
         doms = [fgg.domains[nl.name] for nl in el.type]
         if d['function'] == 'constant':
-            fgg.add_factor(el, factors.ConstantFactor(doms, d['weight']))
+            weight = json_to_weights(d['weight'], dtype)
+            fgg.add_factor(el, factors.ConstantFactor(doms, weight))
         elif d['function'] == 'finite':
-            weights = json_to_weights(d['weights'])
+            weights = json_to_weights(d['weights'], dtype)
             fgg.add_factor(el, factors.FiniteFactor(doms, weights))
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
@@ -146,10 +218,21 @@ def hrg_to_json(g):
         
     return j
 
-def json_to_weights(j):
+def json_convert_scalar(j):
+    if json_is_complex(j):
+        return complex(j['re'], j['im'])
+    elif isinstance(j, list):
+        return [json_convert_scalar(s) for s in j]
+    else:
+        return j
+
+def json_to_scalar(j, dtype):
+    return torch.tensor(json_convert_scalar(j), dtype=dtype)
+
+def json_to_weights(j, dtype):
     """Convert an object loaded by json.load to an PatternedTensor."""
     if isinstance(j, dict):
-        physical = torch.tensor(j["physical"], dtype=torch.get_default_dtype())
+        physical = json_to_scalar(j["physical"], dtype)
         expand = j.get("expand")
         if expand:
             physical = physical.expand([*expand, *repeat(-1, physical.ndim)])
@@ -160,7 +243,7 @@ def json_to_weights(j):
         default = j.get("default", 0.)
         return PatternedTensor(physical, paxes, vaxes, default)
     else:
-        physical = torch.tensor(j, dtype=torch.get_default_dtype())
+        physical = json_to_scalar(j, dtype)
         return PatternedTensor(physical)
 
 def weights_to_dict_json(fgg : FGG, edge_label : EdgeLabel, weights : Tensor):
@@ -211,7 +294,9 @@ def escape_to_latex(in_str):
              "_": "\\_",
              "^": "\\textasciicircum{}",
              "<": "\\textless{}",
-             ">": "\\textgreater{}"}
+             ">": "\\textgreater{}",
+             "{": "\\{",
+             "}": "\\}"}
     result = ""
     for s in in_str:
         if s in table:
