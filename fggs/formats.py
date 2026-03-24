@@ -34,9 +34,9 @@ def json_weights_type(j):
     ji = j['interpretation']
     for name, d in ji['factors'].items():
         if d['function'] == 'constant':
-            weight_type = json_scalar_type(d['weight'])
+            weight_type = weight_type_fold(weight_type, json_scalar_type(d['weight']))
         elif d['function'] == 'finite':
-            weight_type = json_scalar_type(d['weights'])
+            weight_type = weight_type_fold(weight_type, json_scalar_type(d['weights']))
         else:
             raise ValueError(f'invalid factor function: {d["function"]}')
 
@@ -77,7 +77,7 @@ def json_scalar_type(j):
         physical = j
     if json_is_number(physical):
         return WeightType.REAL
-    elif json_is_complex(j):
+    elif json_is_complex(physical):
         return WeightType.COMPLEX
     elif isinstance(physical, list):
         return reduce(weight_type_fold, [json_scalar_type(i) for i in physical], WeightType.REAL)
