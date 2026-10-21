@@ -50,7 +50,7 @@ def reduce_equation(compiled_equation: Equation,
 
     # step 2: get the unexpanded shape of all input tensors
     shrunk_shapes, shrunk_strides, reserved_indices = zip(*[unexpanded_shape(t) for t in tensors])
-    original_shapes = tuple([list(t.shape) for t in tensors])
+    original_shapes = tuple(list(t.shape) for t in tensors)
     # return if no input tensor is an expanded tensor
     if shrunk_shapes == original_shapes:
         return (tensors, compiled_equation, [], output_shape, 1)
