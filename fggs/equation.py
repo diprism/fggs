@@ -48,24 +48,18 @@ def reduce_equation(compiled_equation: Equation,
     output_shape = compiled_equation.get_sizes(
         tensors, compiled_equation.output_variables)
 
-    # step 2: make sure there is no sum
-    # NOTE: we assume that output variable has no duplicates!
-    # DONE: equations with sum is supported, no need to do this step.
-    # if (len(compiled_equation.output_variables) != compiled_equation.num_variables):
-    #     return (tensors, compiled_equation, [], output_shape, 1)
-
-    # step 3: get the unexpanded shape of all input tensors
+    # step 2: get the unexpanded shape of all input tensors
     shrunk_shapes, shrunk_strides, reserved_indices = zip(*[unexpanded_shape(t) for t in tensors])
     original_shapes = tuple([list(t.shape) for t in tensors])
     # return if no input tensor is an expanded tensor
     if shrunk_shapes == original_shapes:
         return (tensors, compiled_equation, [], output_shape, 1)
 
-    # step 4: get the shrunk tensor for all input tensors
+    # step 3: get the shrunk tensor for all input tensors
     shrunk_tensors = [torch.as_strided(t, tuple(s), tuple(d))
                       for t, s, d in zip(tensors, shrunk_shapes, shrunk_strides)]
 
-    # step 5: reduce each input's equation
+    # step 4: reduce each input's equation
     #
     # NOTE: here we assume that no variable can occur twice in one
     # input's index, for example, the following equation works for
@@ -82,7 +76,7 @@ def reduce_equation(compiled_equation: Equation,
                          for vars, reserved_index in
                          zip(input_vars, reserved_indices)]
 
-    # step 6: collect removed input variables
+    # step 5: collect removed input variables
     #
     # These variables will be removed from the output, so we need to
     # restore them by invoking torch.unsqueeze with the corresponding
@@ -105,7 +99,7 @@ def reduce_equation(compiled_equation: Equation,
     factor_shape = compiled_equation.get_sizes(tensors, factor_vars)
     factor = prod(factor_shape)
 
-    # step 7: reduce to a new equation
+    # step 6: reduce to a new equation
     paxis_to_char = {}
     for k, c in zip(chain(shrunk_vars), map(chr, count(ord('a')))):
         paxis_to_char[k] = c
@@ -113,10 +107,9 @@ def reduce_equation(compiled_equation: Equation,
     reduced_eq_in = ','.join(''.join(paxis_to_char[dim] for dim in dims)
                              for dims in shrunk_input_vars)
     reduced_eq_out = ''.join(paxis_to_char[dim] for dim in shrunk_out_vars)
-    reduced_eq = compile_equation(
-        f'{reduced_eq_in}->{reduced_eq_out}')
+    reduced_eq = compile_equation(f'{reduced_eq_in}->{reduced_eq_out}')
 
-    # step 8: return all information in a tuple
+    # step 7: return all information in a tuple
     return (shrunk_tensors, reduced_eq, unsqueeze_index, output_shape, factor)
 
 
