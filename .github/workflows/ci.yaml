@@ -2,7 +2,7 @@ name: CI
 on: [push]
 jobs:
   prepare:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: require haskell
       uses: haskell-actions/setup@v2
@@ -26,7 +26,7 @@ jobs:
           ./perpl/tests
 
   test-torch:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: prepare
     strategy:
       matrix:
@@ -56,7 +56,7 @@ jobs:
           chmod u+x ./perplc
           make test
   test-python:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: prepare
     strategy:
       matrix:
