@@ -344,7 +344,7 @@ def graph_to_tikz(g: Graph, factor_formats=None, lhs=None):
     # print(dot.to_string())
     graph = pydot.graph_from_dot_data(dot.create_dot().decode('utf8'))
     if graph:
-        dot = [0]
+        dot = graph[0]
     else:
         raise ValueError(f'Failed to generate a tikz from a graph')
 
