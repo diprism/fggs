@@ -38,7 +38,7 @@ class TestSemirings(unittest.TestCase):
     def assertAlmostEqual(self, x, y):
         if x.dtype is torch.bool:
             self.assertTrue(torch.all(x == y), f'{x} != {y}')
-        if x.dtype in (torch.complex64, torch.complex128) and y.dtype == x.dtype:
+        elif x.dtype in (torch.complex64, torch.complex128) and y.dtype == x.dtype:
             x_real = x.real
             x_imag = x.imag
             y_real = y.real
