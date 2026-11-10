@@ -85,6 +85,17 @@ class TestSemirings(unittest.TestCase):
                     self.assertAlmostEqual(semiring.mul(semiring.add(x, y), z),
                                            semiring.add(semiring.mul(x, z), semiring.mul(y, z)))
 
+    def test_scale(self):
+        for semiring, values in examples:
+            with self.subTest(semiring=semiring.__class__.__name__):
+                for x in values:
+                    self.assertAlmostEqual(semiring.scale(x, 0),
+                                           semiring.zeros([]))
+                    self.assertAlmostEqual(semiring.scale(x, 1),
+                                           x)
+                    self.assertAlmostEqual(semiring.scale(x, 2),
+                                           semiring.add(x, x))
+
     def test_star(self):
         for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):

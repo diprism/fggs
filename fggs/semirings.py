@@ -46,6 +46,10 @@ class Semiring(ABC):
         pass
     
     @abstractmethod
+    def scale(self, x: torch.Tensor, y: int) -> torch.Tensor:
+        pass
+
+    @abstractmethod
     def star(self, x: torch.Tensor) -> torch.Tensor:
         """Compute x* = ∑ xⁿ = 1 + x + xx + ..., elementwise. Since 
         x* = 1 + x(x*), this lets us solve equations of the form 
@@ -124,6 +128,10 @@ class RealSemiring(Semiring):
         return x.mul(y).nan_to_num_(nan=0., posinf=inf)
     
     @staticmethod
+    def scale(x: torch.Tensor, y: int) -> torch.Tensor:
+        return x.mul(torch.tensor(y)).nan_to_num_(nan=0., posinf=inf)
+
+    @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
         y = 1/(1-x)
         y.masked_fill_(x >= 1, inf)
@@ -197,6 +205,10 @@ class LogSemiring(Semiring):
         return x.add(y).nan_to_num_(nan=-inf, neginf=-inf, posinf=inf)
     
     @staticmethod
+    def scale(x: torch.Tensor, y: int) -> torch.Tensor:
+        return x.add(torch.log(torch.tensor(y))) if y > 0 else torch.full_like(x, -inf)
+
+    @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
         # If x >= 0, return inf
         # If x ≈ 0,  log(1/(1-exp(x))) = -log(1 - exp(x)) = -log(-expm1(x))
@@ -258,6 +270,10 @@ class ViterbiSemiring(Semiring):
     def mul(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.add(y).nan_to_num_(nan=-inf, neginf=-inf, posinf=inf)
     
+    @staticmethod
+    def scale(x: torch.Tensor, y: int) -> torch.Tensor:
+        return x if y > 0 else torch.full_like(x, -inf)
+
     def star(self, x: torch.Tensor) -> torch.Tensor:
         return torch.where(x >= 0, inf, 0.).to(self.dtype)
     
@@ -302,6 +318,10 @@ class BoolSemiring(Semiring):
     def mul(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
         return x.logical_and(y)
     
+    @staticmethod
+    def scale(x: torch.Tensor, y: int) -> torch.Tensor:
+        return x if y > 0 else torch.full_like(x, False)
+
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
         return torch.full_like(x, True)
