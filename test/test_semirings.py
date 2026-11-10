@@ -11,10 +11,46 @@ examples = [
     (BoolSemiring(),    torch.tensor([False, True, True,   True,   True])),
 ]
 
+# The first element is additive 0, the second is multiplicative 0
+# The integer example avoids inf, which has implementation bugs in PyTorch, see:
+# https://github.com/pytorch/pytorch/issues/154501
+complex_int_examples = torch.tensor([complex(0., 0), complex(1, 0),
+                                     complex(2, 0), complex(3, 0),
+                                     complex(4, 0)])
+complex_zero_examples = torch.tensor([complex(0.0, 0.0), complex(0.3, 0.4),
+                                      complex(0.2, 0.5), complex(0.27, 0.12),
+                                      complex(0.43, 0.16)])
+complex_one_examples = torch.tensor([complex(0.1, 0.2), complex(1.0, 0.0),
+                                     complex(0.2, 0.5), complex(0.27, 0.12),
+                                     complex(0.43, 0.16)])
+complex_star_examples = torch.tensor([complex(0.1, 0.2), complex(0.3, 0.4),
+                                      complex(0.2, 0.5), complex(0.27, 0.12),
+                                      complex(0.43, 0.16)])
+
+# nrand adapted from test_indices
+def nrandint(start, end, size) -> torch.Tensor:
+    s = torch.Size(size)
+    n = s.numel()
+    return torch.zeros(s) if n == 0 else torch.arange(start, max(end, start + n)).view(s)
+
+
 class TestSemirings(unittest.TestCase):
     def assertAlmostEqual(self, x, y):
         if x.dtype is torch.bool:
             self.assertTrue(torch.all(x == y), f'{x} != {y}')
+        if x.dtype in (torch.complex64, torch.complex128) and y.dtype == x.dtype:
+            x_real = x.real
+            x_imag = x.imag
+            y_real = y.real
+            y_imag = y.imag
+            self.assertTrue(torch.allclose(x_real.nan_to_num(), y_real.nan_to_num()), f'{x_real} != {y_real}')
+            self.assertTrue(torch.allclose(x_imag.nan_to_num(), x_imag.nan_to_num()), f'{x_imag} != {y_imag}')
+            self.assertFalse(torch.any(x_real.isnan()))
+            self.assertFalse(torch.any(x_imag.isnan()))
+            self.assertFalse(torch.any(y_real.isnan()))
+            self.assertFalse(torch.any(y_imag.isnan()))
+            self.assertTrue(torch.all(x_real.isinf() == y_real.isinf()), f'{x_real} != {y_real}')
+            self.assertTrue(torch.all(y_imag.isinf() == y_imag.isinf()), f'{x_imag} != {y_imag}')
         else:
             self.assertTrue(torch.allclose(x.nan_to_num(), y.nan_to_num()), f'{x} != {y}')
             self.assertFalse(torch.any(x.isnan()))
@@ -22,62 +58,71 @@ class TestSemirings(unittest.TestCase):
             self.assertTrue(torch.all(x.isinf() == y.isinf()), f'{x} != {y}')
     
     def test_from_int(self):
-        for semiring, values in examples:
+        new_examples = examples + [(ComplexSemiring(), complex_int_examples)]
+        for semiring, values in new_examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for i, x in enumerate(values[:4]):
                     self.assertAlmostEqual(semiring.from_int(i), x)
     
     def test_add_associative(self):
-        for semiring, values in examples:
+        new_examples = examples + [(ComplexSemiring(), complex_zero_examples)]
+        for semiring, values in new_examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x, y, z in itertools.product(values, repeat=3):
                     self.assertAlmostEqual(semiring.add(x, semiring.add(y, z)),
                                            semiring.add(semiring.add(x, y), z))
 
     def test_add_identity(self):
-        for semiring, values in examples:
+        new_examples = examples + [(ComplexSemiring(), complex_zero_examples)]
+        for semiring, values in new_examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x in values:
                     self.assertAlmostEqual(semiring.add(x, values[0]), x)
                     self.assertAlmostEqual(semiring.add(values[0], x), x)
 
     def test_add_commutative(self):
-        for semiring, values in examples:
+        new_examples = examples + [(ComplexSemiring(), complex_zero_examples)]
+        for semiring, values in new_examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x, y in itertools.product(values, repeat=2):
                     self.assertAlmostEqual(semiring.add(x, y),
                                            semiring.add(y, x))
                 
     def test_mul_associative(self):
-        for semiring, values in examples:
+        new_examples = examples + [(ComplexSemiring(), complex_zero_examples)]
+        for semiring, values in new_examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x, y, z in itertools.product(values, repeat=3):
                     self.assertAlmostEqual(semiring.mul(x, semiring.mul(y, z)),
                                            semiring.mul(semiring.mul(x, y), z))
 
     def test_mul_zero(self):
-        for semiring, values in examples:
+        new_examples = examples + [(ComplexSemiring(), complex_zero_examples)]
+        for semiring, values in new_examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x in values:
                     self.assertAlmostEqual(semiring.mul(x, values[0]), values[0])
                     self.assertAlmostEqual(semiring.mul(values[0], x), values[0])
 
     def test_mul_identity(self):
-        for semiring, values in examples:
+        new_examples = examples + [(ComplexSemiring(), complex_one_examples)]
+        for semiring, values in new_examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x in values:
                     self.assertAlmostEqual(semiring.mul(x, values[1]), x)
                     self.assertAlmostEqual(semiring.mul(values[1], x), x)
 
     def test_mul_commutative(self):
-        for semiring, values in examples:
+        new_examples = examples + [(ComplexSemiring(), complex_one_examples)]
+        for semiring, values in new_examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x, y in itertools.product(values, repeat=2):
                     self.assertAlmostEqual(semiring.mul(x, y),
                                            semiring.mul(y, x))
                 
     def test_distributive(self):
-        for semiring, values in examples:
+        new_examples = examples + [(ComplexSemiring(), complex_one_examples)]
+        for semiring, values in new_examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x, y, z in itertools.product(values, repeat=3):
                     self.assertAlmostEqual(semiring.mul(x, semiring.add(y, z)),
@@ -97,13 +142,14 @@ class TestSemirings(unittest.TestCase):
                                            semiring.add(x, x))
 
     def test_star(self):
-        for semiring, values in examples:
+        new_examples = examples + [(ComplexSemiring(), complex_star_examples)]
+        for semiring, values in new_examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x in values:
                     self.assertAlmostEqual(semiring.star(x),
-                                           semiring.add(values[1], semiring.mul(x, semiring.star(x))))
+                                           semiring.add(semiring.from_int(1), semiring.mul(x, semiring.star(x))))
                     self.assertAlmostEqual(semiring.star(x),
-                                           semiring.add(values[1], semiring.mul(semiring.star(x), x)))
+                                           semiring.add(semiring.from_int(1), semiring.mul(semiring.star(x), x)))
                     
     def test_sub(self):
         for semiring, values in examples:
@@ -113,12 +159,17 @@ class TestSemirings(unittest.TestCase):
                         self.assertAlmostEqual(semiring.add(semiring.sub(y, x), x), y)
                     else:
                         self.assertAlmostEqual(semiring.add(semiring.sub(y, x), x), x)
+        c_examples = [(ComplexSemiring(), complex_star_examples)]
+        for semiring, values in c_examples:
+            with self.subTest('ComplexSemiring'):
+                for x, y in itertools.product(values, repeat=2):
+                    self.assertAlmostEqual(semiring.add(semiring.sub(y, x), x), y)
 
     def test_einsum(self):
         e = torch_semiring_einsum.compile_equation('ij,jk->ik')
         torch.manual_seed(0)
-        a = torch.randint(0, 5, (10, 10))
-        b = torch.randint(0, 5, (10, 10))
+        a = nrandint(0, 5, (10, 10))
+        b = nrandint(0, 5, (10, 10))
         c = a @ b
         for semiring, _ in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
@@ -144,6 +195,12 @@ class TestSemirings(unittest.TestCase):
                 sb = torch.where(b < big, semiring.from_int(b), sinf)
                 sc = torch.where(c < big, semiring.from_int(c), sinf)
                 self.assertAlmostEqual(semiring.einsum(e, sa, sb), sc)
+        torch.manual_seed(0)
+        a = torch.rand(5, 3, dtype=torch.cdouble)
+        b = torch.rand(3, dtype=torch.cdouble)
+        c = a @ b
+        with self.subTest(self.subTest(semiring='ComplexSemiring')):
+            self.assertAlmostEqual(ComplexSemiring().einsum(e, a, b), c)
             
 
     def test_solve(self):
@@ -157,6 +214,12 @@ class TestSemirings(unittest.TestCase):
             self.assertAlmostEqual(RealSemiring().solve(a, b), x)
         with self.subTest(semiring='LogSemiring'):
             self.assertAlmostEqual(LogSemiring().solve(a.log(), b.log()), x.log())
+        a = torch.rand(10, 10, dtype=torch.cfloat)
+        b = torch.rand(10, dtype=torch.cfloat)
+        a /= 2*torch.norm(a) # ensure that x exists
+        x = torch.linalg.inv(torch.eye(*a.shape)-a) @ b
+        with self.subTest(semiring='ComplexSemiring'):
+            self.assertAlmostEqual(ComplexSemiring().solve(a, b), x)
         # No tests for ViterbiSemiring or BoolSemiring yet
                             
 if __name__ == '__main__':

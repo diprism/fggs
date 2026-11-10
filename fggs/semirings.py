@@ -200,27 +200,33 @@ class ComplexSemiring(Semiring):
 
     @staticmethod
     def sub(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
-        return x.sub(y).relu_().nan_to_num_(nan=0., posinf=inf)
+        return x.sub(y)
 
     @staticmethod
     def mul(x: TensorLikeT, y: TensorLikeT) -> TensorLikeT:
-        return x.mul(y).nan_to_num_(nan=0., posinf=inf)
+        v = x.mul(y)
+        v = ComplexSemiring.nan_to_num(v, nan=0., posinf=inf)
+        return v
+
+    @staticmethod
+    def scale(x: torch.Tensor, y: int) -> torch.Tensor:
+        return x.mul(torch.tensor(y))
 
     @staticmethod
     def star(x: torch.Tensor) -> torch.Tensor:
         y = 1/(1-x)
-        y.masked_fill_(x >= 1, inf)
+        y.masked_fill_(x.abs() >= 1, inf)
         return y
 
     @staticmethod
     def nan_to_num(x, nan=0.0, posinf=None, neginf=None, *, out=None):
         if x.dtype in (torch.complex64, torch.complex128):
-            if out.dtype in (torch.complex64, torch.complex128):
+            if out is not None and out.dtype in (torch.complex64, torch.complex128):
                 out_real = out.real
                 out_imag = out.imag
             else:
-                out_real = out
-                out_imag = 0
+                out_real = None
+                out_imag = None
             real_fixed = torch.nan_to_num(x.real, nan=nan, posinf=posinf, neginf=neginf, out=out_real)
             imag_fixed = torch.nan_to_num(x.imag, nan=nan, posinf=posinf, neginf=neginf, out=out_imag)
             return torch.complex(real_fixed, imag_fixed)
@@ -256,7 +262,7 @@ class ComplexSemiring(Semiring):
             if not torch.any(torch.isinf(a)):
                 a.neg_().diagonal().add_(1)
                 x = torch.linalg.solve(a, b)
-                if torch.all(x >= 0.):
+                if torch.all(x.abs() >= 0.):
                     return x
         except RuntimeError as e:
             if '(Cannot allocate memory)' in str(e): raise
