@@ -116,8 +116,7 @@ def json_to_fgg(j):
         el = fgg.get_edge_label(name)
         doms = [fgg.domains[nl.name] for nl in el.type]
         if d['function'] == 'constant':
-            weight = json_to_weights(d['weight'], dtype)
-            fgg.add_factor(el, factors.ConstantFactor(doms, weight))
+            fgg.add_factor(el, factors.ConstantFactor(doms, json_to_scalar(d['weight'])))
         elif d['function'] == 'finite':
             weights = json_to_weights(d['weights'], dtype)
             fgg.add_factor(el, factors.FiniteFactor(doms, weights))
@@ -236,21 +235,25 @@ def hrg_to_json(g):
         
     return j
 
-def json_convert_scalar(j):
+def json_to_scalar(j):
     if json_is_complex(j):
         return complex(j['re'], j['im'])
-    elif isinstance(j, list):
-        return [json_convert_scalar(s) for s in j]
     else:
         return j
 
-def json_to_scalar(j, dtype):
-    return torch.tensor(json_convert_scalar(j), dtype=dtype)
+def json_to_array(j):
+    if isinstance(j, list):
+        return [json_to_array(s) for s in j]
+    else:
+        return json_to_scalar(j)
+
+def json_to_tensor(j, dtype):
+    return torch.tensor(json_to_array(j), dtype=dtype)
 
 def json_to_weights(j, dtype):
     """Convert an object loaded by json.load to an PatternedTensor."""
     if isinstance(j, dict):
-        physical = json_to_scalar(j["physical"], dtype)
+        physical = json_to_tensor(j["physical"], dtype)
         expand = j.get("expand")
         if expand:
             physical = physical.expand([*expand, *repeat(-1, physical.ndim)])
@@ -261,7 +264,7 @@ def json_to_weights(j, dtype):
         default = j.get("default", 0.)
         return PatternedTensor(physical, paxes, vaxes, default)
     else:
-        physical = json_to_scalar(j, dtype)
+        physical = json_to_tensor(j, dtype)
         return PatternedTensor(physical)
 
 def weights_to_dict_json(fgg : FGG, edge_label : EdgeLabel, weights : Tensor):
