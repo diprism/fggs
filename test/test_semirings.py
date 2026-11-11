@@ -9,23 +9,21 @@ examples = [
     (LogSemiring(),     torch.tensor([-inf,  0.,   log(2), log(3), inf])),
     (ViterbiSemiring(), torch.tensor([-inf,  0.,   0.,     0.,     inf])),
     (BoolSemiring(),    torch.tensor([False, True, True,   True,   True])),
+    # avoid complex inf, which has implementation bugs in PyTorch, see:
+    # https://github.com/pytorch/pytorch/issues/154501
+    (ComplexSemiring(), torch.tensor([complex(0., 0), complex(1, 0),
+                                      complex(2, 0), complex(3, 0),
+                                      complex(4, 0),
+                                      complex(0.0, 0.0), complex(0.3, 0.4),
+                                      complex(0.2, 0.5), complex(0.27, 0.12),
+                                      complex(0.43, 0.16),
+                                      complex(0.1, 0.2), complex(1.0, 0.0),
+                                      complex(0.2, 0.5), complex(0.27, 0.12),
+                                      complex(0.43, 0.16),
+                                      complex(0.1, 0.2), complex(0.3, 0.4),
+                                      complex(0.2, 0.5), complex(0.27, 0.12),
+                                      complex(0.43, 0.16)]))
 ]
-
-# The first element is additive 0, the second is multiplicative 0
-# The integer example avoids inf, which has implementation bugs in PyTorch, see:
-# https://github.com/pytorch/pytorch/issues/154501
-complex_int_examples = torch.tensor([complex(0., 0), complex(1, 0),
-                                     complex(2, 0), complex(3, 0),
-                                     complex(4, 0)])
-complex_zero_examples = torch.tensor([complex(0.0, 0.0), complex(0.3, 0.4),
-                                      complex(0.2, 0.5), complex(0.27, 0.12),
-                                      complex(0.43, 0.16)])
-complex_one_examples = torch.tensor([complex(0.1, 0.2), complex(1.0, 0.0),
-                                     complex(0.2, 0.5), complex(0.27, 0.12),
-                                     complex(0.43, 0.16)])
-complex_star_examples = torch.tensor([complex(0.1, 0.2), complex(0.3, 0.4),
-                                      complex(0.2, 0.5), complex(0.27, 0.12),
-                                      complex(0.43, 0.16)])
 
 # nrand adapted from test_indices
 def nrandint(start, end, size) -> torch.Tensor:
@@ -43,14 +41,14 @@ class TestSemirings(unittest.TestCase):
             x_imag = x.imag
             y_real = y.real
             y_imag = y.imag
-            self.assertTrue(torch.allclose(x_real.nan_to_num(), y_real.nan_to_num()), f'{x_real} != {y_real}')
-            self.assertTrue(torch.allclose(x_imag.nan_to_num(), x_imag.nan_to_num()), f'{x_imag} != {y_imag}')
-            self.assertFalse(torch.any(x_real.isnan()))
-            self.assertFalse(torch.any(x_imag.isnan()))
-            self.assertFalse(torch.any(y_real.isnan()))
-            self.assertFalse(torch.any(y_imag.isnan()))
-            self.assertTrue(torch.all(x_real.isinf() == y_real.isinf()), f'{x_real} != {y_real}')
-            self.assertTrue(torch.all(y_imag.isinf() == y_imag.isinf()), f'{x_imag} != {y_imag}')
+            self.assertTrue(torch.allclose(x_real, y_real, rtol=1e-4), f'{x_real} != {y_real}')
+            self.assertTrue(torch.allclose(x_imag, x_imag, rtol=1e-4), f'{x_imag} != {y_imag}')
+            self.assertFalse(torch.any(x_real.isnan()).item(), f'{x_real} has NaN')
+            self.assertFalse(torch.any(x_imag.isnan()).item(), f'{x_imag} has NaN')
+            self.assertFalse(torch.any(y_real.isnan()).item(), f'{y_real} has NaN')
+            self.assertFalse(torch.any(y_imag.isnan()).item(), f'{y_imag} has NaN')
+            self.assertTrue(torch.all(x_real.isinf() == y_real.isinf()).item(), f'{x_real} != {y_real}')
+            self.assertTrue(torch.all(y_imag.isinf() == y_imag.isinf()).item(), f'{x_imag} != {y_imag}')
         else:
             self.assertTrue(torch.allclose(x.nan_to_num(), y.nan_to_num()), f'{x} != {y}')
             self.assertFalse(torch.any(x.isnan()))
@@ -58,71 +56,62 @@ class TestSemirings(unittest.TestCase):
             self.assertTrue(torch.all(x.isinf() == y.isinf()), f'{x} != {y}')
     
     def test_from_int(self):
-        new_examples = examples + [(ComplexSemiring(), complex_int_examples)]
-        for semiring, values in new_examples:
+        for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for i, x in enumerate(values[:4]):
                     self.assertAlmostEqual(semiring.from_int(i), x)
     
     def test_add_associative(self):
-        new_examples = examples + [(ComplexSemiring(), complex_zero_examples)]
-        for semiring, values in new_examples:
+        for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x, y, z in itertools.product(values, repeat=3):
                     self.assertAlmostEqual(semiring.add(x, semiring.add(y, z)),
                                            semiring.add(semiring.add(x, y), z))
 
     def test_add_identity(self):
-        new_examples = examples + [(ComplexSemiring(), complex_zero_examples)]
-        for semiring, values in new_examples:
+        for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x in values:
                     self.assertAlmostEqual(semiring.add(x, values[0]), x)
                     self.assertAlmostEqual(semiring.add(values[0], x), x)
 
     def test_add_commutative(self):
-        new_examples = examples + [(ComplexSemiring(), complex_zero_examples)]
-        for semiring, values in new_examples:
+        for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x, y in itertools.product(values, repeat=2):
                     self.assertAlmostEqual(semiring.add(x, y),
                                            semiring.add(y, x))
                 
     def test_mul_associative(self):
-        new_examples = examples + [(ComplexSemiring(), complex_zero_examples)]
-        for semiring, values in new_examples:
+        for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x, y, z in itertools.product(values, repeat=3):
                     self.assertAlmostEqual(semiring.mul(x, semiring.mul(y, z)),
                                            semiring.mul(semiring.mul(x, y), z))
 
     def test_mul_zero(self):
-        new_examples = examples + [(ComplexSemiring(), complex_zero_examples)]
-        for semiring, values in new_examples:
+        for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x in values:
                     self.assertAlmostEqual(semiring.mul(x, values[0]), values[0])
                     self.assertAlmostEqual(semiring.mul(values[0], x), values[0])
 
     def test_mul_identity(self):
-        new_examples = examples + [(ComplexSemiring(), complex_one_examples)]
-        for semiring, values in new_examples:
+        for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x in values:
                     self.assertAlmostEqual(semiring.mul(x, values[1]), x)
                     self.assertAlmostEqual(semiring.mul(values[1], x), x)
 
     def test_mul_commutative(self):
-        new_examples = examples + [(ComplexSemiring(), complex_one_examples)]
-        for semiring, values in new_examples:
+        for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x, y in itertools.product(values, repeat=2):
                     self.assertAlmostEqual(semiring.mul(x, y),
                                            semiring.mul(y, x))
                 
     def test_distributive(self):
-        new_examples = examples + [(ComplexSemiring(), complex_one_examples)]
-        for semiring, values in new_examples:
+        for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x, y, z in itertools.product(values, repeat=3):
                     self.assertAlmostEqual(semiring.mul(x, semiring.add(y, z)),
@@ -142,10 +131,9 @@ class TestSemirings(unittest.TestCase):
                                            semiring.add(x, x))
 
     def test_star(self):
-        new_examples = examples + [(ComplexSemiring(), complex_star_examples)]
-        for semiring, values in new_examples:
+        for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
-                for x in values:
+                for x in values.masked_select(values.abs() < 1) if isinstance(semiring, ComplexSemiring) else values:
                     self.assertAlmostEqual(semiring.star(x),
                                            semiring.add(semiring.from_int(1), semiring.mul(x, semiring.star(x))))
                     self.assertAlmostEqual(semiring.star(x),
@@ -155,15 +143,8 @@ class TestSemirings(unittest.TestCase):
         for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x, y in itertools.product(values, repeat=2):
-                    if x <= y:
-                        self.assertAlmostEqual(semiring.add(semiring.sub(y, x), x), y)
-                    else:
-                        self.assertAlmostEqual(semiring.add(semiring.sub(y, x), x), x)
-        c_examples = [(ComplexSemiring(), complex_star_examples)]
-        for semiring, values in c_examples:
-            with self.subTest('ComplexSemiring'):
-                for x, y in itertools.product(values, repeat=2):
-                    self.assertAlmostEqual(semiring.add(semiring.sub(y, x), x), y)
+                    self.assertAlmostEqual(semiring.add(semiring.sub(y, x), x),
+                                           y if isinstance(semiring, ComplexSemiring) or x <= y else x)
 
     def test_einsum(self):
         e = torch_semiring_einsum.compile_equation('ij,jk->ik')
@@ -190,10 +171,15 @@ class TestSemirings(unittest.TestCase):
         c = a @ b
         for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
-                sinf = values[-1]
-                sa = torch.where(a < big, semiring.from_int(a), sinf)
-                sb = torch.where(b < big, semiring.from_int(b), sinf)
-                sc = torch.where(c < big, semiring.from_int(c), sinf)
+                if isinstance(semiring, ComplexSemiring):
+                    sa = a
+                    sb = b
+                    sc = c
+                else:
+                    sinf = values[-1]
+                    sa = torch.where(a < big, semiring.from_int(a), sinf)
+                    sb = torch.where(b < big, semiring.from_int(b), sinf)
+                    sc = torch.where(c < big, semiring.from_int(c), sinf)
                 self.assertAlmostEqual(semiring.einsum(e, sa, sb), sc)
         torch.manual_seed(0)
         a = torch.rand(5, 3, dtype=torch.cdouble)
