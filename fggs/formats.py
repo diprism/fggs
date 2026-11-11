@@ -1,7 +1,7 @@
 __all__ = ['json_to_fgg', 'fgg_to_json',
+           'json_to_fgg_with_ring',
            'json_to_hrg', 'hrg_to_json',
            'json_to_weights',
-           'json_weights_type',
            'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
 
 from itertools import repeat
@@ -9,11 +9,12 @@ from functools import reduce
 from math import isfinite
 from fggs.fggs import *
 from fggs.indices import PhysicalAxis, productAxis, SumAxis, PatternedTensor
+from fggs.semirings import Semiring, RealSemiring, ComplexSemiring
 from fggs import domains, factors
 import re
 import torch
 from torch import Tensor
-from typing import cast
+from typing import cast, Tuple
 from enum import Enum
 
 class WeightType(Enum):
@@ -57,6 +58,15 @@ def json_weights_type(j):
             raise ValueError(f'The given default datatype of torch is not supported: {torch.get_default_dtype()}')
 
     return dtype
+
+
+def json_semiring(ring_type: torch.dtype) -> Semiring:
+    if ring_type == torch.float32 or ring_type == torch.float64:
+        return RealSemiring(dtype=ring_type)
+    elif ring_type == torch.cfloat or ring_type == torch.cdouble:
+        return ComplexSemiring(dtype=ring_type)
+    else:
+        raise ValueError(f'Unsupported semiring type: {ring_type}')
 
 
 def json_is_number(j):
@@ -115,6 +125,14 @@ def json_to_fgg(j):
             raise ValueError(f'invalid factor function: {d["function"]}')
         
     return fgg
+
+
+def json_to_fgg_with_ring(j) -> Tuple[FGG, Semiring]:
+    ring_type = json_weights_type(j)
+    ring = json_semiring(ring_type)
+    fgg = json_to_fgg(j)
+    return fgg, ring
+
 
 def fgg_to_json(fgg):
     """Convert an FGG to an object writable by json.dump()."""
