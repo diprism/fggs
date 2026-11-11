@@ -49,8 +49,7 @@ if __name__ == '__main__':
     if (args.grad or args.expect) and not args.weights:
         error('the -g and -e options require the -w option')
 
-    j = json.load(open(args.fgg))
-    fgg, ring = fggs.json_to_fgg_with_ring(j)
+    fgg, ring = fggs.json_to_fgg_with_ring(json.load(open(args.fgg)))
 
     extern_weights = {}
     for name, weights in args.weights:
