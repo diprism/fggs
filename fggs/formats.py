@@ -2,6 +2,7 @@ __all__ = ['json_to_fgg', 'fgg_to_json',
            'json_to_fgg_with_ring',
            'json_to_hrg', 'hrg_to_json',
            'json_to_weights',
+           'tensor_to_json',
            'graph_to_dot', 'graph_to_tikz', 'hrg_to_tikz']
 
 from itertools import repeat
@@ -267,18 +268,28 @@ def json_to_weights(j, dtype):
         physical = json_to_tensor(j, dtype)
         return PatternedTensor(physical)
 
+def tensor_to_json(s: PatternedTensor):
+    if s.dtype == torch.cfloat or s.dtype == torch.cdouble:
+        elems = s.tolist()
+        if isinstance(elems, list):
+            return [{'re': e.real, 'im': e.imag} for e in elems]
+        else:
+            return {'re': elems.real, 'im': elems.imag}
+    else:
+        return s
+
 def weights_to_dict_json(fgg : FGG, edge_label : EdgeLabel, weights : Tensor):
     def to_dict(edge_type, weights):
         if len(edge_type) == 0:
-            return float(weights)
+            return weights
         else:
             d = fgg.domains[edge_type[0].name]
             if isinstance(d, domains.FiniteDomain) and d.size() == len(weights):
                 return {d.denumberize(i):
-                        to_dict(edge_type[1:], w)
+                        to_dict(edge_type[1:], tensor_to_json(w))
                         for i, w in enumerate(weights)}
             else:
-                return [to_dict(edge_type[1:], w)
+                return [to_dict(edge_type[1:], tensor_to_json(w))
                         for w in weights]
     return to_dict(edge_label.type, weights)
 

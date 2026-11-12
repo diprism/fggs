@@ -54,6 +54,9 @@ class ConstantFactor(Factor):
 def weights_to_json(weights):
     if isinstance(weights, float) or hasattr(weights, 'shape') and len(weights.shape) == 0:
         return float(weights)
+    elif isinstance(weights, complex) or hasattr(weights, 'shape') and len(weights.shape) == 0:
+        w = complex(weights)
+        return {'re': w.real, 'im': w.imag}
     else:
         return [weights_to_json(w) for w in weights]
 
