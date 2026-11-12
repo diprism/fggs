@@ -44,19 +44,15 @@ def json_weights_type(j):
 
     dtype = torch.get_default_dtype()
     if weight_type == WeightType.REAL:
-        if torch.get_default_dtype() == torch.float32:
-            dtype = torch.float32
-        elif torch.get_default_dtype() == torch.float64:
-            dtype = torch.float64
-        else:
-            raise ValueError(f'The given default datatype of torch is not supported: {torch.get_default_dtype()}')
+        if not (dtype == torch.float32 or dtype == torch.float64):
+            raise ValueError(f'The given default datatype of torch is not supported: {dtype}')
     else:
         if torch.get_default_dtype() == torch.float32:
             dtype = torch.cfloat
         elif torch.get_default_dtype() == torch.float64:
             dtype = torch.cdouble
         else:
-            raise ValueError(f'The given default datatype of torch is not supported: {torch.get_default_dtype()}')
+            raise ValueError(f'The given default datatype of torch is not supported: {dtype}')
 
     return dtype
 
@@ -91,13 +87,18 @@ def json_scalar_type(j):
     elif json_is_complex(physical):
         return WeightType.COMPLEX
     elif isinstance(physical, list):
-        return reduce(weight_type_fold, [json_scalar_type(i) for i in physical], WeightType.REAL)
+        return reduce(weight_type_fold, (json_scalar_type(i) for i in physical), WeightType.REAL)
     else:
         raise ValueError(f'not a valid scalar value type: {j}')
 
 def json_to_fgg(j):
     """Convert an object loaded by json.load to an FGG."""
     dtype = json_weights_type(j)
+    return json_to_fgg_with_dtype(j, dtype)
+
+
+def json_to_fgg_with_dtype(j, dtype):
+    """Convert an object loaded by json.load to an FGG with the given dtype."""
 
     fgg = FGG.from_hrg(json_to_hrg(j['grammar']))
 
@@ -130,7 +131,7 @@ def json_to_fgg(j):
 def json_to_fgg_with_ring(j) -> Tuple[FGG, Semiring]:
     ring_type = json_weights_type(j)
     ring = json_semiring(ring_type)
-    fgg = json_to_fgg(j)
+    fgg = json_to_fgg_with_dtype(j, ring_type)
     return fgg, ring
 
 
@@ -269,8 +270,8 @@ def json_to_weights(j, dtype):
         return PatternedTensor(physical)
 
 def scalar_to_json(s : Tensor):
-    if s.dtype == torch.cfloat or s.dtype == torch.cdouble:
-        {'re': s.real, 'im': s.imag}
+    if s.is_complex():
+        {'re': s.item().real, 'im': s.item().imag}
     else:
         return s.item()
 
