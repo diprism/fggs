@@ -78,7 +78,7 @@ def json_is_complex(j):
 
 
 def json_scalar_type(j):
-    if isinstance(j, dict):
+    if isinstance(j, dict) and "physical" in j:
         physical = j["physical"]
     else:
         physical = j
@@ -254,7 +254,7 @@ def json_to_tensor(j, dtype):
 
 def json_to_weights(j, dtype):
     """Convert an object loaded by json.load to an PatternedTensor."""
-    if isinstance(j, dict):
+    if isinstance(j, dict) and "physical" in j:
         physical = json_to_tensor(j["physical"], dtype)
         expand = j.get("expand")
         if expand:
