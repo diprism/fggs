@@ -1,0 +1,65 @@
+{
+    "grammar": {
+        "terminals": {
+            "a": { "type": [] },
+            "b": { "type": [] },
+            "c": { "type": [] }
+        },
+        "nonterminals": {
+            "S": { "type" : [] },
+            "X": { "type" : [] }
+        },
+        "start": "S",
+        "rules": [
+            {
+                "lhs": "S",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [
+                        { "attachments": [], "label": "X" },
+                        { "attachments": [], "label": "a" }
+                    ],
+                    "externals": []
+                }
+            },
+            {
+                "lhs": "X",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [
+                        { "attachments": [], "label": "X" },
+                        { "attachments": [], "label": "b" }
+                    ],
+                    "externals": []
+                }
+            },
+            {
+                "lhs": "X",
+                "rhs": {
+                    "nodes": [],
+                    "edges": [
+                        { "attachments": [], "label": "c" }
+                    ],
+                    "externals": []
+                }
+            }
+        ]
+    },
+    "interpretation": {
+        "domains": {},
+        "factors": {
+            "a": {
+                "function": "finite",
+                "weights": 2
+            },
+            "b": {
+                "function": "finite",
+                "weights": {"re": 0.4, "im": 0.6}
+            },
+            "c": {
+                "function": "finite",
+                "weights": 3
+            }
+        }
+    }
+}
