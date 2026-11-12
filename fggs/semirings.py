@@ -176,14 +176,11 @@ class RealSemiring(Semiring):
 
 class ComplexSemiring(Semiring):
     def __init__(self, dtype=None, device='cpu'):
+        if dtype is None: dtype = torch.get_default_dtype()
+        if dtype == torch.float32: dtype = torch.cfloat
+        elif dtype == torch.float64: dtype = torch.cdouble
         super().__init__(dtype, device)
-        if dtype is None:
-            if torch.get_default_dtype() == torch.float64:
-                self.dtype = torch.cdouble
-            else:
-                self.dtype = torch.cfloat
-        elif dtype == torch.float32: self.dtype = torch.cfloat
-        elif dtype == torch.float64: self.dtype = torch.cdouble
+        self.dtype = dtype
 
     def from_int(self, n: Union[int, torch.Tensor]) -> torch.Tensor:
         return torch.as_tensor(n, dtype=self.dtype, device=self.device)
