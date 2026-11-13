@@ -52,7 +52,7 @@ class ConstantFactor(Factor):
                    self.weight == other.weight
 
 def weights_to_json(weights: PatternedTensor):
-    if weights.numel() == 1:
+    if len(getattr(weights, 'shape', "default")) == 0:
         if weights.is_complex():
             return {'re': weights.item().real, 'im': weights.item().imag}
         else:
