@@ -51,9 +51,12 @@ class ConstantFactor(Factor):
                    self.domains == other.domains and \
                    self.weight == other.weight
 
-def weights_to_json(weights):
-    if isinstance(weights, float) or hasattr(weights, 'shape') and len(weights.shape) == 0:
-        return float(weights)
+def weights_to_json(weights: PatternedTensor):
+    if len(getattr(weights, 'shape', "default")) == 0:
+        if weights.is_complex():
+            return {'re': weights.item().real, 'im': weights.item().imag}
+        else:
+            return weights.item()
     else:
         return [weights_to_json(w) for w in weights]
 

@@ -9,12 +9,46 @@ examples = [
     (LogSemiring(),     torch.tensor([-inf,  0.,   log(2), log(3), inf])),
     (ViterbiSemiring(), torch.tensor([-inf,  0.,   0.,     0.,     inf])),
     (BoolSemiring(),    torch.tensor([False, True, True,   True,   True])),
+    # avoid complex inf, which has implementation bugs in PyTorch, see:
+    # https://github.com/pytorch/pytorch/issues/154501
+    (ComplexSemiring(), torch.tensor([complex(0., 0), complex(1, 0),
+                                      complex(2, 0), complex(3, 0),
+                                      complex(4, 0),
+                                      complex(0.0, 0.0), complex(0.3, 0.4),
+                                      complex(0.2, 0.5), complex(0.27, 0.12),
+                                      complex(0.43, 0.16),
+                                      complex(0.1, 0.2), complex(1.0, 0.0),
+                                      complex(0.2, 0.5), complex(0.27, 0.12),
+                                      complex(0.43, 0.16),
+                                      complex(0.1, 0.2), complex(0.3, 0.4),
+                                      complex(0.2, 0.5), complex(0.27, 0.12),
+                                      complex(0.43, 0.16)]))
 ]
+
+# nrand adapted from test_indices
+def nrandint(start, end, size) -> torch.Tensor:
+    s = torch.Size(size)
+    n = s.numel()
+    return torch.zeros(s) if n == 0 else torch.arange(start, max(end, start + n)).view(s)
+
 
 class TestSemirings(unittest.TestCase):
     def assertAlmostEqual(self, x, y):
         if x.dtype is torch.bool:
             self.assertTrue(torch.all(x == y), f'{x} != {y}')
+        elif x.dtype in (torch.complex64, torch.complex128) and y.dtype == x.dtype:
+            x_real = x.real
+            x_imag = x.imag
+            y_real = y.real
+            y_imag = y.imag
+            self.assertTrue(torch.allclose(x_real, y_real, rtol=1e-4), f'{x_real} != {y_real}')
+            self.assertTrue(torch.allclose(x_imag, x_imag, rtol=1e-4), f'{x_imag} != {y_imag}')
+            self.assertFalse(torch.any(x_real.isnan()).item(), f'{x_real} has NaN')
+            self.assertFalse(torch.any(x_imag.isnan()).item(), f'{x_imag} has NaN')
+            self.assertFalse(torch.any(y_real.isnan()).item(), f'{y_real} has NaN')
+            self.assertFalse(torch.any(y_imag.isnan()).item(), f'{y_imag} has NaN')
+            self.assertTrue(torch.all(x_real.isinf() == y_real.isinf()).item(), f'{x_real} != {y_real}')
+            self.assertTrue(torch.all(y_imag.isinf() == y_imag.isinf()).item(), f'{x_imag} != {y_imag}')
         else:
             self.assertTrue(torch.allclose(x.nan_to_num(), y.nan_to_num()), f'{x} != {y}')
             self.assertFalse(torch.any(x.isnan()))
@@ -99,26 +133,24 @@ class TestSemirings(unittest.TestCase):
     def test_star(self):
         for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
-                for x in values:
+                for x in values.masked_select(values.abs() < 1) if isinstance(semiring, ComplexSemiring) else values:
                     self.assertAlmostEqual(semiring.star(x),
-                                           semiring.add(values[1], semiring.mul(x, semiring.star(x))))
+                                           semiring.add(semiring.from_int(1), semiring.mul(x, semiring.star(x))))
                     self.assertAlmostEqual(semiring.star(x),
-                                           semiring.add(values[1], semiring.mul(semiring.star(x), x)))
+                                           semiring.add(semiring.from_int(1), semiring.mul(semiring.star(x), x)))
                     
     def test_sub(self):
         for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
                 for x, y in itertools.product(values, repeat=2):
-                    if x <= y:
-                        self.assertAlmostEqual(semiring.add(semiring.sub(y, x), x), y)
-                    else:
-                        self.assertAlmostEqual(semiring.add(semiring.sub(y, x), x), x)
+                    self.assertAlmostEqual(semiring.add(semiring.sub(y, x), x),
+                                           y if isinstance(semiring, ComplexSemiring) or x <= y else x)
 
     def test_einsum(self):
         e = torch_semiring_einsum.compile_equation('ij,jk->ik')
         torch.manual_seed(0)
-        a = torch.randint(0, 5, (10, 10))
-        b = torch.randint(0, 5, (10, 10))
+        a = nrandint(0, 5, (10, 10))
+        b = nrandint(0, 5, (10, 10))
         c = a @ b
         for semiring, _ in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
@@ -139,11 +171,22 @@ class TestSemirings(unittest.TestCase):
         c = a @ b
         for semiring, values in examples:
             with self.subTest(semiring=semiring.__class__.__name__):
-                sinf = values[-1]
-                sa = torch.where(a < big, semiring.from_int(a), sinf)
-                sb = torch.where(b < big, semiring.from_int(b), sinf)
-                sc = torch.where(c < big, semiring.from_int(c), sinf)
+                if isinstance(semiring, ComplexSemiring):
+                    sa = a
+                    sb = b
+                    sc = c
+                else:
+                    sinf = values[-1]
+                    sa = torch.where(a < big, semiring.from_int(a), sinf)
+                    sb = torch.where(b < big, semiring.from_int(b), sinf)
+                    sc = torch.where(c < big, semiring.from_int(c), sinf)
                 self.assertAlmostEqual(semiring.einsum(e, sa, sb), sc)
+        torch.manual_seed(0)
+        a = torch.rand(5, 3, dtype=torch.cdouble)
+        b = torch.rand(3, dtype=torch.cdouble)
+        c = a @ b
+        with self.subTest(self.subTest(semiring='ComplexSemiring')):
+            self.assertAlmostEqual(ComplexSemiring().einsum(e, a, b), c)
             
 
     def test_solve(self):
@@ -157,6 +200,12 @@ class TestSemirings(unittest.TestCase):
             self.assertAlmostEqual(RealSemiring().solve(a, b), x)
         with self.subTest(semiring='LogSemiring'):
             self.assertAlmostEqual(LogSemiring().solve(a.log(), b.log()), x.log())
+        a = torch.rand(10, 10, dtype=torch.cfloat)
+        b = torch.rand(10, dtype=torch.cfloat)
+        a /= 2*torch.norm(a) # ensure that x exists
+        x = torch.linalg.inv(torch.eye(*a.shape)-a) @ b
+        with self.subTest(semiring='ComplexSemiring'):
+            self.assertAlmostEqual(ComplexSemiring().solve(a, b), x)
         # No tests for ViterbiSemiring or BoolSemiring yet
                             
 if __name__ == '__main__':

@@ -25,7 +25,7 @@ class TestJSON(unittest.TestCase):
                     self.assertTrue('id' not in n)
     
     def test_roundtrip(self):
-        for filename in ['hmm.json', 'example12p.json', 'simplefgg.json']:
+        for filename in ['hmm.json', 'example12p.json', 'simplefgg.json', 'linear_complex.json']:
             with open(os.path.join(os.path.dirname(__file__), filename)) as f:
                 j = json.load(f)
             fgg = fggs.json_to_fgg(j)

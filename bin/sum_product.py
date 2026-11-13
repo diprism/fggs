@@ -24,7 +24,7 @@ def tensor_to_dict_string(is_pretty, fgg, node, t):
     if is_pretty:
         return json.dumps(fggs.formats.weights_to_dict_json(fgg, node, t))
     else:
-        return json.dumps(t.tolist())
+        return json.dumps(fggs.formats.tensor_to_json(t))
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description='Compute the sum-product of an FGG.')
@@ -49,7 +49,7 @@ if __name__ == '__main__':
     if (args.grad or args.expect) and not args.weights:
         error('the -g and -e options require the -w option')
 
-    fgg = fggs.json_to_fgg(json.load(open(args.fgg)))
+    fgg, ring = fggs.json_to_fgg_with_ring(json.load(open(args.fgg)))
 
     extern_weights = {}
     for name, weights in args.weights:
@@ -110,7 +110,7 @@ if __name__ == '__main__':
         for w in fgg.factors.values():
             w.weights.requires_grad_()
 
-    zs = fggs.sum_products(fgg, method=args.method, tol=args.tol, kmax=args.kmax, j_precompute=args.j_precompute)
+    zs = fggs.sum_products(fgg, method=args.method, tol=args.tol, kmax=args.kmax, j_precompute=args.j_precompute, semiring=ring)
     z = zs[fgg.start]
 
     if args.trace:
