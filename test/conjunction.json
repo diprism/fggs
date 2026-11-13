@@ -20,8 +20,8 @@
                     { "id": "v0", "label": "T" }
                 ],
                 "edges": [
-                    { "id": "e0", "attachments": [0], "label": "is_bos" },
-                    { "id": "e1", "attachments": [0], "label": "<X,X>" }
+                    { "id": "e1", "attachments": [0], "label": "<X,X>" },
+                    { "id": "e0", "attachments": [0], "label": "is_bos" }
                 ],
                 "externals": []
             }
@@ -35,9 +35,9 @@
                     { "id": "v2", "label": "W" }
                 ],
                 "edges": [
+                    { "id": "e2", "attachments": [1], "label": "<X,X>" },
                     { "id": "e0", "attachments": [0, 1], "label": "transition" },
-                    { "id": "e1", "attachments": [1, 2], "label": "emission" },
-                    { "id": "e2", "attachments": [1], "label": "<X,X>" }
+                    { "id": "e1", "attachments": [1, 2], "label": "emission" }
                 ],
                 "externals": [0]
             }
@@ -51,9 +51,9 @@
                     { "id": "v2", "label": "W" }
                 ],
                 "edges": [
+                    { "id": "e2", "attachments": [1], "label": "<X,Y>" },
                     { "id": "e0", "attachments": [0, 1], "label": "transition" },
                     { "id": "e1", "attachments": [1, 2], "label": "emission" },
-                    { "id": "e2", "attachments": [1], "label": "<X,Y>" },
                     { "id": "e3", "attachments": [1], "label": "is_vbd" }
                 ],
                 "externals": [0]

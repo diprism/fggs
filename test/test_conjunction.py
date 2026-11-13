@@ -121,6 +121,6 @@ class TestConjunction(unittest.TestCase):
 
         # ignore order of rules
         for r in self.conjunction_json['rules']:
-            self.assertTrue(r in conjunction_json_check['rules'])
+            self.assertTrue(r in conjunction_json_check['rules'], f'rule: {r}\nnot found in: {conjunction_json_check['rules']}')
         for r in conjunction_json_check['rules']:
             self.assertTrue(r in self.conjunction_json['rules'])

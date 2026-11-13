@@ -209,7 +209,7 @@ def hrg_to_json(g):
     
     j['rules'] = []
     for gr in g.all_rules():
-        nodes = sorted(gr.rhs.nodes(), key=lambda v: str(v.id))
+        nodes = gr.rhs.nodes()
         node_nums = {v:vi for vi, v in enumerate(nodes)}
         jnodes = []
         for v in nodes:
@@ -225,7 +225,7 @@ def hrg_to_json(g):
                 'externals': [node_nums[v] for v in gr.rhs.ext],
             },
         }
-        for e in sorted(gr.rhs.edges(), key=lambda e: str(e.id)):
+        for e in gr.rhs.edges():
             je = {
                 'attachments': [node_nums[v] for v in e.nodes],
                 'label': e.label.name,
